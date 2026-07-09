@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Control de Pedidos y Despachos Nativo
 
-## Getting Started
+Aplicación web para gestión de ventas, pagos, entregas, seguimiento de pedidos y prospectos.
 
-First, run the development server:
+**Stack**: Next.js (App Router) · TypeScript · shadcn/ui · Supabase (Postgres, esquema `nativo`) · Vercel
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Módulos
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Módulo | Descripción |
+|---|---|
+| Dashboard | KPIs (por cobrar, pendientes de entrega, alertas 10+ días, ventas del mes), gráfico de 12 meses, top productos/clientes |
+| Ventas | Registro de ventas (cliente + productos + pago) e historial con filtros y export a Excel |
+| Pagos | Pedidos pendientes por pagar, registro de abonos/retenciones con historial por pedido |
+| Entregas | Estados de entrega con historial completo (timeline) por pedido |
+| Seguimiento | Trazabilidad completa: venta → pagos → estados, con alerta por días sin movimiento |
+| Prospectos | Clientes por contactar con seguimiento de estado |
+| Clientes | Directorio editable de clientes |
+| Configuración | Usuarios con permisos por módulo y administración de listas maestras |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuración local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. `npm install`
+2. Crear `.env.local`:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+   SUPABASE_SERVICE_ROLE_KEY=...   # secreta, solo servidor
+   SESSION_SECRET=...              # aleatorio, firma las cookies de sesión
+   ```
+3. Ejecutar `supabase/schema.sql` en el SQL Editor de Supabase.
+4. En Supabase → Settings → API → Exposed schemas: agregar `nativo`.
+5. `npm run dev`
 
-## Learn More
+## Migración de datos (Google Sheets → Supabase)
 
-To learn more about Next.js, take a look at the following resources:
+1. Exportar el Google Sheet: Archivo → Descargar → `.xlsx` → guardar como `datos/registro-ventas.xlsx`.
+2. `npx tsx scripts/migrar.ts --limpiar`
+3. Revisar el reporte de conciliación que imprime el script.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Variables opcionales para el usuario administrador inicial: `ADMIN_USUARIO`, `ADMIN_CONTRASENA`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notas de seguridad
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Todo el acceso a datos es **server-side** (service role); el navegador nunca habla directo con Supabase.
+- ⚠️ La tabla `usuarios` guarda contraseñas **en texto plano** por decisión explícita del propietario del sistema.
