@@ -11,10 +11,10 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
     <SidebarProvider>
       <AppSidebar sesion={sesion} accionSalir={salir} />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-primary/10 bg-white/60 px-4 backdrop-blur-md">
           <SidebarTrigger />
           <Separator orientation="vertical" className="mr-2 h-5" />
-          <h1 className="truncate text-sm font-semibold sm:text-base">
+          <h1 className="truncate text-sm font-semibold tracking-tight sm:text-base">
             Sistema de Control de Pedidos y Despachos Nativo
           </h1>
         </header>

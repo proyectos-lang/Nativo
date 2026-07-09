@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -72,15 +72,15 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.51 0.12 160);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.33 0.07 158);
+  --sidebar-foreground: oklch(0.97 0.01 160);
+  --sidebar-primary: oklch(0.72 0.14 160);
+  --sidebar-primary-foreground: oklch(0.15 0.03 160);
+  --sidebar-accent: oklch(1 0 0 / 14%);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.14 160);
 }
 
 .dark {
@@ -122,9 +122,57 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background:
+      radial-gradient(1200px 600px at 85% -10%, oklch(0.9 0.06 158 / 55%), transparent 60%),
+      radial-gradient(900px 500px at -10% 100%, oklch(0.92 0.05 150 / 45%), transparent 60%),
+      linear-gradient(165deg, oklch(0.99 0.006 160) 0%, oklch(0.955 0.02 155) 100%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* ============================================================
+   Identidad visual Nativo
+   ============================================================ */
+
+/* Barra lateral con degradado verde bosque */
+[data-slot="sidebar-inner"] {
+  background: linear-gradient(180deg, oklch(0.36 0.075 158) 0%, oklch(0.28 0.065 162) 60%, oklch(0.24 0.06 168) 100%);
+}
+
+/* El contenido principal deja ver el degradado del body */
+[data-slot="sidebar-inset"] {
+  background: transparent;
+}
+
+/* Tarjetas más suaves: borde tenue + sombra flotante verde */
+[data-slot="card"] {
+  border-color: oklch(0.51 0.12 160 / 10%);
+  box-shadow:
+    0 1px 2px oklch(0.3 0.06 160 / 5%),
+    0 14px 34px -18px oklch(0.4 0.1 160 / 22%);
+}
+
+/* Encabezados de tabla con un toque verde */
+thead {
+  background-color: oklch(0.51 0.12 160 / 6%);
+}
+
+/* Scrollbars discretos */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.51 0.12 160 / 25%);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.51 0.12 160 / 45%);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

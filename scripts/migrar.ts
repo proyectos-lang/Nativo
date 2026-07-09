@@ -49,7 +49,7 @@ type Fila = (string | number | Date | null)[];
 function celda(fila: Fila, idx: number): string {
   const v = fila[idx];
   if (v === null || v === undefined) return "";
-  if (v instanceof Date) return v.toISOString();
+  if (v instanceof Date) return isNaN(v.getTime()) ? "" : v.toISOString();
   return String(v).trim();
 }
 function numero(fila: Fila, idx: number): number {
@@ -138,7 +138,7 @@ async function main() {
 
   // ===== 2. VENTAS GENERAL (parseo con descombinación) =====
   const filasVentas = hoja(wb, "VENTAS GENERAL").slice(1);
-  type Linea = { producto: string; codigo: string | null; cantidad: number; talla: string | null; color: string | null; sexo: string | null; estampado: string | null; bordado: string | null; guia_estampado: string | null; guia_bordado: string | null; valor_unitario: number; valor_total: number };
+  type Linea = { producto: string; codigo_producto: string | null; cantidad: number; talla: string | null; color: string | null; sexo: string | null; estampado: string | null; bordado: string | null; guia_estampado: string | null; guia_bordado: string | null; valor_unitario: number; valor_total: number };
   type Cabecera = { ticket: number | null; fila: Fila; lineas: Linea[]; filaN: number };
   const cabeceras: Cabecera[] = [];
   let actual: Cabecera | null = null;
@@ -147,7 +147,7 @@ async function main() {
     const producto = celda(f, 12);
     if (!producto) return null;
     return {
-      producto, codigo: celda(f, 13) || null, cantidad: numero(f, 14) || 1,
+      producto, codigo_producto: celda(f, 13) || null, cantidad: numero(f, 14) || 1,
       talla: celda(f, 15) || null, color: celda(f, 16) || null, sexo: celda(f, 17) || null,
       estampado: celda(f, 8) || null, bordado: celda(f, 9) || null,
       guia_bordado: celda(f, 10) || null, guia_estampado: celda(f, 11) || null,
@@ -321,7 +321,7 @@ async function main() {
     const fechaRaw = f[1];
     histRows.push({
       venta_id,
-      fecha: fechaRaw instanceof Date ? fechaRaw.toISOString() : new Date().toISOString(),
+      fecha: fechaRaw instanceof Date && !isNaN(fechaRaw.getTime()) ? fechaRaw.toISOString() : new Date().toISOString(),
       estado_anterior: celda(f, 2) || null, estado_nuevo: celda(f, 3) || "Sin Estado",
       comentario: celda(f, 4) || null, usuario: "migracion",
     });

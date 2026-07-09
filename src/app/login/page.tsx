@@ -6,18 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package } from "lucide-react";
+import { LogoNativo } from "@/components/logo-nativo";
 
 export default function PaginaLogin() {
   const [estado, accion, pendiente] = useActionState(iniciarSesion, {});
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-gradient-to-br from-emerald-50 to-green-100 p-4 dark:from-emerald-950 dark:to-green-950">
-      <Card className="w-full max-w-sm shadow-lg">
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-800 to-green-950 p-4">
+      <div className="pointer-events-none absolute -top-32 -right-32 size-96 rounded-full bg-emerald-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -left-32 size-96 rounded-full bg-green-400/15 blur-3xl" />
+      <Card className="w-full max-w-sm border-white/10 shadow-2xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-xl bg-emerald-700 text-white">
-            <Package className="size-6" />
-          </div>
+          <LogoNativo className="mx-auto mb-2 size-20 shadow-lg" />
           <CardTitle className="text-lg leading-snug">
             Sistema de Control de Pedidos y Despachos Nativo
           </CardTitle>
@@ -36,7 +36,7 @@ export default function PaginaLogin() {
             {estado?.error && (
               <p className="text-sm text-destructive">{estado.error}</p>
             )}
-            <Button type="submit" disabled={pendiente} className="bg-emerald-700 hover:bg-emerald-800">
+            <Button type="submit" disabled={pendiente}>
               {pendiente ? "Verificando..." : "Ingresar"}
             </Button>
           </form>

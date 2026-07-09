@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sistema de Control de Pedidos y Despachos Nativo",
   description: "Gestión de ventas, pagos, entregas y seguimiento de pedidos",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({

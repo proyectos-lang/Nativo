@@ -9,8 +9,9 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Truck, Hourglass,
-  Users, Contact, Settings, Package, LogOut,
+  Users, Contact, Settings, LogOut,
 } from "lucide-react";
+import { LogoNativo } from "@/components/logo-nativo";
 import type { Sesion, Modulo } from "@/lib/tipos";
 
 const ITEMS: { clave: Modulo; titulo: string; url: string; icono: React.ElementType }[] = [
@@ -30,14 +31,12 @@ export function AppSidebar({ sesion, accionSalir }: { sesion: Sesion; accionSali
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b">
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Package className="size-4" />
-          </div>
+      <SidebarHeader className="border-b border-sidebar-border">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <LogoNativo className="size-10 shrink-0 shadow-md ring-2 ring-white/20" />
           <div className="leading-tight">
-            <p className="text-sm font-bold">Nativo</p>
-            <p className="text-xs text-muted-foreground">Pedidos y Despachos</p>
+            <p className="text-base font-bold tracking-tight">Nativo</p>
+            <p className="text-xs opacity-70">Pedidos y Despachos</p>
           </div>
         </div>
       </SidebarHeader>
@@ -61,14 +60,19 @@ export function AppSidebar({ sesion, accionSalir }: { sesion: Sesion; accionSali
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t">
+      <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center justify-between gap-2 px-2 py-1">
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-medium">{sesion.nombre}</p>
-            <p className="truncate text-xs text-muted-foreground">{sesion.rol === "admin" ? "Administrador" : "Usuario"}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold uppercase">
+              {sesion.nombre.charAt(0)}
+            </div>
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-medium">{sesion.nombre}</p>
+              <p className="truncate text-xs opacity-70">{sesion.rol === "admin" ? "Administrador" : "Usuario"}</p>
+            </div>
           </div>
           <form action={accionSalir}>
-            <Button type="submit" variant="ghost" size="icon" title="Cerrar sesión">
+            <Button type="submit" variant="ghost" size="icon" title="Cerrar sesión" className="text-sidebar-foreground hover:bg-white/15 hover:text-white">
               <LogOut className="size-4" />
             </Button>
           </form>
