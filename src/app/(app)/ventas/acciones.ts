@@ -112,6 +112,69 @@ export async function registrarVenta(venta: NuevaVenta) {
   return { ticket: cab.ticket as number };
 }
 
+export async function actualizarVenta(datos: {
+  venta_id: number;
+  canal_venta?: string;
+  campana?: string;
+  vendedora?: string;
+  profesional?: string;
+  motivo_compra?: string;
+  fecha_entrega?: string;
+  lineas: LineaVenta[];
+}) {
+  await requierePermiso("ventas");
+  const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
+  if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
+
+  const { data: venta, error: errGet } = await db()
+    .from("ventas").select("id, ticket, retencion, abono").eq("id", datos.venta_id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const total = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+  const totalAPagar = total - Number(venta.retencion || 0);
+  const saldo = totalAPagar - Number(venta.abono || 0);
+
+  // Reemplaza el detalle completo
+  const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
+  if (errDel) throw new Error(errDel.message);
+  const { error: errIns } = await db().from("ventas_detalle").insert(
+    lineas.map(l => ({
+      venta_id: datos.venta_id,
+      producto: l.producto.trim(),
+      cantidad: Number(l.cantidad) || 1,
+      valor_unitario: Number(l.valor_unitario) || 0,
+      valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
+      talla: l.talla || null, color: l.color || null, sexo: l.sexo || null,
+      estampado: l.estampado || null, bordado: l.bordado || null,
+      guia_estampado: l.guia_estampado || null, guia_bordado: l.guia_bordado || null,
+    }))
+  );
+  if (errIns) throw new Error(errIns.message);
+
+  const { error: errUpd } = await db().from("ventas").update({
+    canal_venta: datos.canal_venta || null,
+    campana: datos.campana || null,
+    vendedora: datos.vendedora || null,
+    profesional: datos.profesional || null,
+    motivo_compra: datos.motivo_compra || null,
+    fecha_entrega: datos.fecha_entrega || null,
+    total_compra: total,
+    total_a_pagar: totalAPagar,
+    saldo,
+    estado_pago: saldo <= 0 && total > 0 ? "Pagado Total" : Number(venta.abono) > 0 ? "Abonado" : "Pendiente",
+  }).eq("id", datos.venta_id);
+  if (errUpd) throw new Error(errUpd.message);
+
+  for (const l of lineas) {
+    await db().from("productos").upsert({ nombre: l.producto.trim() }, { onConflict: "nombre", ignoreDuplicates: true });
+  }
+
+  revalidatePath("/ventas");
+  revalidatePath("/pagos");
+  revalidatePath("/");
+  return { ticket: venta.ticket as number };
+}
+
 export async function crearCliente(datos: {
   nombre: string; cedula_nit?: string; empresa?: string; contacto?: string;
   ciudad?: string; departamento?: string; direccion?: string; correo?: string; rut?: string;

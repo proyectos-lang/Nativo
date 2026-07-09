@@ -105,7 +105,7 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
       </Card>
 
       <Dialog open={abierto} onOpenChange={setAbierto}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>{form.id ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             {campo("nombre", "Nombre *")}

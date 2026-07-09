@@ -133,7 +133,7 @@ export function PagosCliente({ ventas, pagos }: { ventas: Venta[]; pagos: Record
       </Card>
 
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Ticket #{sel?.ticket} — {sel?.clientes?.nombre}</DialogTitle>
           </DialogHeader>

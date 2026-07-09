@@ -11,6 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList,
+} from "@/components/ui/combobox";
+import { Combo } from "@/components/combo";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
 import { formatoPesos, type Cliente } from "@/lib/tipos";
@@ -22,20 +26,6 @@ type Props = {
 };
 
 const LINEA_VACIA: LineaVenta = { producto: "", cantidad: 1, valor_unitario: 0 };
-
-function CampoLista({ id, label, opciones, value, onChange }: {
-  id: string; label: string; opciones: string[]; value: string; onChange: (v: string) => void;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} list={`dl-${id}`} value={value} onChange={e => onChange(e.target.value)} placeholder="Seleccione..." />
-      <datalist id={`dl-${id}`}>
-        {opciones.map(o => <option key={o} value={o} />)}
-      </datalist>
-    </div>
-  );
-}
 
 export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, productos }: Props) {
   const [pendiente, startTransition] = useTransition();
@@ -49,9 +39,8 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   const [motivo, setMotivo] = useState("");
 
   // Cliente
-  const [busquedaCliente, setBusquedaCliente] = useState("");
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null);
-  const [mostrarLista, setMostrarLista] = useState(false);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
   const [dialogCliente, setDialogCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "", departamento: "", direccion: "", rut: "" });
 
@@ -72,16 +61,6 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
     () => lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0),
     [lineas]
   );
-
-  const clientesFiltrados = useMemo(() => {
-    const q = busquedaCliente.toLowerCase().trim();
-    if (q.length < 2) return [];
-    return clientes.filter(c =>
-      c.nombre.toLowerCase().includes(q) ||
-      (c.cedula_nit || "").toLowerCase().includes(q) ||
-      (c.empresa || "").toLowerCase().includes(q)
-    ).slice(0, 8);
-  }, [busquedaCliente, clientes]);
 
   const setLinea = (i: number, campo: keyof LineaVenta, valor: string | number) => {
     setLineas(prev => prev.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
@@ -117,7 +96,6 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
           observaciones_pago: observaciones,
         });
         toast.success(`Venta #${r.ticket} registrada correctamente`);
-        // Reiniciar formulario
         setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo("");
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
@@ -140,7 +118,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
             <UserPlus className="size-4" /> Nuevo Cliente
           </Button>
           <Dialog open={dialogCliente} onOpenChange={setDialogCliente}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="sm:max-w-2xl">
               <DialogHeader><DialogTitle>Registrar Nuevo Cliente</DialogTitle></DialogHeader>
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} /></div>
@@ -160,30 +138,32 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
           </Dialog>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <div className="relative">
-            <Input
-              placeholder="Buscar por nombre, cédula/NIT o empresa..."
-              value={busquedaCliente}
-              onChange={e => { setBusquedaCliente(e.target.value); setMostrarLista(true); }}
-              onFocus={() => setMostrarLista(true)}
-              onBlur={() => setTimeout(() => setMostrarLista(false), 200)}
-            />
-            {mostrarLista && clientesFiltrados.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md">
-                {clientesFiltrados.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-accent"
-                    onMouseDown={() => { setClienteSel(c); setBusquedaCliente(c.nombre); setMostrarLista(false); }}
-                  >
-                    <span className="font-medium">{c.nombre} {c.cedula_nit && <span className="text-primary">· {c.cedula_nit}</span>}</span>
-                    <span className="text-xs text-muted-foreground">{c.empresa || "Sin empresa"} {c.ciudad ? `| ${c.ciudad}` : ""}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Combobox
+            items={clientes}
+            itemToStringLabel={(c: Cliente | null) => c?.nombre ?? ""}
+            value={clienteSel}
+            onValueChange={v => setClienteSel((v as Cliente) ?? null)}
+            inputValue={busquedaCliente}
+            onInputValueChange={v => setBusquedaCliente(v ?? "")}
+            openOnInputClick
+          >
+            <ComboboxInput placeholder="Buscar por nombre, cédula/NIT o empresa..." className="w-full" showClear />
+            <ComboboxContent>
+              <ComboboxEmpty>No se encontró. Usa &quot;Nuevo Cliente&quot;.</ComboboxEmpty>
+              <ComboboxList>
+                {(c: Cliente) => (
+                  <ComboboxItem key={c.id} value={c}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {c.nombre} {c.cedula_nit && <span className="text-primary">· {c.cedula_nit}</span>}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{c.empresa || "Sin empresa"}{c.ciudad ? ` | ${c.ciudad}` : ""}</span>
+                    </div>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
           {clienteSel && (
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
               <CheckCircle2 className="size-4 text-primary" />
@@ -205,9 +185,6 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
           </Button>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <datalist id="dl-productos">{productos.map(p => <option key={p} value={p} />)}</datalist>
-          <datalist id="dl-talla">{(maestros["talla"] || []).map(t => <option key={t} value={t} />)}</datalist>
-          <datalist id="dl-color">{(maestros["color"] || []).map(c => <option key={c} value={c} />)}</datalist>
           {lineas.map((l, i) => (
             <div key={i} className="relative rounded-lg border border-l-4 border-l-primary p-3">
               {lineas.length > 1 && (
@@ -222,7 +199,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="grid gap-1.5 lg:col-span-2">
                   <Label>Producto *</Label>
-                  <Input list="dl-productos" value={l.producto} onChange={e => setLinea(i, "producto", e.target.value)} placeholder="Escriba o elija..." />
+                  <Combo opciones={productos} value={l.producto} onChange={v => setLinea(i, "producto", v)} />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Cantidad</Label>
@@ -234,16 +211,15 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Talla</Label>
-                  <Input list="dl-talla" value={l.talla || ""} onChange={e => setLinea(i, "talla", e.target.value)} placeholder="N/A" />
+                  <Combo opciones={maestros["talla"] || []} value={l.talla || ""} onChange={v => setLinea(i, "talla", v)} placeholder="N/A" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Color</Label>
-                  <Input list="dl-color" value={l.color || ""} onChange={e => setLinea(i, "color", e.target.value)} placeholder="N/A" />
+                  <Combo opciones={maestros["color"] || []} value={l.color || ""} onChange={v => setLinea(i, "color", v)} placeholder="N/A" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Sexo</Label>
-                  <Input list="dl-sexo" value={l.sexo || ""} onChange={e => setLinea(i, "sexo", e.target.value)} placeholder="N/A" />
-                  <datalist id="dl-sexo">{(maestros["sexo"] || ["Hombre", "Mujer", "Unisex", "Niño/a"]).map(s => <option key={s} value={s} />)}</datalist>
+                  <Combo opciones={maestros["sexo"] || ["Hombre", "Mujer", "Unisex", "Niño/a"]} value={l.sexo || ""} onChange={v => setLinea(i, "sexo", v)} placeholder="N/A" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Total Línea</Label>
@@ -275,11 +251,11 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
       <Card>
         <CardHeader><CardTitle>3. Datos de la Venta</CardTitle></CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <CampoLista id="canal" label="Canal de Venta" opciones={maestros["canal_venta"] || []} value={canal} onChange={setCanal} />
-          <CampoLista id="campana" label="Campaña" opciones={maestros["campana"] || []} value={campana} onChange={setCampana} />
-          <CampoLista id="vendedora" label="Vendedora" opciones={maestros["vendedora"] || []} value={vendedora} onChange={setVendedora} />
-          <CampoLista id="profesional" label="Profesional / Asesor" opciones={maestros["profesional"] || []} value={profesional} onChange={setProfesional} />
-          <CampoLista id="motivo" label="Motivo de Compra" opciones={maestros["motivo_compra"] || []} value={motivo} onChange={setMotivo} />
+          <div className="grid gap-1.5"><Label>Canal de Venta</Label><Combo opciones={maestros["canal_venta"] || []} value={canal} onChange={setCanal} /></div>
+          <div className="grid gap-1.5"><Label>Campaña</Label><Combo opciones={maestros["campana"] || []} value={campana} onChange={setCampana} /></div>
+          <div className="grid gap-1.5"><Label>Vendedora</Label><Combo opciones={maestros["vendedora"] || []} value={vendedora} onChange={setVendedora} /></div>
+          <div className="grid gap-1.5"><Label>Profesional / Asesor</Label><Combo opciones={maestros["profesional"] || []} value={profesional} onChange={setProfesional} /></div>
+          <div className="grid gap-1.5"><Label>Motivo de Compra</Label><Combo opciones={maestros["motivo_compra"] || []} value={motivo} onChange={setMotivo} /></div>
         </CardContent>
       </Card>
 
@@ -302,11 +278,11 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <CampoLista id="estadoPago" label="Estado de Pago" opciones={maestros["estado_pago"] || []} value={estadoPago} onChange={v => { setEstadoPago(v); if (v === "Pagado Total") setAbono(total); }} />
-            <CampoLista id="medioPago" label="Medio de Pago" opciones={maestros["medio_pago"] || []} value={medioPago} onChange={setMedioPago} />
-            <CampoLista id="tipoPago" label="Tipo de Pago" opciones={maestros["tipo_pago"] || []} value={tipoPago} onChange={setTipoPago} />
+            <div className="grid gap-1.5"><Label>Estado de Pago</Label><Combo opciones={maestros["estado_pago"] || []} value={estadoPago} onChange={v => { setEstadoPago(v); if (v === "Pagado Total") setAbono(total); }} /></div>
+            <div className="grid gap-1.5"><Label>Medio de Pago</Label><Combo opciones={maestros["medio_pago"] || []} value={medioPago} onChange={setMedioPago} /></div>
+            <div className="grid gap-1.5"><Label>Tipo de Pago</Label><Combo opciones={maestros["tipo_pago"] || []} value={tipoPago} onChange={setTipoPago} /></div>
             <div className="grid gap-1.5"><Label>Fecha Pago</Label><Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} /></div>
-            <CampoLista id="estadoEntrega" label="Estado Pedido / Entrega" opciones={maestros["estado_entrega"] || []} value={estadoEntrega} onChange={setEstadoEntrega} />
+            <div className="grid gap-1.5"><Label>Estado Pedido / Entrega</Label><Combo opciones={maestros["estado_entrega"] || []} value={estadoEntrega} onChange={setEstadoEntrega} /></div>
             <div className="grid gap-1.5"><Label>Fecha Entrega</Label><Input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} /></div>
             <div className="grid gap-1.5 sm:col-span-2 lg:col-span-3">
               <Label>Observaciones</Label>

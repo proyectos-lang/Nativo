@@ -104,7 +104,7 @@ export function UsuariosCliente({ usuarios, sesionId }: { usuarios: Usuario[]; s
         </div>
 
         <Dialog open={abierto} onOpenChange={setAbierto}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
             <DialogHeader><DialogTitle>{form.id ? "Editar Usuario" : "Nuevo Usuario"}</DialogTitle></DialogHeader>
             <div className="grid gap-3">
               <div className="grid grid-cols-2 gap-3">
@@ -118,7 +118,7 @@ export function UsuariosCliente({ usuarios, sesionId }: { usuarios: Usuario[]; s
                 <div className="grid gap-1.5">
                   <Label>Rol</Label>
                   <Select value={form.rol} onValueChange={v => setForm({ ...form, rol: (v as "admin" | "usuario") || "usuario" })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="usuario">Usuario</SelectItem>
                       <SelectItem value="admin">Administrador (acceso total)</SelectItem>

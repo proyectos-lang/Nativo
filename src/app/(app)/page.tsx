@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { GraficoVentas } from "./grafico-ventas";
 import { FiltroMes } from "./filtro-mes";
+import { SplashBienvenida } from "@/components/splash-bienvenida";
 import {
   DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
@@ -15,9 +16,10 @@ export const dynamic = "force-dynamic";
 
 const DIAS_ALERTA = 10;
 
-export default async function PaginaDashboard({ searchParams }: { searchParams: Promise<{ mes?: string; anio?: string }> }) {
+export default async function PaginaDashboard({ searchParams }: { searchParams: Promise<{ mes?: string; anio?: string; bienvenida?: string }> }) {
   const sesion = await requiereSesion();
   const params = await searchParams;
+  const mostrarBienvenida = params.bienvenida === "1";
   const hoy = new Date();
   const mes = params.mes !== undefined ? Number(params.mes) : hoy.getMonth();
   const anio = params.anio !== undefined ? Number(params.anio) : hoy.getFullYear();
@@ -94,6 +96,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
 
   return (
     <div className="mx-auto grid max-w-7xl gap-4">
+      {mostrarBienvenida && <SplashBienvenida nombre={sesion.nombre} />}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Hola, {sesion.nombre.split(" ")[0]} 👋</h2>

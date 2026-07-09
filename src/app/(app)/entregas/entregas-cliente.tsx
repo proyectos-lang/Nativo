@@ -136,7 +136,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
       </Card>
 
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Ticket #{sel?.ticket} — {sel?.clientes?.nombre}</DialogTitle>
           </DialogHeader>
@@ -184,7 +184,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
                 <div className="grid gap-1.5">
                   <Label>Nuevo estado</Label>
                   <Select value={nuevoEstado} onValueChange={v => setNuevoEstado(v || "")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {estados.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
                     </SelectContent>

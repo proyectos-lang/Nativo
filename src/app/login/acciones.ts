@@ -28,7 +28,7 @@ export async function iniciarSesion(_estadoPrevio: { error?: string }, formData:
     rol: data.rol,
     permisos: data.permisos as Permisos,
   });
-  redirect("/");
+  redirect("/?bienvenida=1");
 }
 
 export async function salir() {

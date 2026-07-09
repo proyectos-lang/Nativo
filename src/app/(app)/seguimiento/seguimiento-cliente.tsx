@@ -155,7 +155,7 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
       </Card>
 
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Trazabilidad — Ticket #{sel?.ticket} · {sel?.clientes?.nombre}</DialogTitle>
           </DialogHeader>

@@ -138,9 +138,16 @@
    Identidad visual Nativo
    ============================================================ */
 
-/* Barra lateral con degradado verde bosque */
+/* Los controles nativos (datalist, date pickers) siempre en tema claro */
+:root {
+  color-scheme: light;
+}
+
+/* Barra lateral con degradado verde bosque y efecto de cristal difuminado */
 [data-slot="sidebar-inner"] {
-  background: linear-gradient(180deg, oklch(0.36 0.075 158) 0%, oklch(0.28 0.065 162) 60%, oklch(0.24 0.06 168) 100%);
+  background: linear-gradient(180deg, oklch(0.36 0.075 158 / 90%) 0%, oklch(0.28 0.065 162 / 93%) 60%, oklch(0.24 0.06 168 / 96%) 100%);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 /* El contenido principal deja ver el degradado del body */
@@ -159,6 +166,25 @@
 /* Encabezados de tabla con un toque verde */
 thead {
   background-color: oklch(0.51 0.12 160 / 6%);
+}
+
+/* Splash de bienvenida tras iniciar sesión */
+@keyframes splash-nativo {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@keyframes splash-nativo-contenido {
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+  25% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.splash-nativo {
+  animation: splash-nativo 2.8s ease-in-out forwards;
+}
+.splash-nativo-contenido {
+  animation: splash-nativo-contenido 2.8s ease-out forwards;
 }
 
 /* Scrollbars discretos */

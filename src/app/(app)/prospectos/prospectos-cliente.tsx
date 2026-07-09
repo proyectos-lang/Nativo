@@ -140,7 +140,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
             <div className="grid gap-1.5">
               <Label>Estado</Label>
               <Select value={edicion.estado} onValueChange={v => setEdicion({ ...edicion, estado: v || edicion.estado })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>{ESTADOS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
               </Select>
             </div>

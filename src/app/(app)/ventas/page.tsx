@@ -27,7 +27,8 @@ export default async function PaginaVentas() {
           <HistorialVentas
             ventas={ventas as Venta[]}
             detalles={detalles as Record<number, VentaDetalle[]>}
-            estados={maestros["estado_entrega"] || []}
+            maestros={maestros}
+            productos={productos}
           />
         </TabsContent>
       </Tabs>
