@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `configuracion` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, configuracion |
+| permisos | jsonb | not null, default todos `true` excepto `configuracion` y `financiero` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, configuracion, financiero |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -73,7 +73,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`.
 
 ---
 
@@ -197,11 +197,102 @@ Clientes por contactar.
 
 ---
 
+## cuentas_bancarias
+
+Cuentas de la empresa (bancos y caja). El saldo actual **no se almacena**: se calcula `saldo_inicial + ingresos − egresos` de `movimientos_bancarios`.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| nombre | text | not null | |
+| banco | text | null | |
+| numero_cuenta | text | null | |
+| saldo_inicial | numeric | not null, default 0 | Saldo al momento de crear la cuenta |
+| activa | boolean | not null, default `true` | Las inactivas no aparecen en selectores |
+| creado_en | timestamptz | not null, default `now()` | |
+
+---
+
+## movimientos_bancarios
+
+Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` | |
+| fecha | date | not null, default `current_date` | |
+| tipo | text | not null, check `('ingreso','egreso')` | |
+| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia')` | |
+| monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
+| concepto | text | null | |
+| pago_id | bigint | null, FK → `pagos(id)` on delete set null | Cuando origen = pago_venta |
+| pago_gasto_id | bigint | null, FK → `pagos_gastos(id)` on delete set null | Cuando origen = pago_gasto |
+| movimiento_relacionado_id | bigint | null, FK → `movimientos_bancarios(id)` | Enlaza los 2 asientos de una transferencia |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_movimientos_cuenta (cuenta_id)`, `idx_movimientos_fecha (fecha)`.
+
+---
+
+## gastos
+
+Gastos y costos causados (cuentas por pagar). Admite abonos parciales vía `pagos_gastos`.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| fecha | date | not null, default `current_date` | Fecha de causación |
+| tipo | text | not null, check `('Gasto','Costo')` | |
+| categoria | text | null | Lista maestra tipo `categoria_gasto` |
+| proveedor | text | null | |
+| descripcion | text | null | |
+| monto | numeric | not null, default 0 | |
+| abonado | numeric | not null, default 0 | Acumulado de `pagos_gastos` |
+| saldo | numeric | not null, default 0 | **Calculado:** `monto − abonado` |
+| estado | text | not null, default `'Pendiente'`, check `('Pendiente','Abonado','Pagado')` | |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_gastos_estado (estado)`, `idx_gastos_fecha (fecha)`.
+
+---
+
+## pagos_gastos
+
+Cada abono a un gasto (siempre sale de una cuenta).
+
+| Columna | Tipo | Nulos/Default |
+|---|---|---|
+| id | bigint | PK identity |
+| gasto_id | bigint | not null, FK → `gastos(id)` on delete cascade |
+| cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` |
+| fecha | date | not null, default `current_date` |
+| monto | numeric | not null, default 0 |
+| comentario | text | null |
+| usuario | text | null |
+| creado_en | timestamptz | not null, default `now()` |
+
+Índice: `idx_pagos_gastos_gasto (gasto_id)`.
+
+> **Nota:** la tabla `pagos` (ventas) tiene además la columna `cuenta_id bigint null` FK → `cuentas_bancarias(id)`: la cuenta a la que entró el abono. El permiso `financiero` existe en `usuarios.permisos` (default `false` — solo admins ven el módulo hasta activarlo).
+
+---
+
 ## Funciones RPC (transaccionales)
 
-### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text) → nativo.ventas`
+### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text, p_cuenta_id bigint default null) → nativo.ventas`
 
-En una sola transacción: inserta la fila en `pagos` y actualiza la cabecera `ventas` — acumula `abono` y `retencion`, recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Lanza excepción si la venta no existe.
+En una sola transacción: inserta la fila en `pagos` (con `cuenta_id`) y actualiza la cabecera `ventas` — acumula `abono` y `retencion`, recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Si viene `p_cuenta_id` y `p_abono > 0`, inserta el movimiento bancario de **ingreso** (origen `pago_venta`) por el monto del abono — la retención no es entrada de caja. Lanza excepción si la venta no existe.
+
+### `nativo.pagar_gasto(p_gasto_id bigint, p_cuenta_id bigint, p_monto numeric, p_fecha date, p_comentario text, p_usuario text) → nativo.gastos`
+
+En una sola transacción: inserta `pagos_gastos`, actualiza el gasto (acumula `abonado`, recalcula `saldo`, fija `estado` — `Pagado` si saldo ≤ 0, si no `Abonado`) e inserta el movimiento bancario de **egreso** (origen `pago_gasto`). Valida monto > 0 y cuenta obligatoria.
+
+### `nativo.transferir_cuentas(p_origen bigint, p_destino bigint, p_monto numeric, p_fecha date, p_concepto text, p_usuario text) → void`
+
+En una sola transacción: inserta el **egreso** en la cuenta origen y el **ingreso** en la destino (origen `transferencia`), enlazados entre sí vía `movimiento_relacionado_id`. Valida monto > 0, cuentas distintas y existentes.
 
 ### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text) → nativo.ventas`
 

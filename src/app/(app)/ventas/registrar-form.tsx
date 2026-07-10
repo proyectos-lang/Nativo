@@ -17,17 +17,19 @@ import {
 import { Combo } from "@/components/combo";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
-import { formatoPesos, type Cliente } from "@/lib/tipos";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatoPesos, type Cliente, type CuentaBancaria } from "@/lib/tipos";
 
 type Props = {
   maestros: Record<string, string[]>;
   clientes: Cliente[];
   productos: string[];
+  cuentas: CuentaBancaria[];
 };
 
 const LINEA_VACIA: LineaVenta = { producto: "", cantidad: 1, valor_unitario: 0 };
 
-export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, productos }: Props) {
+export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, productos, cuentas }: Props) {
   const [pendiente, startTransition] = useTransition();
   const [clientes, setClientes] = useState(clientesIniciales);
 
@@ -49,6 +51,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
 
   // Pago y entrega
   const [abono, setAbono] = useState(0);
+  const [cuentaId, setCuentaId] = useState(0);
   const [estadoPago, setEstadoPago] = useState("");
   const [medioPago, setMedioPago] = useState("");
   const [tipoPago, setTipoPago] = useState("0 DIAS");
@@ -90,7 +93,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         const r = await registrarVenta({
           cliente_id: clienteSel.id,
           canal_venta: canal, campana, vendedora, profesional, motivo_compra: motivo,
-          lineas, abono,
+          lineas, abono, cuenta_id: cuentaId || null,
           estado_pago: estadoPago, medio_pago: medioPago, tipo_pago: tipoPago,
           fecha_pago: fechaPago, estado_entrega: estadoEntrega, fecha_entrega: fechaEntrega,
           observaciones_pago: observaciones,
@@ -99,7 +102,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo("");
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
-        setAbono(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
+        setAbono(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
         setFechaPago(""); setEstadoEntrega("En Proceso"); setFechaEntrega(""); setObservaciones("");
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
@@ -272,6 +275,17 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
               <Label>Abono (+)</Label>
               <Input type="number" min={0} className="w-40 text-right" value={abono || ""} onChange={e => setAbono(Number(e.target.value))} placeholder="0" />
             </div>
+            {abono > 0 && (
+              <div className="grid gap-1.5">
+                <Label>Cuenta destino del abono</Label>
+                <Select value={cuentaId ? String(cuentaId) : ""} onValueChange={v => setCuentaId(v ? Number(v) : 0)}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento)" /></SelectTrigger>
+                  <SelectContent>
+                    {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre} ({formatoPesos(c.saldo_actual)})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t pt-2">
               <Label>SALDO</Label>
               <span className={`text-lg font-bold ${total - abono > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(total - abono)}</span>

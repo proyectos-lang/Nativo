@@ -7,6 +7,7 @@ export type Permisos = {
   prospectos: boolean;
   clientes: boolean;
   configuracion: boolean;
+  financiero: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -84,6 +85,7 @@ export type Pago = {
   retencion: number;
   comentario: string | null;
   usuario: string | null;
+  cuenta_id: number | null;
   creado_en: string;
 };
 
@@ -130,8 +132,62 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "seguimiento", nombre: "Seguimiento" },
   { clave: "prospectos", nombre: "Prospectos" },
   { clave: "clientes", nombre: "Clientes" },
+  { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
+
+export type CuentaBancaria = {
+  id: number;
+  nombre: string;
+  banco: string | null;
+  numero_cuenta: string | null;
+  saldo_inicial: number;
+  activa: boolean;
+  creado_en: string;
+  /** Calculado en consultas: saldo_inicial + ingresos - egresos */
+  saldo_actual?: number;
+};
+
+export type MovimientoBancario = {
+  id: number;
+  cuenta_id: number;
+  fecha: string;
+  tipo: "ingreso" | "egreso";
+  origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia";
+  monto: number;
+  concepto: string | null;
+  pago_id: number | null;
+  pago_gasto_id: number | null;
+  movimiento_relacionado_id: number | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type Gasto = {
+  id: number;
+  fecha: string;
+  tipo: "Gasto" | "Costo";
+  categoria: string | null;
+  proveedor: string | null;
+  descripcion: string | null;
+  monto: number;
+  abonado: number;
+  saldo: number;
+  estado: "Pendiente" | "Abonado" | "Pagado";
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type PagoGasto = {
+  id: number;
+  gasto_id: number;
+  cuenta_id: number;
+  fecha: string;
+  monto: number;
+  comentario: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
 
 export function formatoPesos(n: number | null | undefined): string {
   return "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");

@@ -10,6 +10,7 @@ export async function registrarPago(datos: {
   retencion: number;
   fecha?: string;
   comentario?: string;
+  cuenta_id?: number | null;
 }) {
   const sesion = await requierePermiso("pagos");
   const abono = Number(datos.abono) || 0;
@@ -23,10 +24,12 @@ export async function registrarPago(datos: {
     p_fecha: datos.fecha || null,
     p_comentario: datos.comentario || null,
     p_usuario: sesion.usuario,
+    p_cuenta_id: datos.cuenta_id || null,
   });
   if (error) throw new Error(error.message);
 
   revalidatePath("/pagos");
+  revalidatePath("/financiero");
   revalidatePath("/");
   return data;
 }

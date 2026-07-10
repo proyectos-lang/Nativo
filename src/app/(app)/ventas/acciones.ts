@@ -26,6 +26,7 @@ export type NuevaVenta = {
   motivo_compra?: string;
   lineas: LineaVenta[];
   abono: number;
+  cuenta_id?: number | null;
   estado_pago?: string;
   medio_pago?: string;
   tipo_pago?: string;
@@ -63,9 +64,9 @@ export async function registrarVenta(venta: NuevaVenta) {
     total_compra: total,
     retencion: 0,
     total_a_pagar: total,
-    abono,
-    saldo: total - abono,
-    estado_pago: venta.estado_pago || (abono >= total && total > 0 ? "Pagado Total" : abono > 0 ? "Abonado" : "Pendiente"),
+    abono: 0, // el abono inicial se aplica vía RPC registrar_pago más abajo
+    saldo: total,
+    estado_pago: abono > 0 ? "Pendiente" : (venta.estado_pago || "Pendiente"),
     fecha_pago: venta.fecha_pago || null,
     tipo_pago: venta.tipo_pago || null,
     medio_pago: venta.medio_pago || null,
@@ -93,13 +94,17 @@ export async function registrarVenta(venta: NuevaVenta) {
   }
 
   if (abono > 0) {
-    await db().from("pagos").insert({
-      venta_id: cab.id,
-      fecha: venta.fecha_pago || new Date().toISOString().slice(0, 10),
-      abono, retencion: 0,
-      comentario: "Abono inicial al registrar la venta",
-      usuario: sesion.usuario,
+    // RPC transaccional: crea el pago, recalcula la cabecera y (si hay cuenta) el movimiento bancario
+    const { error: errPago } = await db().rpc("registrar_pago", {
+      p_venta_id: cab.id,
+      p_abono: abono,
+      p_retencion: 0,
+      p_fecha: venta.fecha_pago || new Date().toISOString().slice(0, 10),
+      p_comentario: "Abono inicial al registrar la venta",
+      p_usuario: sesion.usuario,
+      p_cuenta_id: venta.cuenta_id || null,
     });
+    if (errPago) throw new Error("Venta creada pero falló el abono inicial: " + errPago.message);
   }
 
   // Registrar productos nuevos en el catálogo

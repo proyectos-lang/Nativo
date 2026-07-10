@@ -12,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatoPesos, formatoFecha, type Venta, type Pago } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Venta, type Pago, type CuentaBancaria } from "@/lib/tipos";
 
-export function PagosCliente({ ventas, pagos }: { ventas: Venta[]; pagos: Record<number, Pago[]> }) {
+export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pagos: Record<number, Pago[]>; cuentas: CuentaBancaria[] }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -24,6 +24,7 @@ export function PagosCliente({ ventas, pagos }: { ventas: Venta[]; pagos: Record
   const [retencion, setRetencion] = useState(0);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [comentario, setComentario] = useState("");
+  const [cuentaId, setCuentaId] = useState(0);
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -44,14 +45,14 @@ export function PagosCliente({ ventas, pagos }: { ventas: Venta[]; pagos: Record
 
   const abrir = (v: Venta) => {
     setSel(v); setAbono(0); setRetencion(0);
-    setFecha(new Date().toISOString().slice(0, 10)); setComentario("");
+    setFecha(new Date().toISOString().slice(0, 10)); setComentario(""); setCuentaId(0);
   };
 
   const procesar = () => {
     if (!sel) return;
     startTransition(async () => {
       try {
-        await registrarPago({ venta_id: sel.id, abono, retencion, fecha, comentario });
+        await registrarPago({ venta_id: sel.id, abono, retencion, fecha, comentario, cuenta_id: cuentaId || null });
         toast.success(`Pago aplicado al ticket #${sel.ticket}`);
         setSel(null);
         router.refresh();
@@ -177,6 +178,15 @@ export function PagosCliente({ ventas, pagos }: { ventas: Venta[]; pagos: Record
                 <div className="grid gap-1.5"><Label>Retención ($)</Label><Input type="number" min={0} value={retencion || ""} onChange={e => setRetencion(Number(e.target.value))} placeholder="0" /></div>
                 <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
                 <div className="grid gap-1.5"><Label>Comentario / Medio de pago</Label><Input value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Ej. Transferencia Bancolombia #123" /></div>
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label>Cuenta destino del abono</Label>
+                  <Select value={cuentaId ? String(cuentaId) : ""} onValueChange={v => setCuentaId(v ? Number(v) : 0)}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento bancario)" /></SelectTrigger>
+                    <SelectContent>
+                      {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre} ({formatoPesos(c.saldo_actual)})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <p className="text-sm">
                 Nuevo saldo proyectado:{" "}

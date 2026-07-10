@@ -187,6 +187,30 @@ thead {
   animation: splash-nativo-contenido 2.8s ease-out forwards;
 }
 
+/* Impresión: solo el reporte de cierre diario */
+@media print {
+  body {
+    background: white !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #reporte-cierre,
+  #reporte-cierre * {
+    visibility: visible;
+  }
+  #reporte-cierre {
+    position: absolute;
+    inset: 0;
+    padding: 1rem;
+  }
+  #reporte-cierre [data-slot="card"] {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+}
+
 /* Scrollbars discretos */
 ::-webkit-scrollbar {
   width: 9px;

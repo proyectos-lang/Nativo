@@ -18,7 +18,7 @@ import { MODULOS, type Usuario, type Permisos } from "@/lib/tipos";
 
 const PERMISOS_BASE: Permisos = {
   dashboard: true, ventas: true, pagos: true, entregas: true,
-  seguimiento: true, prospectos: true, clientes: true, configuracion: false,
+  seguimiento: true, prospectos: true, clientes: true, configuracion: false, financiero: false,
 };
 
 type Form = {
