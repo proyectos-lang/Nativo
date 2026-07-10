@@ -97,6 +97,12 @@ export async function pagosGastosPorGasto(): Promise<Record<number, unknown[]>> 
   return out;
 }
 
+export async function prospectosTodos() {
+  const { data, error } = await db().from("prospectos").select("*").order("fecha", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function historialPorVenta(): Promise<Record<number, unknown[]>> {
   const { data, error } = await db().from("historial_entregas").select("*").order("fecha");
   if (error) throw new Error(error.message);

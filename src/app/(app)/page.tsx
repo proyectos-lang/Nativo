@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requiereSesion } from "@/lib/sesion";
-import { ventasConCliente, detallesPorVenta, historialPorVenta } from "@/lib/consultas";
+import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos } from "@/lib/consultas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,9 +8,9 @@ import { GraficoVentas } from "./grafico-ventas";
 import { FiltroMes } from "./filtro-mes";
 import { SplashBienvenida } from "@/components/splash-bienvenida";
 import {
-  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight,
+  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact,
 } from "lucide-react";
-import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega, type Prospecto } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +24,14 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
   const mes = params.mes !== undefined ? Number(params.mes) : hoy.getMonth();
   const anio = params.anio !== undefined ? Number(params.anio) : hoy.getFullYear();
 
-  const [ventas, detalles, historial] = await Promise.all([
+  const [ventas, detalles, historial, prospectos] = await Promise.all([
     ventasConCliente() as Promise<Venta[]>,
     detallesPorVenta() as Promise<Record<number, VentaDetalle[]>>,
     historialPorVenta() as Promise<Record<number, HistorialEntrega[]>>,
+    prospectosTodos() as Promise<Prospecto[]>,
   ]);
+
+  const prospectosPendientes = prospectos.filter(p => p.estado === "Pendiente");
 
   // ---- KPIs de estado actual (no dependen del mes seleccionado) ----
   const porCobrar = ventas.reduce((s, v) => s + (v.saldo > 0 ? v.saldo : 0), 0);
@@ -106,7 +109,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Link href="/pagos">
           <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
             <CardContent className="pt-2">
@@ -170,6 +173,18 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
             <p className="text-xs text-muted-foreground">en el mes seleccionado</p>
           </CardContent>
         </Card>
+        <Link href="/prospectos">
+          <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
+            <CardContent className="pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-muted-foreground">Prospectos Pendientes</p>
+                <Contact className="size-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold">{prospectosPendientes.length}</p>
+              <p className="text-xs text-muted-foreground">por contactar</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Gráfico + tops */}

@@ -122,6 +122,19 @@ export async function crearGasto(datos: {
   revalidarFinanciero();
 }
 
+export async function crearCategoriaGasto(valor: string) {
+  await requierePermiso("financiero");
+  const limpio = valor?.trim();
+  if (!limpio) throw new Error("El nombre de la categoría es obligatorio.");
+  const { error } = await db().from("listas_maestras").insert({ tipo: "categoria_gasto", valor: limpio });
+  if (error) {
+    if (error.message.includes("duplicate")) throw new Error("Esa categoría ya existe.");
+    throw new Error(error.message);
+  }
+  revalidarFinanciero();
+  revalidatePath("/configuracion");
+}
+
 export async function pagarGasto(datos: {
   gasto_id: number;
   cuenta_id: number;

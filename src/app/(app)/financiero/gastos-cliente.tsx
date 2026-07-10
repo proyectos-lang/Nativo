@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { crearGasto, pagarGasto } from "./acciones";
+import { crearGasto, pagarGasto, crearCategoriaGasto } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combo } from "@/components/combo";
-import { HandCoins } from "lucide-react";
+import { HandCoins, PlusCircle } from "lucide-react";
 import { formatoPesos, formatoFecha, type Gasto, type PagoGasto, type CuentaBancaria } from "@/lib/tipos";
 
 type Props = {
@@ -27,15 +27,36 @@ type Props = {
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-export function GastosCliente({ gastos, pagosGastos, cuentas, categorias }: Props) {
+export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: categoriasIniciales }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
+  const [categorias, setCategorias] = useState(categoriasIniciales);
 
   // Causación
   const [nuevo, setNuevo] = useState({
     fecha: HOY(), tipo: "Gasto" as "Gasto" | "Costo", categoria: "", proveedor: "",
     descripcion: "", monto: 0, pagarAhora: false, cuenta_id: 0,
   });
+
+  // Nueva categoría
+  const [dialogCategoria, setDialogCategoria] = useState(false);
+  const [nuevaCategoria, setNuevaCategoria] = useState("");
+
+  const guardarCategoria = () => {
+    const valor = nuevaCategoria.trim();
+    if (!valor) return;
+    startTransition(async () => {
+      try {
+        await crearCategoriaGasto(valor);
+        setCategorias(prev => (prev.includes(valor) ? prev : [...prev, valor].sort()));
+        setNuevo(n => ({ ...n, categoria: valor }));
+        setDialogCategoria(false);
+        setNuevaCategoria("");
+        toast.success("Categoría creada");
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
 
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
@@ -119,7 +140,15 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias }: Prop
               </Select>
             </div>
           </div>
-          <div className="grid gap-1.5"><Label>Categoría</Label><Combo opciones={categorias} value={nuevo.categoria} onChange={v => setNuevo({ ...nuevo, categoria: v })} /></div>
+          <div className="grid gap-1.5">
+            <Label>Categoría</Label>
+            <div className="flex gap-1.5">
+              <div className="flex-1"><Combo opciones={categorias} value={nuevo.categoria} onChange={v => setNuevo({ ...nuevo, categoria: v })} /></div>
+              <Button type="button" variant="outline" size="icon" title="Nueva categoría" onClick={() => { setNuevaCategoria(""); setDialogCategoria(true); }}>
+                <PlusCircle className="size-4" />
+              </Button>
+            </div>
+          </div>
           <div className="grid gap-1.5"><Label>Proveedor</Label><Input value={nuevo.proveedor} onChange={e => setNuevo({ ...nuevo, proveedor: e.target.value })} /></div>
           <div className="grid gap-1.5"><Label>Descripción</Label><Textarea rows={2} value={nuevo.descripcion} onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })} /></div>
           <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={nuevo.monto || ""} onChange={e => setNuevo({ ...nuevo, monto: Number(e.target.value) })} placeholder="0" /></div>
@@ -206,6 +235,27 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias }: Prop
           </div>
         </CardContent>
       </Card>
+
+      {/* DIALOG NUEVA CATEGORÍA */}
+      <Dialog open={dialogCategoria} onOpenChange={setDialogCategoria}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Nueva Categoría de Gasto</DialogTitle></DialogHeader>
+          <div className="grid gap-1.5">
+            <Label>Nombre *</Label>
+            <Input
+              value={nuevaCategoria}
+              onChange={e => setNuevaCategoria(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && guardarCategoria()}
+              placeholder="Ej. Mantenimiento"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogCategoria(false)}>Cancelar</Button>
+            <Button onClick={guardarCategoria} disabled={pendiente || !nuevaCategoria.trim()}>Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* DIALOG PAGO */}
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
