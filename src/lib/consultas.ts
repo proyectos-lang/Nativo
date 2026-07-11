@@ -19,6 +19,12 @@ export async function clientesTodos() {
   return data || [];
 }
 
+export async function proveedoresTodos() {
+  const { data, error } = await db().from("proveedores").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function productosTodos(): Promise<string[]> {
   const { data, error } = await db().from("productos").select("nombre").order("nombre");
   if (error) throw new Error(error.message);
@@ -37,6 +43,39 @@ export async function ventasConCliente() {
 
 export async function detallesPorVenta(): Promise<Record<number, unknown[]>> {
   const { data, error } = await db().from("ventas_detalle").select("*").order("id");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const d of data || []) {
+    if (!out[d.venta_id]) out[d.venta_id] = [];
+    out[d.venta_id].push(d);
+  }
+  return out;
+}
+
+/** Igual que ventasConCliente, pero sin columnas monetarias — para roles que no deben ver montos (ej. Entregas para no-admin). */
+export async function ventasConClienteSinMontos() {
+  const { data, error } = await db()
+    .from("ventas")
+    .select(`
+      id, ticket, fecha, cliente_id, canal_venta, campana, vendedora, profesional, motivo_compra,
+      estado_pago, fecha_pago, tipo_pago, medio_pago, observaciones_pago, estado_entrega, fecha_entrega,
+      fecha_entrega_real, transportadora, numero_guia, comentario_entrega, creado_en,
+      clientes(id, nombre, empresa, contacto, ciudad)
+    `)
+    .order("ticket", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Igual que detallesPorVenta, pero sin columnas monetarias. */
+export async function detallesPorVentaSinMontos(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db()
+    .from("ventas_detalle")
+    .select(`
+      id, venta_id, producto, codigo_producto, cantidad, talla, color, sexo, estampado, bordado,
+      guia_estampado, guia_bordado, imagen_estampado_url, imagen_bordado_url
+    `)
+    .order("id");
   if (error) throw new Error(error.message);
   const out: Record<number, unknown[]> = {};
   for (const d of data || []) {
@@ -110,6 +149,47 @@ export async function historialPorVenta(): Promise<Record<number, unknown[]>> {
   for (const h of data || []) {
     if (!out[h.venta_id]) out[h.venta_id] = [];
     out[h.venta_id].push(h);
+  }
+  return out;
+}
+
+export async function gastosDetallePorGasto(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("gastos_detalle").select("*").order("id");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const d of data || []) {
+    if (!out[d.gasto_id]) out[d.gasto_id] = [];
+    out[d.gasto_id].push(d);
+  }
+  return out;
+}
+
+export async function ingresosTodos() {
+  const { data, error } = await db().from("ingresos").select("*").order("fecha", { ascending: false }).order("id", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function pagosIngresosPorIngreso(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("pagos_ingresos").select("*").order("creado_en");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const p of data || []) {
+    if (!out[p.ingreso_id]) out[p.ingreso_id] = [];
+    out[p.ingreso_id].push(p);
+  }
+  return out;
+}
+
+export async function auditoriaPorTabla(tabla: "gastos" | "ingresos"): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db()
+    .from("auditoria_ediciones").select("*")
+    .eq("tabla_afectada", tabla).order("fecha", { ascending: false });
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const a of data || []) {
+    if (!out[a.registro_id]) out[a.registro_id] = [];
+    out[a.registro_id].push(a);
   }
   return out;
 }

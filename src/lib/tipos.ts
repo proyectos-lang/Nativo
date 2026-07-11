@@ -6,6 +6,7 @@ export type Permisos = {
   seguimiento: boolean;
   prospectos: boolean;
   clientes: boolean;
+  proveedores: boolean;
   configuracion: boolean;
   financiero: boolean;
 };
@@ -31,6 +32,17 @@ export type Cliente = {
   correo: string | null;
   cedula_nit: string | null;
   rut: string | null;
+};
+
+export type Proveedor = {
+  id: number;
+  nombre: string;
+  nit: string | null;
+  contacto: string | null;
+  correo: string | null;
+  direccion: string | null;
+  ciudad: string | null;
+  departamento: string | null;
 };
 
 export type Venta = {
@@ -138,9 +150,24 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "seguimiento", nombre: "Seguimiento" },
   { clave: "prospectos", nombre: "Prospectos" },
   { clave: "clientes", nombre: "Clientes" },
+  { clave: "proveedores", nombre: "Proveedores" },
   { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
+
+/** URL de cada módulo — usado por requierePermisoPagina() para redirigir. */
+export const MODULO_URL: Record<Modulo, string> = {
+  dashboard: "/",
+  ventas: "/ventas",
+  pagos: "/pagos",
+  entregas: "/entregas",
+  seguimiento: "/seguimiento",
+  prospectos: "/prospectos",
+  clientes: "/clientes",
+  proveedores: "/proveedores",
+  financiero: "/financiero",
+  configuracion: "/configuracion",
+};
 
 export type CuentaBancaria = {
   id: number;
@@ -159,22 +186,36 @@ export type MovimientoBancario = {
   cuenta_id: number;
   fecha: string;
   tipo: "ingreso" | "egreso";
-  origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia";
+  origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia" | "pago_ingreso";
   monto: number;
   concepto: string | null;
   pago_id: number | null;
   pago_gasto_id: number | null;
+  pago_ingreso_id: number | null;
   movimiento_relacionado_id: number | null;
   usuario: string | null;
   creado_en: string;
 };
 
+export type GastoDetalle = {
+  id: number;
+  gasto_id: number;
+  cantidad: number;
+  unidad_medida: string | null;
+  articulo: string;
+  precio_unitario: number;
+  valor_total: number;
+};
+
 export type Gasto = {
   id: number;
+  ticket: number;
   fecha: string;
   tipo: "Gasto" | "Costo";
   categoria: string | null;
   proveedor: string | null;
+  proveedor_id: number | null;
+  numero_factura: string | null;
   descripcion: string | null;
   monto: number;
   abonado: number;
@@ -193,6 +234,42 @@ export type PagoGasto = {
   comentario: string | null;
   usuario: string | null;
   creado_en: string;
+};
+
+export type Ingreso = {
+  id: number;
+  ticket: number;
+  fecha: string;
+  categoria: string | null;
+  concepto: string | null;
+  monto: number;
+  cobrado: number;
+  saldo: number;
+  estado: "Pendiente" | "Abonado" | "Cobrado";
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type PagoIngreso = {
+  id: number;
+  ingreso_id: number;
+  cuenta_id: number;
+  fecha: string;
+  monto: number;
+  comentario: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type AuditoriaEdicion = {
+  id: number;
+  tabla_afectada: "gastos" | "ingresos";
+  registro_id: number;
+  usuario: string | null;
+  fecha: string;
+  datos_anteriores: Record<string, unknown> | null;
+  datos_nuevos: Record<string, unknown> | null;
+  motivo: string | null;
 };
 
 export function formatoPesos(n: number | null | undefined): string {

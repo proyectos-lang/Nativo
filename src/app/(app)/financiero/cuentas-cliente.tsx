@@ -25,6 +25,7 @@ const NOMBRE_ORIGEN: Record<string, string> = {
   pago_venta: "Pago de venta",
   pago_gasto: "Pago de gasto",
   transferencia: "Transferencia",
+  pago_ingreso: "Cobro de ingreso",
 };
 
 export function CuentasCliente({ cuentas, movimientos }: Props) {

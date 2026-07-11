@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `configuracion` y `financiero` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, configuracion, financiero |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion` y `financiero` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -45,6 +45,26 @@ Usuarios de la aplicación con permisos por módulo.
 | creado_en | timestamptz | not null, default `now()` | |
 
 Índices: `idx_clientes_cedula (cedula_nit)`, `idx_clientes_nombre (nombre)`.
+
+---
+
+## proveedores
+
+Clon de `clientes` para la base de datos de proveedores (usada en Financiero → Gastos).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| nombre | text | not null | |
+| nit | text | null | NIT/identificación |
+| contacto | text | null | Teléfono |
+| correo | text | null | |
+| direccion | text | null | |
+| ciudad | text | null | |
+| departamento | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_proveedores_nombre (nombre)`, `idx_proveedores_nit (nit)`. Permiso `proveedores` en `usuarios.permisos` (default `false`). `gastos.proveedor_id` referencia esta tabla; `gastos.proveedor` (texto) se conserva como respaldo/legado.
 
 ---
 
@@ -73,7 +93,9 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`.
+
+`categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
 El catálogo de **productos** (tabla `productos`) es independiente de `listas_maestras` y se administra en Configuración → Productos.
 
@@ -213,7 +235,27 @@ Fila única con ajustes globales del sistema.
 |---|---|---|---|
 | id | bigint | PK identity | |
 | clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. PIN requerido para editar/eliminar ventas (Configuración → Seguridad la cambia) |
+| clave_contadora | text | not null, default `'CAMBIAR-5678'` | ⚠️ **TEXTO PLANO**. Clave requerida para editar gastos/ingresos en Financiero (Configuración → Seguridad la cambia, solo admin) |
 | creado_en | timestamptz | not null, default `now()` | |
+
+---
+
+## auditoria_ediciones
+
+Bitácora reutilizable de ediciones de registros financieros (hoy: `gastos` e `ingresos`). Cada edición guarda el snapshot completo antes/después, no solo el último editor.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| tabla_afectada | text | not null | `'gastos'` \| `'ingresos'` |
+| registro_id | bigint | not null | id de la fila editada en esa tabla |
+| usuario | text | null | Quién editó |
+| fecha | timestamptz | not null, default `now()` | Cuándo |
+| datos_anteriores | jsonb | null | Snapshot completo antes del cambio (incluye líneas para gastos) |
+| datos_nuevos | jsonb | null | Snapshot completo después del cambio |
+| motivo | text | null | Motivo opcional ingresado por la contadora |
+
+Índices: `idx_auditoria_tabla_registro (tabla_afectada, registro_id)`, `idx_auditoria_fecha (fecha)`.
 
 ---
 
@@ -243,11 +285,12 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` | |
 | fecha | date | not null, default `current_date` | |
 | tipo | text | not null, check `('ingreso','egreso')` | |
-| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia')` | |
+| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso')` | |
 | monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
 | concepto | text | null | |
 | pago_id | bigint | null, FK → `pagos(id)` **on delete cascade** | Cuando origen = pago_venta — al eliminar la venta/pago, el movimiento bancario también se elimina y el saldo de la cuenta se corrige |
 | pago_gasto_id | bigint | null, FK → `pagos_gastos(id)` on delete set null | Cuando origen = pago_gasto |
+| pago_ingreso_id | bigint | null, FK → `pagos_ingresos(id)` on delete set null | Cuando origen = pago_ingreso |
 | movimiento_relacionado_id | bigint | null, FK → `movimientos_bancarios(id)` | Enlaza los 2 asientos de una transferencia |
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
@@ -263,19 +306,41 @@ Gastos y costos causados (cuentas por pagar). Admite abonos parciales vía `pago
 | Columna | Tipo | Nulos/Default | Descripción |
 |---|---|---|---|
 | id | bigint | PK identity | |
+| ticket | integer | not null, **unique** | Consecutivo (`max(ticket)+1` calculado en la server action, sin resguardo de históricos) |
 | fecha | date | not null, default `current_date` | Fecha de causación |
 | tipo | text | not null, check `('Gasto','Costo')` | |
 | categoria | text | null | Lista maestra tipo `categoria_gasto` |
-| proveedor | text | null | |
-| descripcion | text | null | |
-| monto | numeric | not null, default 0 | |
+| proveedor | text | null | Texto de respaldo/legado (gastos creados antes de `proveedores`) |
+| proveedor_id | bigint | null, FK → `proveedores(id)` | Proveedor seleccionado del catálogo |
+| numero_factura | text | null | Número de factura de compra |
+| descripcion | text | null | Legado — el formulario actual ya no la usa, reemplazada por `gastos_detalle` |
+| monto | numeric | not null, default 0 | **Calculado:** suma de `gastos_detalle.valor_total` |
 | abonado | numeric | not null, default 0 | Acumulado de `pagos_gastos` |
 | saldo | numeric | not null, default 0 | **Calculado:** `monto − abonado` |
 | estado | text | not null, default `'Pendiente'`, check `('Pendiente','Abonado','Pagado')` | |
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_gastos_estado (estado)`, `idx_gastos_fecha (fecha)`.
+Índices: `idx_gastos_estado (estado)`, `idx_gastos_fecha (fecha)`, `idx_gastos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarGasto` con `clave_contadora` — cada edición queda en `auditoria_ediciones`.
+
+---
+
+## gastos_detalle
+
+Líneas de artículo de cada gasto (clon de `ventas_detalle`), pensado para alimentar un futuro módulo de inventario.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| gasto_id | bigint | not null, FK → `gastos(id)` **on delete cascade** | |
+| cantidad | numeric | not null, default 1 | |
+| unidad_medida | text | null | Lista maestra tipo `unidad_medida` |
+| articulo | text | not null | |
+| precio_unitario | numeric | not null, default 0 | |
+| valor_total | numeric | not null, default 0 | `cantidad × precio_unitario` |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_gastos_detalle_gasto (gasto_id)`. Gastos históricos (creados antes de esta migración) no tienen líneas: la UI usa `descripcion`/`categoria` como fallback.
 
 ---
 
@@ -300,6 +365,47 @@ Cada abono a un gasto (siempre sale de una cuenta).
 
 ---
 
+## ingresos
+
+Espejo de `gastos` para dinero que entra (arriendo, servicios públicos, préstamos, etc. — distinto del flujo automático de pagos de venta). Admite cobro parcial vía `pagos_ingresos`.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| ticket | integer | not null, **unique** | Consecutivo propio, independiente del de `gastos` |
+| fecha | date | not null, default `current_date` | Fecha de causación |
+| categoria | text | null | Lista maestra tipo `categoria_ingreso` |
+| concepto | text | null | Descripción libre (a diferencia de gastos, sin líneas múltiples) |
+| monto | numeric | not null, default 0 | |
+| cobrado | numeric | not null, default 0 | Acumulado de `pagos_ingresos` |
+| saldo | numeric | not null, default 0 | **Calculado:** `monto − cobrado` |
+| estado | text | not null, default `'Pendiente'`, check `('Pendiente','Abonado','Cobrado')` | |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_ingresos_estado (estado)`, `idx_ingresos_fecha (fecha)`, `idx_ingresos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarIngreso` con `clave_contadora` — cada edición queda en `auditoria_ediciones`.
+
+---
+
+## pagos_ingresos
+
+Cada cobro de un ingreso (siempre entra a una cuenta). Clon de `pagos_gastos`.
+
+| Columna | Tipo | Nulos/Default |
+|---|---|---|
+| id | bigint | PK identity |
+| ingreso_id | bigint | not null, FK → `ingresos(id)` on delete cascade |
+| cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` |
+| fecha | date | not null, default `current_date` |
+| monto | numeric | not null, default 0 |
+| comentario | text | null |
+| usuario | text | null |
+| creado_en | timestamptz | not null, default `now()` |
+
+Índice: `idx_pagos_ingresos_ingreso (ingreso_id)`.
+
+---
+
 ## Funciones RPC (transaccionales)
 
 ### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text, p_cuenta_id bigint default null) → nativo.ventas`
@@ -317,6 +423,12 @@ En una sola transacción: inserta el **egreso** en la cuenta origen y el **ingre
 ### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text, p_fecha_entrega_real date default null, p_transportadora text default null, p_numero_guia text default null) → nativo.ventas`
 
 En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera (`estado_entrega`, `comentario_entrega`, y si vienen, `fecha_entrega_real`, `transportadora`, `numero_guia`) e inserta la fila de auditoría en `historial_entregas` con estado anterior → nuevo. Lanza excepción si la venta no existe.
+
+### `nativo.cobrar_ingreso(p_ingreso_id bigint, p_cuenta_id bigint, p_monto numeric, p_fecha date, p_comentario text, p_usuario text) → nativo.ingresos`
+
+Espejo exacto de `pagar_gasto`: en una sola transacción inserta `pagos_ingresos`, actualiza el ingreso (acumula `cobrado`, recalcula `saldo`, fija `estado` — `Cobrado` si saldo ≤ 0, si no `Abonado`) e inserta el movimiento bancario de **ingreso** (origen `pago_ingreso`). Valida monto > 0 y cuenta obligatoria.
+
+No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como statements directos en la server action (igual que `actualizarVenta`), protegidos por `verificarPinContadora` y registrando el cambio en `auditoria_ediciones`.
 
 ---
 

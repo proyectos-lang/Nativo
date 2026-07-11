@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FileSpreadsheet, Printer } from "lucide-react";
 import {
   formatoPesos, formatoFecha,
-  type CuentaBancaria, type MovimientoBancario, type Gasto, type Venta, type Pago,
+  type CuentaBancaria, type MovimientoBancario, type Gasto, type Venta, type Pago, type Ingreso,
 } from "@/lib/tipos";
 
 type Props = {
@@ -18,11 +18,12 @@ type Props = {
   gastos: Gasto[];
   ventas: Venta[];
   pagosVentas: Record<number, Pago[]>;
+  ingresos: Ingreso[];
 };
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas }: Props) {
+export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas, ingresos }: Props) {
   const [fecha, setFecha] = useState(HOY());
 
   const datos = useMemo(() => {
@@ -36,10 +37,14 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
     const movsDia = movimientos.filter(m => m.fecha === fecha);
     const pagosGastosDia = movsDia.filter(m => m.origen === "pago_gasto");
     const totalPagosGastosDia = pagosGastosDia.reduce((s, m) => s + Number(m.monto), 0);
+    const cobrosIngresosDia = movsDia.filter(m => m.origen === "pago_ingreso");
+    const totalCobrosIngresosDia = cobrosIngresosDia.reduce((s, m) => s + Number(m.monto), 0);
     const manualesDia = movsDia.filter(m => m.origen === "manual" || m.origen === "transferencia");
 
     const gastosCausadosDia = gastos.filter(g => g.fecha === fecha);
     const totalCausadoDia = gastosCausadosDia.reduce((s, g) => s + Number(g.monto), 0);
+    const ingresosCausadosDia = ingresos.filter(i => i.fecha === fecha);
+    const totalIngresosCausadosDia = ingresosCausadosDia.reduce((s, i) => s + Number(i.monto), 0);
 
     // Balance de caja del día: movimientos reales excluyendo transferencias internas
     const entradasCaja = movsDia.filter(m => m.tipo === "ingreso" && m.origen !== "transferencia").reduce((s, m) => s + Number(m.monto), 0);
@@ -57,11 +62,12 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
     return {
       ventasDia, totalVentasDia, pagosDia, totalPagosDia, ventaPorId,
       pagosGastosDia, totalPagosGastosDia, manualesDia,
-      gastosCausadosDia, totalCausadoDia,
+      cobrosIngresosDia, totalCobrosIngresosDia,
+      gastosCausadosDia, totalCausadoDia, ingresosCausadosDia, totalIngresosCausadosDia,
       entradasCaja, salidasCaja, balanceDia: entradasCaja - salidasCaja,
       consolidacion, totalCierre,
     };
-  }, [fecha, cuentas, movimientos, gastos, ventas, pagosVentas]);
+  }, [fecha, cuentas, movimientos, gastos, ventas, pagosVentas, ingresos]);
 
   const nombreCuenta = (id: number | null) => cuentas.find(c => c.id === id)?.nombre || (id ? `#${id}` : "Sin cuenta");
 
@@ -75,6 +81,8 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
       { Concepto: "Pagos recibidos (abonos)", Valor: datos.totalPagosDia },
       { Concepto: "Pagos de gastos/costos", Valor: datos.totalPagosGastosDia },
       { Concepto: "Gastos/costos causados", Valor: datos.totalCausadoDia },
+      { Concepto: "Cobros de ingresos", Valor: datos.totalCobrosIngresosDia },
+      { Concepto: "Ingresos causados", Valor: datos.totalIngresosCausadosDia },
       { Concepto: "Entradas de caja del día", Valor: datos.entradasCaja },
       { Concepto: "Salidas de caja del día", Valor: datos.salidasCaja },
       { Concepto: "Balance del día", Valor: datos.balanceDia },
@@ -94,6 +102,10 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datos.pagosGastosDia.map(m => ({
       Concepto: m.concepto || "", Monto: Number(m.monto), Cuenta: nombreCuenta(m.cuenta_id),
     }))), "Pagos de gastos");
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datos.cobrosIngresosDia.map(m => ({
+      Concepto: m.concepto || "", Monto: Number(m.monto), Cuenta: nombreCuenta(m.cuenta_id),
+    }))), "Cobros de ingresos");
 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datos.consolidacion.map(x => ({
       Cuenta: x.cuenta.nombre, Banco: x.cuenta.banco || "", "Saldo al cierre": x.saldoCierre,
@@ -197,6 +209,25 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                       <TableCell className="max-w-56 truncate">{m.concepto || "-"}</TableCell>
                       <TableCell>{nombreCuenta(m.cuenta_id)}</TableCell>
                       <TableCell className="text-right text-destructive">{formatoPesos(m.monto)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Cobros de ingresos</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader><TableRow><TableHead>Concepto</TableHead><TableHead>Cuenta</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {datos.cobrosIngresosDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin cobros de ingresos este día.</TableCell></TableRow>}
+                  {datos.cobrosIngresosDia.map(m => (
+                    <TableRow key={m.id}>
+                      <TableCell className="max-w-56 truncate">{m.concepto || "-"}</TableCell>
+                      <TableCell>{nombreCuenta(m.cuenta_id)}</TableCell>
+                      <TableCell className="text-right text-primary">{formatoPesos(m.monto)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -94,3 +94,17 @@ export async function cambiarPinAutorizacion(pinActual: string, pinNuevo: string
   if (error) throw new Error(error.message);
   revalidatePath("/configuracion");
 }
+
+export async function cambiarClaveContadora(claveActual: string, claveNueva: string) {
+  const sesion = await requierePermiso("configuracion");
+  if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar la clave de la contadora.");
+  if (!claveNueva?.trim() || claveNueva.trim().length < 4) throw new Error("La nueva clave debe tener al menos 4 caracteres.");
+
+  const { data, error: errGet } = await db().from("configuracion_sistema").select("id, clave_contadora").limit(1).single();
+  if (errGet) throw new Error(errGet.message);
+  if ((claveActual || "").trim() !== data.clave_contadora) throw new Error("La clave actual no coincide.");
+
+  const { error } = await db().from("configuracion_sistema").update({ clave_contadora: claveNueva.trim() }).eq("id", data.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/configuracion");
+}

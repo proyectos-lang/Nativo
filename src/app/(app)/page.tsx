@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requiereSesion } from "@/lib/sesion";
+import { requierePermisoPagina } from "@/lib/sesion";
 import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos } from "@/lib/consultas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const DIAS_ALERTA = 10;
 
 export default async function PaginaDashboard({ searchParams }: { searchParams: Promise<{ mes?: string; anio?: string; bienvenida?: string }> }) {
-  const sesion = await requiereSesion();
+  const sesion = await requierePermisoPagina("dashboard");
   const params = await searchParams;
   const mostrarBienvenida = params.bienvenida === "1";
   const hoy = new Date();

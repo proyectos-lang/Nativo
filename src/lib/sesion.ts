@@ -2,7 +2,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { Sesion, Modulo } from "./tipos";
+import { MODULO_URL, type Sesion, type Modulo } from "./tipos";
 
 const COOKIE = "nativo_sesion";
 const DURACION_HORAS = 12;
@@ -51,6 +51,15 @@ export async function requiereSesion(): Promise<Sesion> {
   const s = await obtenerSesion();
   if (!s) redirect("/login");
   return s;
+}
+
+/** Para páginas: exige sesión y permiso del módulo; si no lo tiene, redirige
+ *  al primer módulo al que sí tenga acceso, o a /login si no tiene ninguno. */
+export async function requierePermisoPagina(modulo: Modulo): Promise<Sesion> {
+  const s = await requiereSesion();
+  if (s.rol === "admin" || s.permisos?.[modulo]) return s;
+  const alterno = (Object.keys(MODULO_URL) as Modulo[]).find(m => m !== modulo && s.permisos?.[m]);
+  redirect(alterno ? MODULO_URL[alterno] : "/login");
 }
 
 /** Para server actions: lanza error si no hay sesión o no tiene el permiso. */

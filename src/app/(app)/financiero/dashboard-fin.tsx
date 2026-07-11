@@ -4,20 +4,22 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GraficoFlujo } from "./grafico-flujo";
-import { Landmark, TrendingUp, TrendingDown, Wallet, Scale } from "lucide-react";
-import { formatoPesos, type CuentaBancaria, type MovimientoBancario, type Gasto, type Venta } from "@/lib/tipos";
+import { Landmark, TrendingUp, TrendingDown, Wallet, Scale, HandCoins } from "lucide-react";
+import { formatoPesos, type CuentaBancaria, type MovimientoBancario, type Gasto, type Venta, type Ingreso } from "@/lib/tipos";
 
 type Props = {
   cuentas: CuentaBancaria[];
   movimientos: MovimientoBancario[];
   gastos: Gasto[];
   ventas: Venta[];
+  ingresos: Ingreso[];
 };
 
-export function DashboardFinanciero({ cuentas, movimientos, gastos, ventas }: Props) {
+export function DashboardFinanciero({ cuentas, movimientos, gastos, ventas, ingresos }: Props) {
   const totalBancos = useMemo(() => cuentas.reduce((s, c) => s + (c.saldo_actual || 0), 0), [cuentas]);
   const cxc = useMemo(() => ventas.reduce((s, v) => s + (v.saldo > 0 ? Number(v.saldo) : 0), 0), [ventas]);
   const cxp = useMemo(() => gastos.reduce((s, g) => s + (g.saldo > 0 ? Number(g.saldo) : 0), 0), [gastos]);
+  const ingresosPendientes = useMemo(() => ingresos.reduce((s, i) => s + (i.saldo > 0 ? Number(i.saldo) : 0), 0), [ingresos]);
   const balance = totalBancos + cxc - cxp;
 
   // Flujo de caja: ingresos vs egresos por mes (últimos 12), excluyendo transferencias internas
@@ -45,7 +47,7 @@ export function DashboardFinanciero({ cuentas, movimientos, gastos, ventas }: Pr
   return (
     <div className="grid gap-4 pt-2">
       {/* KPIs principales */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardContent className="pt-2">
             <div className="flex items-center justify-between">
@@ -74,6 +76,16 @@ export function DashboardFinanciero({ cuentas, movimientos, gastos, ventas }: Pr
             </div>
             <p className="text-2xl font-bold text-destructive">{formatoPesos(cxp)}</p>
             <p className="text-xs text-muted-foreground">{gastos.filter(g => g.saldo > 0).length} gasto(s) pendiente(s)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Ingresos Pendientes</p>
+              <HandCoins className="size-4 text-primary" />
+            </div>
+            <p className="text-2xl font-bold">{formatoPesos(ingresosPendientes)}</p>
+            <p className="text-xs text-muted-foreground">{ingresos.filter(i => i.saldo > 0).length} ingreso(s) por cobrar</p>
           </CardContent>
         </Card>
         <Card className="border-primary/40">

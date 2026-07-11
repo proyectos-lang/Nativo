@@ -2,14 +2,19 @@ import { requiereSesion } from "@/lib/sesion";
 import { redirect } from "next/navigation";
 import {
   cuentasConSaldo, movimientosBancarios, gastosTodos, pagosGastosPorGasto,
-  ventasConCliente, listasMaestras, pagosPorVenta,
+  ventasConCliente, listasMaestras, pagosPorVenta, proveedoresTodos, gastosDetallePorGasto,
+  ingresosTodos, pagosIngresosPorIngreso, auditoriaPorTabla,
 } from "@/lib/consultas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardFinanciero } from "./dashboard-fin";
 import { CuentasCliente } from "./cuentas-cliente";
 import { GastosCliente } from "./gastos-cliente";
+import { IngresosCliente } from "./ingresos-cliente";
 import { CierreDiario } from "./cierre-diario";
-import type { CuentaBancaria, MovimientoBancario, Gasto, PagoGasto, Venta, Pago } from "@/lib/tipos";
+import type {
+  CuentaBancaria, MovimientoBancario, Gasto, GastoDetalle, PagoGasto, Venta, Pago,
+  Proveedor, Ingreso, PagoIngreso, AuditoriaEdicion,
+} from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +22,14 @@ export default async function PaginaFinanciero() {
   const sesion = await requiereSesion();
   if (sesion.rol !== "admin" && !sesion.permisos?.financiero) redirect("/");
 
-  const [cuentas, movimientos, gastos, pagosGastos, ventas, maestros, pagosVentas] = await Promise.all([
+  const [
+    cuentas, movimientos, gastos, pagosGastos, ventas, maestros, pagosVentas,
+    proveedores, gastosDetalle, ingresos, pagosIngresos, auditoriaGastos, auditoriaIngresos,
+  ] = await Promise.all([
     cuentasConSaldo(), movimientosBancarios(), gastosTodos(), pagosGastosPorGasto(),
     ventasConCliente(), listasMaestras(), pagosPorVenta(),
+    proveedoresTodos(), gastosDetallePorGasto(), ingresosTodos(), pagosIngresosPorIngreso(),
+    auditoriaPorTabla("gastos"), auditoriaPorTabla("ingresos"),
   ]);
 
   return (
@@ -30,6 +40,7 @@ export default async function PaginaFinanciero() {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="cuentas">Cuentas</TabsTrigger>
           <TabsTrigger value="gastos">Gastos y Costos</TabsTrigger>
+          <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
           <TabsTrigger value="cierre">Cierre Diario</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard">
@@ -38,6 +49,7 @@ export default async function PaginaFinanciero() {
             movimientos={movimientos as MovimientoBancario[]}
             gastos={gastos as Gasto[]}
             ventas={ventas as Venta[]}
+            ingresos={ingresos as Ingreso[]}
           />
         </TabsContent>
         <TabsContent value="cuentas">
@@ -52,6 +64,19 @@ export default async function PaginaFinanciero() {
             pagosGastos={pagosGastos as Record<number, PagoGasto[]>}
             cuentas={(cuentas as CuentaBancaria[]).filter(c => c.activa)}
             categorias={maestros["categoria_gasto"] || []}
+            proveedores={proveedores as Proveedor[]}
+            gastosDetalle={gastosDetalle as Record<number, GastoDetalle[]>}
+            auditoriaGastos={auditoriaGastos as Record<number, AuditoriaEdicion[]>}
+            unidadesMedida={maestros["unidad_medida"] || []}
+          />
+        </TabsContent>
+        <TabsContent value="ingresos">
+          <IngresosCliente
+            ingresos={ingresos as Ingreso[]}
+            pagosIngresos={pagosIngresos as Record<number, PagoIngreso[]>}
+            cuentas={(cuentas as CuentaBancaria[]).filter(c => c.activa)}
+            categorias={maestros["categoria_ingreso"] || []}
+            auditoriaIngresos={auditoriaIngresos as Record<number, AuditoriaEdicion[]>}
           />
         </TabsContent>
         <TabsContent value="cierre">
@@ -61,6 +86,7 @@ export default async function PaginaFinanciero() {
             gastos={gastos as Gasto[]}
             ventas={ventas as Venta[]}
             pagosVentas={pagosVentas as Record<number, Pago[]>}
+            ingresos={ingresos as Ingreso[]}
           />
         </TabsContent>
       </Tabs>

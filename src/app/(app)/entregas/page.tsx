@@ -1,14 +1,20 @@
 import { requiereSesion } from "@/lib/sesion";
-import { ventasConCliente, detallesPorVenta, historialPorVenta, listasMaestras } from "@/lib/consultas";
+import {
+  ventasConCliente, ventasConClienteSinMontos, detallesPorVenta, detallesPorVentaSinMontos,
+  historialPorVenta, listasMaestras,
+} from "@/lib/consultas";
 import { EntregasCliente } from "./entregas-cliente";
 import type { Venta, VentaDetalle, HistorialEntrega } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaginaEntregas() {
-  await requiereSesion();
+  const sesion = await requiereSesion();
+  const esAdmin = sesion.rol === "admin";
   const [ventas, detalles, historial, maestros] = await Promise.all([
-    ventasConCliente(), detallesPorVenta(), historialPorVenta(), listasMaestras(),
+    esAdmin ? ventasConCliente() : ventasConClienteSinMontos(),
+    esAdmin ? detallesPorVenta() : detallesPorVentaSinMontos(),
+    historialPorVenta(), listasMaestras(),
   ]);
   return (
     <EntregasCliente
@@ -17,6 +23,7 @@ export default async function PaginaEntregas() {
       historial={historial as Record<number, HistorialEntrega[]>}
       estados={maestros["estado_entrega"] || []}
       transportadoras={maestros["transportadora"] || []}
+      esAdmin={esAdmin}
     />
   );
 }
