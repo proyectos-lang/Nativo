@@ -89,7 +89,11 @@ create table nativo.ventas (
   observaciones_pago text,
   estado_entrega text default 'En Proceso',
   fecha_entrega date,
+  fecha_entrega_real date,
+  transportadora text,
+  numero_guia text,
   comentario_entrega text,
+  costo_envio numeric not null default 0,
   creado_en timestamptz not null default now()
 );
 create index idx_ventas_ticket on nativo.ventas (ticket);
@@ -114,6 +118,8 @@ create table nativo.ventas_detalle (
   bordado text,
   guia_estampado text,
   guia_bordado text,
+  imagen_estampado_url text,
+  imagen_bordado_url text,
   valor_unitario numeric not null default 0,
   valor_total numeric not null default 0,
   creado_en timestamptz not null default now()
@@ -170,6 +176,18 @@ create table nativo.prospectos (
 );
 
 -- ------------------------------------------------------------
+-- CONFIGURACIÓN DEL SISTEMA (fila única): PIN de autorización
+-- ADVERTENCIA: igual que las contraseñas de usuarios, se guarda
+-- en texto plano por decisión del propietario del sistema.
+-- ------------------------------------------------------------
+create table nativo.configuracion_sistema (
+  id bigint generated always as identity primary key,
+  clave_autorizacion text not null default 'CAMBIAR-1234',
+  creado_en timestamptz not null default now()
+);
+insert into nativo.configuracion_sistema (clave_autorizacion) values ('CAMBIAR-1234');
+
+-- ------------------------------------------------------------
 -- MÓDULO FINANCIERO
 -- ------------------------------------------------------------
 
@@ -224,7 +242,7 @@ create table nativo.movimientos_bancarios (
   origen text not null default 'manual' check (origen in ('manual', 'pago_venta', 'pago_gasto', 'transferencia')),
   monto numeric not null check (monto > 0),
   concepto text,
-  pago_id bigint references nativo.pagos (id) on delete set null,
+  pago_id bigint references nativo.pagos (id) on delete cascade,
   pago_gasto_id bigint references nativo.pagos_gastos (id) on delete set null,
   movimiento_relacionado_id bigint references nativo.movimientos_bancarios (id),
   usuario text,
@@ -391,7 +409,10 @@ create or replace function nativo.actualizar_entrega(
   p_venta_id bigint,
   p_estado_nuevo text,
   p_comentario text,
-  p_usuario text
+  p_usuario text,
+  p_fecha_entrega_real date default null,
+  p_transportadora text default null,
+  p_numero_guia text default null
 ) returns nativo.ventas
 language plpgsql
 as $$
@@ -406,7 +427,10 @@ begin
 
   update nativo.ventas
   set estado_entrega = p_estado_nuevo,
-      comentario_entrega = coalesce(p_comentario, comentario_entrega)
+      comentario_entrega = coalesce(p_comentario, comentario_entrega),
+      fecha_entrega_real = coalesce(p_fecha_entrega_real, fecha_entrega_real),
+      transportadora = coalesce(p_transportadora, transportadora),
+      numero_guia = coalesce(p_numero_guia, numero_guia)
   where id = p_venta_id
   returning * into v;
 
@@ -416,6 +440,17 @@ begin
   return v;
 end;
 $$;
+
+-- ------------------------------------------------------------
+-- Semillas: lista maestra de transportadoras
+-- ------------------------------------------------------------
+insert into nativo.listas_maestras (tipo, valor) values
+  ('transportadora', 'Servientrega'),
+  ('transportadora', 'Interrapidísimo'),
+  ('transportadora', 'Coordinadora'),
+  ('transportadora', 'Envía'),
+  ('transportadora', 'Entrega propia')
+on conflict do nothing;
 
 -- ------------------------------------------------------------
 -- Permisos para los roles de la API de Supabase

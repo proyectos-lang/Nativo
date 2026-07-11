@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, ShoppingCart, DollarSign, Truck } from "lucide-react";
-import { formatoPesos, formatoFecha, type Venta, type Pago, type HistorialEntrega, type VentaDetalle } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type Pago, type HistorialEntrega, type VentaDetalle } from "@/lib/tipos";
 
 type Props = {
   ventas: Venta[];
@@ -116,38 +116,41 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
                   <TableHead>Ticket</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Último movimiento</TableHead>
+                  <TableHead>Fecha Programada</TableHead>
+                  <TableHead>Cumplimiento</TableHead>
                   <TableHead className="text-right">Días</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
-                {lista.map(({ venta: v, dias, alerta }) => (
-                  <TableRow
-                    key={v.id}
-                    className={`cursor-pointer ${alerta ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
-                    onClick={() => setSel(v)}
-                  >
-                    <TableCell className="font-semibold">#{v.ticket}</TableCell>
-                    <TableCell>
-                      {v.clientes?.nombre || "-"}
-                      {v.clientes?.empresa && <span className="block text-xs text-muted-foreground">{v.clientes.empresa}</span>}
-                    </TableCell>
-                    <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "Sin Estado"}</Badge></TableCell>
-                    <TableCell className="text-sm">
-                      {(historial[v.id]?.length ?? 0) > 0
-                        ? formatoFecha(historial[v.id][historial[v.id].length - 1].fecha)
-                        : formatoFecha(v.fecha)}
-                    </TableCell>
-                    <TableCell className={`text-right font-semibold ${alerta ? "text-destructive" : ""}`}>
-                      {dias} {alerta && <AlertTriangle className="ml-1 inline size-4" />}
-                    </TableCell>
-                    <TableCell className={`text-right ${v.saldo > 0 ? "font-semibold text-destructive" : ""}`}>{formatoPesos(v.saldo)}</TableCell>
-                  </TableRow>
-                ))}
+                {lista.map(({ venta: v, dias, alerta }) => {
+                  const cumplimiento = cumplimientoEntrega(v.fecha_entrega, v.fecha_entrega_real);
+                  return (
+                    <TableRow
+                      key={v.id}
+                      className={`cursor-pointer ${alerta ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
+                      onClick={() => setSel(v)}
+                    >
+                      <TableCell className="font-semibold">#{v.ticket}</TableCell>
+                      <TableCell>
+                        {v.clientes?.nombre || "-"}
+                        {v.clientes?.empresa && <span className="block text-xs text-muted-foreground">{v.clientes.empresa}</span>}
+                      </TableCell>
+                      <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "Sin Estado"}</Badge></TableCell>
+                      <TableCell className="text-sm">{formatoFecha(v.fecha_entrega)}</TableCell>
+                      <TableCell>
+                        {cumplimiento && <Badge variant={cumplimiento === "A tiempo" ? "default" : "destructive"}>{cumplimiento}</Badge>}
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${alerta ? "text-destructive" : ""}`}>
+                        {dias} {alerta && <AlertTriangle className="ml-1 inline size-4" />}
+                      </TableCell>
+                      <TableCell className={`text-right ${v.saldo > 0 ? "font-semibold text-destructive" : ""}`}>{formatoPesos(v.saldo)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -159,6 +162,19 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
           <DialogHeader>
             <DialogTitle>Trazabilidad — Ticket #{sel?.ticket} · {sel?.clientes?.nombre}</DialogTitle>
           </DialogHeader>
+          {sel && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+              <span>Programada: <strong>{formatoFecha(sel.fecha_entrega)}</strong></span>
+              <span>Real: <strong>{formatoFecha(sel.fecha_entrega_real)}</strong></span>
+              {cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real) && (
+                <Badge variant={cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real) === "A tiempo" ? "default" : "destructive"}>
+                  {cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real)}
+                </Badge>
+              )}
+              {sel.transportadora && <span>Transportadora: <strong>{sel.transportadora}</strong></span>}
+              {sel.numero_guia && <span>Guía: <strong>{sel.numero_guia}</strong></span>}
+            </div>
+          )}
           <div className="max-h-[60vh] overflow-auto">
             <ol className="relative ml-3 grid gap-4 border-l pl-6">
               {eventos.map((e, i) => {

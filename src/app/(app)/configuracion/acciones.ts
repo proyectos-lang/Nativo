@@ -62,3 +62,35 @@ export async function eliminarValorMaestro(id: number) {
   if (error) throw new Error(error.message);
   revalidatePath("/configuracion");
 }
+
+export async function crearProducto(nombre: string) {
+  await requierePermiso("configuracion");
+  const limpio = nombre?.trim();
+  if (!limpio) throw new Error("El nombre del producto es obligatorio.");
+  const { error } = await db().from("productos").insert({ nombre: limpio });
+  if (error) throw new Error(error.message.includes("duplicate") ? "Ese producto ya existe." : error.message);
+  revalidatePath("/configuracion");
+  revalidatePath("/ventas");
+}
+
+export async function eliminarProducto(id: number) {
+  await requierePermiso("configuracion");
+  const { error } = await db().from("productos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/configuracion");
+  revalidatePath("/ventas");
+}
+
+export async function cambiarPinAutorizacion(pinActual: string, pinNuevo: string) {
+  const sesion = await requierePermiso("configuracion");
+  if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar el PIN.");
+  if (!pinNuevo?.trim() || pinNuevo.trim().length < 4) throw new Error("El nuevo PIN debe tener al menos 4 caracteres.");
+
+  const { data, error: errGet } = await db().from("configuracion_sistema").select("id, clave_autorizacion").limit(1).single();
+  if (errGet) throw new Error(errGet.message);
+  if ((pinActual || "").trim() !== data.clave_autorizacion) throw new Error("El PIN actual no coincide.");
+
+  const { error } = await db().from("configuracion_sistema").update({ clave_autorizacion: pinNuevo.trim() }).eq("id", data.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/configuracion");
+}

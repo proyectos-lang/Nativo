@@ -15,6 +15,7 @@ import {
   Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList,
 } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
+import { SubidaImagen } from "@/components/subida-imagen";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,6 +52,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
 
   // Pago y entrega
   const [abono, setAbono] = useState(0);
+  const [costoEnvio, setCostoEnvio] = useState(0);
   const [cuentaId, setCuentaId] = useState(0);
   const [estadoPago, setEstadoPago] = useState("");
   const [medioPago, setMedioPago] = useState("");
@@ -60,12 +62,13 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
-  const total = useMemo(
+  const totalProductos = useMemo(
     () => lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0),
     [lineas]
   );
+  const total = totalProductos + (Number(costoEnvio) || 0);
 
-  const setLinea = (i: number, campo: keyof LineaVenta, valor: string | number) => {
+  const setLinea = (i: number, campo: keyof LineaVenta, valor: string | number | null) => {
     setLineas(prev => prev.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
   };
 
@@ -93,7 +96,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         const r = await registrarVenta({
           cliente_id: clienteSel.id,
           canal_venta: canal, campana, vendedora, profesional, motivo_compra: motivo,
-          lineas, abono, cuenta_id: cuentaId || null,
+          lineas, abono, cuenta_id: cuentaId || null, costo_envio: costoEnvio,
           estado_pago: estadoPago, medio_pago: medioPago, tipo_pago: tipoPago,
           fecha_pago: fechaPago, estado_entrega: estadoEntrega, fecha_entrega: fechaEntrega,
           observaciones_pago: observaciones,
@@ -102,7 +105,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo("");
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
-        setAbono(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
+        setAbono(0); setCostoEnvio(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
         setFechaPago(""); setEstadoEntrega("En Proceso"); setFechaEntrega(""); setObservaciones("");
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
@@ -244,6 +247,12 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                   <Label>Guía Bordado</Label>
                   <Input value={l.guia_bordado || ""} onChange={e => setLinea(i, "guia_bordado", e.target.value)} placeholder="Guía #" />
                 </div>
+                {l.estampado?.trim() && (
+                  <SubidaImagen label="Imagen de referencia — Estampado" url={l.imagen_estampado_url} onChange={url => setLinea(i, "imagen_estampado_url", url)} />
+                )}
+                {l.bordado?.trim() && (
+                  <SubidaImagen label="Imagen de referencia — Bordado" url={l.imagen_bordado_url} onChange={url => setLinea(i, "imagen_bordado_url", url)} />
+                )}
               </div>
             </div>
           ))}
@@ -267,7 +276,11 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         <CardHeader><CardTitle>4. Pago y Entrega</CardTitle></CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[1fr_2fr]">
           <div className="grid content-start gap-3 rounded-lg border bg-muted/40 p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
+              <Label>Costo de Envío (+)</Label>
+              <Input type="number" min={0} className="w-40 text-right" value={costoEnvio || ""} onChange={e => setCostoEnvio(Number(e.target.value))} placeholder="0" />
+            </div>
+            <div className="flex items-center justify-between border-t pt-2">
               <Label>TOTAL COMPRA</Label>
               <span className="text-lg font-bold text-primary">{formatoPesos(total)}</span>
             </div>
@@ -297,7 +310,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
             <div className="grid gap-1.5"><Label>Tipo de Pago</Label><Combo opciones={maestros["tipo_pago"] || []} value={tipoPago} onChange={setTipoPago} /></div>
             <div className="grid gap-1.5"><Label>Fecha Pago</Label><Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} /></div>
             <div className="grid gap-1.5"><Label>Estado Pedido / Entrega</Label><Combo opciones={maestros["estado_entrega"] || []} value={estadoEntrega} onChange={setEstadoEntrega} /></div>
-            <div className="grid gap-1.5"><Label>Fecha Entrega</Label><Input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} /></div>
+            <div className="grid gap-1.5"><Label>Fecha Programada de Entrega</Label><Input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} /></div>
             <div className="grid gap-1.5 sm:col-span-2 lg:col-span-3">
               <Label>Observaciones</Label>
               <Textarea rows={2} value={observaciones} onChange={e => setObservaciones(e.target.value)} />

@@ -13,16 +13,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
+import { Combo } from "@/components/combo";
+import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
 
 type Props = {
   ventas: Venta[];
   detalles: Record<number, VentaDetalle[]>;
   historial: Record<number, HistorialEntrega[]>;
   estados: string[];
+  transportadoras: string[];
 };
 
-export function EntregasCliente({ ventas, detalles, historial, estados }: Props) {
+const HOY = () => new Date().toISOString().slice(0, 10);
+
+export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -30,6 +34,9 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
   const [sel, setSel] = useState<Venta | null>(null);
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [comentario, setComentario] = useState("");
+  const [fechaEntregaReal, setFechaEntregaReal] = useState("");
+  const [transportadora, setTransportadora] = useState("");
+  const [numeroGuia, setNumeroGuia] = useState("");
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -46,15 +53,29 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
 
   const abrir = (v: Venta) => {
     setSel(v);
-    setNuevoEstado(v.estado_entrega || "En Proceso");
+    const nuevo = v.estado_entrega || "En Proceso";
+    setNuevoEstado(nuevo);
     setComentario("");
+    setFechaEntregaReal(v.fecha_entrega_real || (nuevo === "Entregado" ? HOY() : ""));
+    setTransportadora(v.transportadora || "");
+    setNumeroGuia(v.numero_guia || "");
+  };
+
+  const cambiarEstado = (estado: string) => {
+    setNuevoEstado(estado);
+    if (estado === "Entregado" && !fechaEntregaReal) setFechaEntregaReal(HOY());
   };
 
   const guardar = () => {
     if (!sel) return;
     startTransition(async () => {
       try {
-        await actualizarEntrega({ venta_id: sel.id, estado_nuevo: nuevoEstado, comentario });
+        await actualizarEntrega({
+          venta_id: sel.id, estado_nuevo: nuevoEstado, comentario,
+          fecha_entrega_real: fechaEntregaReal || undefined,
+          transportadora: transportadora || undefined,
+          numero_guia: numeroGuia || undefined,
+        });
         toast.success(`Ticket #${sel.ticket} actualizado a: ${nuevoEstado}`);
         setSel(null);
         router.refresh();
@@ -100,18 +121,18 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
                   <TableHead>Cliente</TableHead>
                   <TableHead>Productos</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Última actualización</TableHead>
+                  <TableHead>Fecha Programada</TableHead>
+                  <TableHead>Cumplimiento</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(v => {
-                  const hist = historial[v.id] || [];
-                  const ultima = hist.length ? hist[hist.length - 1].fecha : null;
+                  const cumplimiento = cumplimientoEntrega(v.fecha_entrega, v.fecha_entrega_real);
                   return (
                     <TableRow key={v.id} className="cursor-pointer" onClick={() => abrir(v)}>
                       <TableCell className="font-semibold">#{v.ticket}</TableCell>
@@ -123,7 +144,12 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
                         {(detalles[v.id] || []).map(d => d.producto).join(", ") || "-"}
                       </TableCell>
                       <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "Sin Estado"}</Badge></TableCell>
-                      <TableCell className="text-sm">{ultima ? formatoFecha(ultima) : formatoFecha(v.fecha)}</TableCell>
+                      <TableCell className="text-sm">{formatoFecha(v.fecha_entrega)}</TableCell>
+                      <TableCell>
+                        {cumplimiento && (
+                          <Badge variant={cumplimiento === "A tiempo" ? "default" : "destructive"}>{cumplimiento}</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">{formatoPesos(v.total_compra)}</TableCell>
                       <TableCell><Button variant="outline" size="sm">Actualizar</Button></TableCell>
                     </TableRow>
@@ -144,16 +170,44 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
             <div className="grid gap-4">
               <div>
                 <p className="mb-1 text-sm font-semibold">Productos del pedido</p>
-                <div className="grid gap-1 rounded-md border p-2 text-sm">
+                <div className="grid gap-2">
                   {(detalles[sel.id] || []).map(d => (
-                    <div key={d.id} className="flex items-center justify-between">
-                      <span>
-                        {d.producto}
-                        <span className="text-xs text-muted-foreground">
-                          {[d.talla && `Talla ${d.talla}`, d.color, d.estampado && "Estampado", d.bordado && "Bordado"].filter(Boolean).join(" · ")}
+                    <div key={d.id} className="rounded-md border p-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>
+                          {d.producto}
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {[d.talla && `Talla ${d.talla}`, d.color].filter(Boolean).join(" · ")}
+                          </span>
                         </span>
-                      </span>
-                      <Badge variant="secondary">x{d.cantidad}</Badge>
+                        <Badge variant="secondary">x{d.cantidad}</Badge>
+                      </div>
+                      {(d.estampado || d.bordado) && (
+                        <div className="mt-2 flex flex-wrap gap-3">
+                          {d.estampado && (
+                            <div className="rounded-md border border-dashed p-2">
+                              <p className="text-xs font-semibold text-muted-foreground">Estampado: {d.estampado}</p>
+                              {d.imagen_estampado_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={d.imagen_estampado_url} alt="Estampado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                              ) : (
+                                <p className="mt-1 text-xs text-muted-foreground">Sin imagen de referencia</p>
+                              )}
+                            </div>
+                          )}
+                          {d.bordado && (
+                            <div className="rounded-md border border-dashed p-2">
+                              <p className="text-xs font-semibold text-muted-foreground">Bordado: {d.bordado}</p>
+                              {d.imagen_bordado_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={d.imagen_bordado_url} alt="Bordado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                              ) : (
+                                <p className="mt-1 text-xs text-muted-foreground">Sin imagen de referencia</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {!(detalles[sel.id] || []).length && <span className="text-muted-foreground">Sin detalle registrado.</span>}
@@ -180,10 +234,15 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
                 </div>
               )}
 
+              <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
+                <div><p className="text-muted-foreground">Fecha Programada</p><p className="font-medium">{formatoFecha(sel.fecha_entrega)}</p></div>
+                <div><p className="text-muted-foreground">Costo de Envío</p><p className="font-medium">{formatoPesos(sel.costo_envio)}</p></div>
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5">
                   <Label>Nuevo estado</Label>
-                  <Select value={nuevoEstado} onValueChange={v => setNuevoEstado(v || "")}>
+                  <Select value={nuevoEstado} onValueChange={v => v && cambiarEstado(v)}>
                     <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {estados.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -191,6 +250,18 @@ export function EntregasCliente({ ventas, detalles, historial, estados }: Props)
                   </Select>
                 </div>
                 <div className="grid gap-1.5">
+                  <Label>Fecha real de entrega</Label>
+                  <Input type="date" value={fechaEntregaReal} onChange={e => setFechaEntregaReal(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Transportadora</Label>
+                  <Combo opciones={transportadoras} value={transportadora} onChange={setTransportadora} placeholder="Ej. Servientrega" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Número de guía</Label>
+                  <Input value={numeroGuia} onChange={e => setNumeroGuia(e.target.value)} placeholder="Ej. 123456789" />
+                </div>
+                <div className="grid gap-1.5 sm:col-span-2">
                   <Label>Comentario / Notas de envío</Label>
                   <Textarea rows={2} value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Ej. Enviado por Servientrega Guía #12345" />
                 </div>

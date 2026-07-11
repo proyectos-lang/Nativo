@@ -1,16 +1,16 @@
 import { requiereSesion } from "@/lib/sesion";
-import { listasMaestras, clientesTodos, productosTodos, ventasConCliente, detallesPorVenta, cuentasConSaldo } from "@/lib/consultas";
+import { listasMaestras, clientesTodos, productosTodos, ventasConCliente, detallesPorVenta, cuentasConSaldo, pagosPorVenta } from "@/lib/consultas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RegistrarVentaForm } from "./registrar-form";
 import { HistorialVentas } from "./historial";
-import type { Cliente, Venta, VentaDetalle, CuentaBancaria } from "@/lib/tipos";
+import type { Cliente, Venta, VentaDetalle, CuentaBancaria, Pago } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaginaVentas() {
   await requiereSesion();
-  const [maestros, clientes, productos, ventas, detalles, cuentas] = await Promise.all([
-    listasMaestras(), clientesTodos(), productosTodos(), ventasConCliente(), detallesPorVenta(), cuentasConSaldo(),
+  const [maestros, clientes, productos, ventas, detalles, cuentas, pagos] = await Promise.all([
+    listasMaestras(), clientesTodos(), productosTodos(), ventasConCliente(), detallesPorVenta(), cuentasConSaldo(), pagosPorVenta(),
   ]);
 
   return (
@@ -27,6 +27,7 @@ export default async function PaginaVentas() {
           <HistorialVentas
             ventas={ventas as Venta[]}
             detalles={detalles as Record<number, VentaDetalle[]>}
+            pagos={pagos as Record<number, Pago[]>}
             maestros={maestros}
             productos={productos}
           />

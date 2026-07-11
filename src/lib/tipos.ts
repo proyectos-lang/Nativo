@@ -55,7 +55,11 @@ export type Venta = {
   observaciones_pago: string | null;
   estado_entrega: string | null;
   fecha_entrega: string | null;
+  fecha_entrega_real: string | null;
+  transportadora: string | null;
+  numero_guia: string | null;
   comentario_entrega: string | null;
+  costo_envio: number;
   creado_en: string;
   clientes?: Cliente | null;
 };
@@ -73,6 +77,8 @@ export type VentaDetalle = {
   bordado: string | null;
   guia_estampado: string | null;
   guia_bordado: string | null;
+  imagen_estampado_url: string | null;
+  imagen_bordado_url: string | null;
   valor_unitario: number;
   valor_total: number;
 };
@@ -191,6 +197,12 @@ export type PagoGasto = {
 
 export function formatoPesos(n: number | null | undefined): string {
   return "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
+}
+
+/** Compara fecha programada vs. fecha real de entrega. null si falta alguna. */
+export function cumplimientoEntrega(programada: string | null | undefined, real: string | null | undefined): "A tiempo" | "Con retraso" | null {
+  if (!programada || !real) return null;
+  return real <= programada ? "A tiempo" : "Con retraso";
 }
 
 export function formatoFecha(f: string | null | undefined): string {

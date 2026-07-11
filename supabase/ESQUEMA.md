@@ -73,7 +73,9 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`.
+
+El catálogo de **productos** (tabla `productos`) es independiente de `listas_maestras` y se administra en Configuración → Productos.
 
 ---
 
@@ -103,8 +105,12 @@ Una fila por pedido/ticket. Toda la trazabilidad (pagos, estados de entrega) cue
 | medio_pago | text | null | |
 | observaciones_pago | text | null | |
 | estado_entrega | text | default `'En Proceso'` | Estado actual (el historial vive en `historial_entregas`); `Entregado` es el estado terminal |
-| fecha_entrega | date | null | |
+| fecha_entrega | date | null | **Fecha Programada** — la que se pone al registrar la venta |
+| fecha_entrega_real | date | null | Fecha en que realmente se entregó al cliente (se compara contra `fecha_entrega` para medir cumplimiento) |
+| transportadora | text | null | Lista maestra tipo `transportadora` |
+| numero_guia | text | null | Número de guía de envío |
 | comentario_entrega | text | null | Último comentario |
+| costo_envio | numeric | not null, default 0 | Se suma al `total_compra`/`saldo` — lo paga el cliente |
 | creado_en | timestamptz | not null, default `now()` | |
 
 Índices: `idx_ventas_ticket (ticket)`, `idx_ventas_cliente (cliente_id)`, `idx_ventas_estado_pago (estado_pago)`, `idx_ventas_estado_entrega (estado_entrega)`, `idx_ventas_fecha (fecha)`.
@@ -129,6 +135,8 @@ Una fila por producto de cada venta.
 | bordado | text | null | |
 | guia_estampado | text | null | |
 | guia_bordado | text | null | |
+| imagen_estampado_url | text | null | URL pública en el bucket de Storage `guias` |
+| imagen_bordado_url | text | null | URL pública en el bucket de Storage `guias` |
 | valor_unitario | numeric | not null, default 0 | |
 | valor_total | numeric | not null, default 0 | `cantidad × valor_unitario` |
 | creado_en | timestamptz | not null, default `now()` | |
@@ -197,6 +205,18 @@ Clientes por contactar.
 
 ---
 
+## configuracion_sistema
+
+Fila única con ajustes globales del sistema.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. PIN requerido para editar/eliminar ventas (Configuración → Seguridad la cambia) |
+| creado_en | timestamptz | not null, default `now()` | |
+
+---
+
 ## cuentas_bancarias
 
 Cuentas de la empresa (bancos y caja). El saldo actual **no se almacena**: se calcula `saldo_inicial + ingresos − egresos` de `movimientos_bancarios`.
@@ -226,7 +246,7 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia')` | |
 | monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
 | concepto | text | null | |
-| pago_id | bigint | null, FK → `pagos(id)` on delete set null | Cuando origen = pago_venta |
+| pago_id | bigint | null, FK → `pagos(id)` **on delete cascade** | Cuando origen = pago_venta — al eliminar la venta/pago, el movimiento bancario también se elimina y el saldo de la cuenta se corrige |
 | pago_gasto_id | bigint | null, FK → `pagos_gastos(id)` on delete set null | Cuando origen = pago_gasto |
 | movimiento_relacionado_id | bigint | null, FK → `movimientos_bancarios(id)` | Enlaza los 2 asientos de una transferencia |
 | usuario | text | null | |
@@ -294,9 +314,9 @@ En una sola transacción: inserta `pagos_gastos`, actualiza el gasto (acumula `a
 
 En una sola transacción: inserta el **egreso** en la cuenta origen y el **ingreso** en la destino (origen `transferencia`), enlazados entre sí vía `movimiento_relacionado_id`. Valida monto > 0, cuentas distintas y existentes.
 
-### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text) → nativo.ventas`
+### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text, p_fecha_entrega_real date default null, p_transportadora text default null, p_numero_guia text default null) → nativo.ventas`
 
-En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera (`estado_entrega`, `comentario_entrega`) e inserta la fila de auditoría en `historial_entregas` con estado anterior → nuevo. Lanza excepción si la venta no existe.
+En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera (`estado_entrega`, `comentario_entrega`, y si vienen, `fecha_entrega_real`, `transportadora`, `numero_guia`) e inserta la fila de auditoría en `historial_entregas` con estado anterior → nuevo. Lanza excepción si la venta no existe.
 
 ---
 
@@ -305,3 +325,7 @@ En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera 
 - `grant usage` del esquema a `anon`, `authenticated`, `service_role`.
 - Privilegios sobre tablas/secuencias/funciones **solo** para `service_role` (incluye default privileges para objetos futuros).
 - El esquema `nativo` está agregado a "Exposed schemas" en la configuración de la API de Supabase.
+
+## Storage
+
+- Bucket **`guias`** (público): imágenes de referencia de estampado/bordado por línea de producto. Las URLs públicas se guardan en `ventas_detalle.imagen_estampado_url` / `imagen_bordado_url`. Subidas siempre server-side (`subirImagenLinea`, permiso `ventas`), nunca directo desde el navegador.

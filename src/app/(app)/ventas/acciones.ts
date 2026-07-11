@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
+import { verificarPin } from "@/lib/pin";
 import { revalidatePath } from "next/cache";
 
 export type LineaVenta = {
@@ -15,6 +16,8 @@ export type LineaVenta = {
   bordado?: string;
   guia_estampado?: string;
   guia_bordado?: string;
+  imagen_estampado_url?: string | null;
+  imagen_bordado_url?: string | null;
 };
 
 export type NuevaVenta = {
@@ -27,6 +30,7 @@ export type NuevaVenta = {
   lineas: LineaVenta[];
   abono: number;
   cuenta_id?: number | null;
+  costo_envio?: number;
   estado_pago?: string;
   medio_pago?: string;
   tipo_pago?: string;
@@ -35,6 +39,21 @@ export type NuevaVenta = {
   fecha_entrega?: string;
   observaciones_pago?: string;
 };
+
+function filaDetalle(ventaId: number, l: LineaVenta) {
+  return {
+    venta_id: ventaId,
+    producto: l.producto.trim(),
+    cantidad: Number(l.cantidad) || 1,
+    valor_unitario: Number(l.valor_unitario) || 0,
+    valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
+    talla: l.talla || null, color: l.color || null, sexo: l.sexo || null,
+    estampado: l.estampado || null, bordado: l.bordado || null,
+    guia_estampado: l.guia_estampado || null, guia_bordado: l.guia_bordado || null,
+    imagen_estampado_url: l.imagen_estampado_url || null,
+    imagen_bordado_url: l.imagen_bordado_url || null,
+  };
+}
 
 export async function registrarVenta(venta: NuevaVenta) {
   const sesion = await requierePermiso("ventas");
@@ -49,7 +68,9 @@ export async function registrarVenta(venta: NuevaVenta) {
   if (errMax) throw new Error(errMax.message);
   const ticket = ((maxData?.[0]?.ticket as number) || 0) + 1;
 
-  const total = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+  const costoEnvio = Number(venta.costo_envio) || 0;
+  const totalProductos = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+  const total = totalProductos + costoEnvio;
   const abono = Number(venta.abono) || 0;
 
   const { data: cab, error: errCab } = await db().from("ventas").insert({
@@ -62,6 +83,7 @@ export async function registrarVenta(venta: NuevaVenta) {
     profesional: venta.profesional || null,
     motivo_compra: venta.motivo_compra || null,
     total_compra: total,
+    costo_envio: costoEnvio,
     retencion: 0,
     total_a_pagar: total,
     abono: 0, // el abono inicial se aplica vía RPC registrar_pago más abajo
@@ -77,16 +99,7 @@ export async function registrarVenta(venta: NuevaVenta) {
   if (errCab) throw new Error(errCab.message);
 
   const { error: errDet } = await db().from("ventas_detalle").insert(
-    lineas.map(l => ({
-      venta_id: cab.id,
-      producto: l.producto.trim(),
-      cantidad: Number(l.cantidad) || 1,
-      valor_unitario: Number(l.valor_unitario) || 0,
-      valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
-      talla: l.talla || null, color: l.color || null, sexo: l.sexo || null,
-      estampado: l.estampado || null, bordado: l.bordado || null,
-      guia_estampado: l.guia_estampado || null, guia_bordado: l.guia_bordado || null,
-    }))
+    lineas.map(l => filaDetalle(cab.id, l))
   );
   if (errDet) {
     await db().from("ventas").delete().eq("id", cab.id); // rollback manual de la cabecera
@@ -119,15 +132,18 @@ export async function registrarVenta(venta: NuevaVenta) {
 
 export async function actualizarVenta(datos: {
   venta_id: number;
+  pin: string;
   canal_venta?: string;
   campana?: string;
   vendedora?: string;
   profesional?: string;
   motivo_compra?: string;
   fecha_entrega?: string;
+  costo_envio?: number;
   lineas: LineaVenta[];
 }) {
   await requierePermiso("ventas");
+  await verificarPin(datos.pin);
   const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
   if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
 
@@ -135,7 +151,9 @@ export async function actualizarVenta(datos: {
     .from("ventas").select("id, ticket, retencion, abono").eq("id", datos.venta_id).single();
   if (errGet) throw new Error(errGet.message);
 
-  const total = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+  const costoEnvio = Number(datos.costo_envio) || 0;
+  const totalProductos = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+  const total = totalProductos + costoEnvio;
   const totalAPagar = total - Number(venta.retencion || 0);
   const saldo = totalAPagar - Number(venta.abono || 0);
 
@@ -143,16 +161,7 @@ export async function actualizarVenta(datos: {
   const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
   if (errDel) throw new Error(errDel.message);
   const { error: errIns } = await db().from("ventas_detalle").insert(
-    lineas.map(l => ({
-      venta_id: datos.venta_id,
-      producto: l.producto.trim(),
-      cantidad: Number(l.cantidad) || 1,
-      valor_unitario: Number(l.valor_unitario) || 0,
-      valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
-      talla: l.talla || null, color: l.color || null, sexo: l.sexo || null,
-      estampado: l.estampado || null, bordado: l.bordado || null,
-      guia_estampado: l.guia_estampado || null, guia_bordado: l.guia_bordado || null,
-    }))
+    lineas.map(l => filaDetalle(datos.venta_id, l))
   );
   if (errIns) throw new Error(errIns.message);
 
@@ -163,6 +172,7 @@ export async function actualizarVenta(datos: {
     profesional: datos.profesional || null,
     motivo_compra: datos.motivo_compra || null,
     fecha_entrega: datos.fecha_entrega || null,
+    costo_envio: costoEnvio,
     total_compra: total,
     total_a_pagar: totalAPagar,
     saldo,
@@ -178,6 +188,39 @@ export async function actualizarVenta(datos: {
   revalidatePath("/pagos");
   revalidatePath("/");
   return { ticket: venta.ticket as number };
+}
+
+export async function eliminarVenta(ventaId: number, pin: string) {
+  await requierePermiso("ventas");
+  await verificarPin(pin);
+  const { error } = await db().from("ventas").delete().eq("id", ventaId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/ventas");
+  revalidatePath("/pagos");
+  revalidatePath("/entregas");
+  revalidatePath("/seguimiento");
+  revalidatePath("/financiero");
+  revalidatePath("/");
+}
+
+const TIPOS_IMAGEN_PERMITIDOS = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic"];
+const TAMANO_MAXIMO = 5 * 1024 * 1024;
+
+export async function subirImagenLinea(formData: FormData) {
+  await requierePermiso("ventas");
+  const archivo = formData.get("archivo");
+  if (!(archivo instanceof File)) throw new Error("Archivo inválido.");
+  if (!TIPOS_IMAGEN_PERMITIDOS.includes(archivo.type)) throw new Error("Solo se permiten imágenes (PNG, JPG, WEBP, HEIC).");
+  if (archivo.size > TAMANO_MAXIMO) throw new Error("La imagen no debe superar 5MB.");
+
+  const ext = archivo.name.split(".").pop() || "jpg";
+  const ruta = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await db().storage.from("guias").upload(ruta, archivo, { contentType: archivo.type });
+  if (error) throw new Error("No se pudo subir la imagen: " + error.message);
+
+  const { data } = db().storage.from("guias").getPublicUrl(ruta);
+  return data.publicUrl;
 }
 
 export async function crearCliente(datos: {
