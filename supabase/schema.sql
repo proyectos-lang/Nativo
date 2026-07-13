@@ -191,18 +191,24 @@ insert into nativo.configuracion_sistema (clave_autorizacion) values ('CAMBIAR-1
 -- ------------------------------------------------------------
 -- AUDITORÍA DE EDICIONES (reutilizable: gastos e ingresos hoy)
 -- ------------------------------------------------------------
-create table nativo.auditoria_ediciones (
+create table nativo.bitacora (
   id bigint generated always as identity primary key,
   tabla_afectada text not null,
   registro_id bigint not null,
   usuario text,
   fecha timestamptz not null default now(),
+  modulo text not null default 'financiero',
+  accion text not null default 'editar',
+  descripcion text not null default '',
   datos_anteriores jsonb,
   datos_nuevos jsonb,
   motivo text
 );
-create index idx_auditoria_tabla_registro on nativo.auditoria_ediciones (tabla_afectada, registro_id);
-create index idx_auditoria_fecha on nativo.auditoria_ediciones (fecha);
+create index idx_bitacora_entidad on nativo.bitacora (tabla_afectada, registro_id);
+create index idx_bitacora_fecha on nativo.bitacora (fecha);
+create index idx_bitacora_usuario on nativo.bitacora (usuario);
+create index idx_bitacora_modulo on nativo.bitacora (modulo);
+create index idx_bitacora_accion on nativo.bitacora (accion);
 
 -- ------------------------------------------------------------
 -- PROVEEDORES (clon de clientes)

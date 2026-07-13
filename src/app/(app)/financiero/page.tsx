@@ -13,7 +13,7 @@ import { IngresosCliente } from "./ingresos-cliente";
 import { CierreDiario } from "./cierre-diario";
 import type {
   CuentaBancaria, MovimientoBancario, Gasto, GastoDetalle, PagoGasto, Venta, Pago,
-  Proveedor, Ingreso, PagoIngreso, AuditoriaEdicion,
+  Proveedor, Ingreso, PagoIngreso, Bitacora,
 } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +66,7 @@ export default async function PaginaFinanciero() {
             categorias={maestros["categoria_gasto"] || []}
             proveedores={proveedores as Proveedor[]}
             gastosDetalle={gastosDetalle as Record<number, GastoDetalle[]>}
-            auditoriaGastos={auditoriaGastos as Record<number, AuditoriaEdicion[]>}
+            auditoriaGastos={auditoriaGastos as Record<number, Bitacora[]>}
             unidadesMedida={maestros["unidad_medida"] || []}
           />
         </TabsContent>
@@ -76,7 +76,7 @@ export default async function PaginaFinanciero() {
             pagosIngresos={pagosIngresos as Record<number, PagoIngreso[]>}
             cuentas={(cuentas as CuentaBancaria[]).filter(c => c.activa)}
             categorias={maestros["categoria_ingreso"] || []}
-            auditoriaIngresos={auditoriaIngresos as Record<number, AuditoriaEdicion[]>}
+            auditoriaIngresos={auditoriaIngresos as Record<number, Bitacora[]>}
           />
         </TabsContent>
         <TabsContent value="cierre">

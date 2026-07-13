@@ -2,11 +2,12 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
+import { registrarBitacora } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 import type { Cliente } from "@/lib/tipos";
 
 export async function guardarCliente(datos: Partial<Cliente> & { nombre: string }) {
-  await requierePermiso("clientes");
+  const sesion = await requierePermiso("clientes");
   if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
 
   const fila = {
@@ -22,15 +23,28 @@ export async function guardarCliente(datos: Partial<Cliente> & { nombre: string 
   };
 
   if (datos.id) {
+    const { data: anterior } = await db().from("clientes").select("*").eq("id", datos.id).single();
     const { error } = await db().from("clientes").update(fila).eq("id", datos.id);
     if (error) throw new Error(error.message);
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "clientes", accion: "editar",
+      entidad_tipo: "clientes", entidad_id: datos.id,
+      descripcion: `Cliente: ${fila.nombre}`,
+      datos_anteriores: anterior ?? null, datos_nuevos: fila,
+    });
   } else {
     if (fila.cedula_nit) {
       const { data: dup } = await db().from("clientes").select("id").eq("cedula_nit", fila.cedula_nit).maybeSingle();
       if (dup) throw new Error("Ya existe un cliente con esa cédula/NIT.");
     }
-    const { error } = await db().from("clientes").insert(fila);
+    const { data: nuevo, error } = await db().from("clientes").insert(fila).select("id").single();
     if (error) throw new Error(error.message);
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "clientes", accion: "crear",
+      entidad_tipo: "clientes", entidad_id: nuevo.id,
+      descripcion: `Cliente: ${fila.nombre}`,
+      datos_nuevos: fila,
+    });
   }
   revalidatePath("/clientes");
   revalidatePath("/ventas");

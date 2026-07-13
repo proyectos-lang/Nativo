@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
 import { HandCoins, PlusCircle, Plus, Trash2, Pencil, ShieldAlert, CheckCircle2, Truck } from "lucide-react";
-import { formatoPesos, formatoFecha, type Gasto, type GastoDetalle, type PagoGasto, type CuentaBancaria, type Proveedor, type AuditoriaEdicion } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Gasto, type GastoDetalle, type PagoGasto, type CuentaBancaria, type Proveedor, type Bitacora } from "@/lib/tipos";
 
 type Props = {
   gastos: Gasto[];
@@ -26,7 +26,7 @@ type Props = {
   categorias: string[];
   proveedores: Proveedor[];
   gastosDetalle: Record<number, GastoDetalle[]>;
-  auditoriaGastos: Record<number, AuditoriaEdicion[]>;
+  auditoriaGastos: Record<number, Bitacora[]>;
   unidadesMedida: string[];
 };
 

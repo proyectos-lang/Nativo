@@ -261,12 +261,15 @@ export type PagoIngreso = {
   creado_en: string;
 };
 
-export type AuditoriaEdicion = {
+export type Bitacora = {
   id: number;
-  tabla_afectada: "gastos" | "ingresos";
+  tabla_afectada: string;
   registro_id: number;
   usuario: string | null;
   fecha: string;
+  modulo: string;
+  accion: string;
+  descripcion: string;
   datos_anteriores: Record<string, unknown> | null;
   datos_nuevos: Record<string, unknown> | null;
   motivo: string | null;

@@ -183,8 +183,8 @@ export async function pagosIngresosPorIngreso(): Promise<Record<number, unknown[
 
 export async function auditoriaPorTabla(tabla: "gastos" | "ingresos"): Promise<Record<number, unknown[]>> {
   const { data, error } = await db()
-    .from("auditoria_ediciones").select("*")
-    .eq("tabla_afectada", tabla).order("fecha", { ascending: false });
+    .from("bitacora").select("*")
+    .eq("tabla_afectada", tabla).eq("accion", "editar").order("fecha", { ascending: false });
   if (error) throw new Error(error.message);
   const out: Record<number, unknown[]> = {};
   for (const a of data || []) {
@@ -192,4 +192,11 @@ export async function auditoriaPorTabla(tabla: "gastos" | "ingresos"): Promise<R
     out[a.registro_id].push(a);
   }
   return out;
+}
+
+/** Bitácora completa del sistema, sin límite ni filtro de fecha (uso: módulo Trazabilidad, solo admin). */
+export async function bitacoraTodos() {
+  const { data, error } = await db().from("bitacora").select("*").order("fecha", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
 }

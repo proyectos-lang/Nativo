@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Truck, Hourglass,
-  Users, Contact, Settings, LogOut, Landmark, Package,
+  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText,
 } from "lucide-react";
 import { LogoNativo } from "@/components/logo-nativo";
 import type { Sesion, Modulo } from "@/lib/tipos";
@@ -61,6 +61,24 @@ export function AppSidebar({ sesion, accionSalir }: { sesion: Sesion; accionSali
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {sesion.rol === "admin" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administración</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={ruta.startsWith("/trazabilidad")}
+                    render={<Link href="/trazabilidad" />}
+                  >
+                    <ScrollText />
+                    <span>Trazabilidad</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center justify-between gap-2 px-2 py-1">

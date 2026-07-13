@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
 import { verificarPinContadora } from "@/lib/pin";
+import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
+import { formatoPesos } from "@/lib/tipos";
 import { revalidatePath } from "next/cache";
 
 function revalidarFinanciero() {
@@ -18,7 +20,7 @@ export async function guardarCuenta(datos: {
   saldo_inicial: number;
   activa: boolean;
 }) {
-  await requierePermiso("financiero");
+  const sesion = await requierePermiso("financiero");
   if (!datos.nombre?.trim()) throw new Error("El nombre de la cuenta es obligatorio.");
   const fila = {
     nombre: datos.nombre.trim(),
@@ -28,11 +30,24 @@ export async function guardarCuenta(datos: {
     activa: datos.activa,
   };
   if (datos.id) {
+    const { data: anterior } = await db().from("cuentas_bancarias").select("*").eq("id", datos.id).single();
     const { error } = await db().from("cuentas_bancarias").update(fila).eq("id", datos.id);
     if (error) throw new Error(error.message);
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "financiero", accion: "editar",
+      entidad_tipo: "cuentas_bancarias", entidad_id: datos.id,
+      descripcion: `Cuenta bancaria: ${fila.nombre}`,
+      datos_anteriores: anterior ?? null, datos_nuevos: fila,
+    });
   } else {
-    const { error } = await db().from("cuentas_bancarias").insert(fila);
+    const { data: nueva, error } = await db().from("cuentas_bancarias").insert(fila).select("id").single();
     if (error) throw new Error(error.message);
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+      entidad_tipo: "cuentas_bancarias", entidad_id: nueva.id,
+      descripcion: `Cuenta bancaria: ${fila.nombre}`,
+      datos_nuevos: fila,
+    });
   }
   revalidarFinanciero();
 }
@@ -47,7 +62,7 @@ export async function registrarMovimientoManual(datos: {
   const sesion = await requierePermiso("financiero");
   if (!datos.cuenta_id) throw new Error("Selecciona una cuenta.");
   if (!(Number(datos.monto) > 0)) throw new Error("El monto debe ser mayor a cero.");
-  const { error } = await db().from("movimientos_bancarios").insert({
+  const fila = {
     cuenta_id: datos.cuenta_id,
     tipo: datos.tipo,
     origen: "manual",
@@ -55,8 +70,15 @@ export async function registrarMovimientoManual(datos: {
     fecha: datos.fecha || new Date().toISOString().slice(0, 10),
     concepto: datos.concepto?.trim() || null,
     usuario: sesion.usuario,
-  });
+  };
+  const { data, error } = await db().from("movimientos_bancarios").insert(fila).select("id").single();
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+    entidad_tipo: "movimientos_bancarios", entidad_id: data.id,
+    descripcion: `Movimiento manual (${datos.tipo}) en cuenta #${datos.cuenta_id} — ${formatoPesos(datos.monto)}`,
+    datos_nuevos: fila,
+  });
   revalidarFinanciero();
 }
 
@@ -77,6 +99,12 @@ export async function transferir(datos: {
     p_usuario: sesion.usuario,
   });
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "transferir",
+    entidad_tipo: "cuentas_bancarias", entidad_id: datos.origen,
+    descripcion: `Transferencia de cuenta #${datos.origen} a cuenta #${datos.destino} — ${formatoPesos(datos.monto)}`,
+    datos_nuevos: datos,
+  });
   revalidarFinanciero();
 }
 
@@ -148,6 +176,14 @@ export async function crearGasto(datos: {
     });
     if (e2) throw new Error(e2.message);
   }
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+    entidad_tipo: "gastos", entidad_id: gasto.id,
+    descripcion: descripcionTicket(datos.tipo, gasto.ticket, monto),
+    datos_nuevos: { ...datos, ticket: gasto.ticket, monto, lineas },
+  });
+
   revalidarFinanciero();
   revalidatePath("/proveedores");
   return { ticket: gasto.ticket as number };
@@ -198,10 +234,10 @@ export async function editarGasto(datos: {
   const { error: errUpd } = await db().from("gastos").update(nuevaFila).eq("id", datos.gasto_id);
   if (errUpd) throw new Error(errUpd.message);
 
-  await db().from("auditoria_ediciones").insert({
-    tabla_afectada: "gastos",
-    registro_id: datos.gasto_id,
-    usuario: sesion.usuario,
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "editar",
+    entidad_tipo: "gastos", entidad_id: datos.gasto_id,
+    descripcion: descripcionTicket("Gasto", anterior.ticket, nuevoMonto),
     datos_anteriores: { ...anterior, lineas: lineasAnteriores || [] },
     datos_nuevos: { ...anterior, ...nuevaFila, lineas: nuevasLineas },
     motivo: datos.motivo?.trim() || null,
@@ -212,9 +248,9 @@ export async function editarGasto(datos: {
 export async function crearProveedor(datos: {
   nombre: string; nit?: string; contacto?: string; correo?: string; ciudad?: string; departamento?: string; direccion?: string;
 }) {
-  await requierePermiso("financiero");
+  const sesion = await requierePermiso("financiero");
   if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
-  const { data, error } = await db().from("proveedores").insert({
+  const fila = {
     nombre: datos.nombre.trim(),
     nit: datos.nit?.trim() || null,
     contacto: datos.contacto?.trim() || null,
@@ -222,22 +258,35 @@ export async function crearProveedor(datos: {
     ciudad: datos.ciudad?.trim() || null,
     departamento: datos.departamento?.trim() || null,
     direccion: datos.direccion?.trim() || null,
-  }).select().single();
+  };
+  const { data, error } = await db().from("proveedores").insert(fila).select().single();
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "proveedores", accion: "crear",
+    entidad_tipo: "proveedores", entidad_id: data.id,
+    descripcion: `Proveedor creado: ${fila.nombre}`,
+    datos_nuevos: fila,
+  });
   revalidatePath("/financiero");
   revalidatePath("/proveedores");
   return data;
 }
 
 export async function crearCategoriaGasto(valor: string) {
-  await requierePermiso("financiero");
+  const sesion = await requierePermiso("financiero");
   const limpio = valor?.trim();
   if (!limpio) throw new Error("El nombre de la categoría es obligatorio.");
-  const { error } = await db().from("listas_maestras").insert({ tipo: "categoria_gasto", valor: limpio });
+  const { data, error } = await db().from("listas_maestras").insert({ tipo: "categoria_gasto", valor: limpio }).select("id").single();
   if (error) {
     if (error.message.includes("duplicate")) throw new Error("Esa categoría ya existe.");
     throw new Error(error.message);
   }
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+    entidad_tipo: "listas_maestras", entidad_id: data.id,
+    descripcion: `Categoría de gasto creada: ${limpio}`,
+    datos_nuevos: { tipo: "categoria_gasto", valor: limpio },
+  });
   revalidarFinanciero();
   revalidatePath("/configuracion");
 }
@@ -250,7 +299,7 @@ export async function pagarGasto(datos: {
   comentario?: string;
 }) {
   const sesion = await requierePermiso("financiero");
-  const { error } = await db().rpc("pagar_gasto", {
+  const { data, error } = await db().rpc("pagar_gasto", {
     p_gasto_id: datos.gasto_id,
     p_cuenta_id: datos.cuenta_id,
     p_monto: Number(datos.monto),
@@ -259,6 +308,12 @@ export async function pagarGasto(datos: {
     p_usuario: sesion.usuario,
   });
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "pagar",
+    entidad_tipo: "gastos", entidad_id: datos.gasto_id,
+    descripcion: descripcionTicket("Pago Gasto", data.ticket, datos.monto),
+    datos_nuevos: { ...datos, gasto_resultante: data },
+  });
   revalidarFinanciero();
 }
 
@@ -307,6 +362,14 @@ export async function crearIngreso(datos: {
     });
     if (e2) throw new Error(e2.message);
   }
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+    entidad_tipo: "ingresos", entidad_id: ingreso.id,
+    descripcion: descripcionTicket("Ingreso", ingreso.ticket, monto),
+    datos_nuevos: { ...datos, ticket: ingreso.ticket, monto },
+  });
+
   revalidarFinanciero();
   return { ticket: ingreso.ticket as number };
 }
@@ -342,10 +405,10 @@ export async function editarIngreso(datos: {
   const { error: errUpd } = await db().from("ingresos").update(nuevaFila).eq("id", datos.ingreso_id);
   if (errUpd) throw new Error(errUpd.message);
 
-  await db().from("auditoria_ediciones").insert({
-    tabla_afectada: "ingresos",
-    registro_id: datos.ingreso_id,
-    usuario: sesion.usuario,
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "editar",
+    entidad_tipo: "ingresos", entidad_id: datos.ingreso_id,
+    descripcion: descripcionTicket("Ingreso", anterior.ticket, nuevoMonto),
     datos_anteriores: anterior,
     datos_nuevos: { ...anterior, ...nuevaFila },
     motivo: datos.motivo?.trim() || null,
@@ -361,7 +424,7 @@ export async function cobrarIngreso(datos: {
   comentario?: string;
 }) {
   const sesion = await requierePermiso("financiero");
-  const { error } = await db().rpc("cobrar_ingreso", {
+  const { data, error } = await db().rpc("cobrar_ingreso", {
     p_ingreso_id: datos.ingreso_id,
     p_cuenta_id: datos.cuenta_id,
     p_monto: Number(datos.monto),
@@ -370,18 +433,30 @@ export async function cobrarIngreso(datos: {
     p_usuario: sesion.usuario,
   });
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "cobrar",
+    entidad_tipo: "ingresos", entidad_id: datos.ingreso_id,
+    descripcion: descripcionTicket("Cobro Ingreso", data.ticket, datos.monto),
+    datos_nuevos: { ...datos, ingreso_resultante: data },
+  });
   revalidarFinanciero();
 }
 
 export async function crearCategoriaIngreso(valor: string) {
-  await requierePermiso("financiero");
+  const sesion = await requierePermiso("financiero");
   const limpio = valor?.trim();
   if (!limpio) throw new Error("El nombre de la categoría es obligatorio.");
-  const { error } = await db().from("listas_maestras").insert({ tipo: "categoria_ingreso", valor: limpio });
+  const { data, error } = await db().from("listas_maestras").insert({ tipo: "categoria_ingreso", valor: limpio }).select("id").single();
   if (error) {
     if (error.message.includes("duplicate")) throw new Error("Esa categoría ya existe.");
     throw new Error(error.message);
   }
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "crear",
+    entidad_tipo: "listas_maestras", entidad_id: data.id,
+    descripcion: `Categoría de ingreso creada: ${limpio}`,
+    datos_nuevos: { tipo: "categoria_ingreso", valor: limpio },
+  });
   revalidarFinanciero();
   revalidatePath("/configuracion");
 }

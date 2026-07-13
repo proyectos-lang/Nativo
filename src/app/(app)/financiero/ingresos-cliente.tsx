@@ -16,14 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combo } from "@/components/combo";
 import { HandCoins, PlusCircle, Pencil, ShieldAlert } from "lucide-react";
-import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type AuditoriaEdicion } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type Bitacora } from "@/lib/tipos";
 
 type Props = {
   ingresos: Ingreso[];
   pagosIngresos: Record<number, PagoIngreso[]>;
   cuentas: CuentaBancaria[];
   categorias: string[];
-  auditoriaIngresos: Record<number, AuditoriaEdicion[]>;
+  auditoriaIngresos: Record<number, Bitacora[]>;
 };
 
 const HOY = () => new Date().toISOString().slice(0, 10);

@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
+import { registrarBitacora } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 
 export async function actualizarEntrega(datos: {
@@ -25,6 +26,13 @@ export async function actualizarEntrega(datos: {
     p_numero_guia: datos.numero_guia || null,
   });
   if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "entregas", accion: "cambiar_estado",
+    entidad_tipo: "ventas", entidad_id: datos.venta_id,
+    descripcion: `Entrega Venta #${data?.ticket} → ${datos.estado_nuevo}`,
+    datos_nuevos: { ...datos, venta_resultante: data },
+  });
 
   revalidatePath("/entregas");
   revalidatePath("/seguimiento");

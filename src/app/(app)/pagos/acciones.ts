@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
+import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 
 export async function registrarPago(datos: {
@@ -27,6 +28,13 @@ export async function registrarPago(datos: {
     p_cuenta_id: datos.cuenta_id || null,
   });
   if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "pagos", accion: "pagar",
+    entidad_tipo: "ventas", entidad_id: datos.venta_id,
+    descripcion: descripcionTicket("Abono Venta", data?.ticket, abono),
+    datos_nuevos: { ...datos, abono, retencion, venta_resultante: data },
+  });
 
   revalidatePath("/pagos");
   revalidatePath("/financiero");

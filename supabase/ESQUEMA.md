@@ -240,20 +240,31 @@ Fila única con ajustes globales del sistema.
 
 ---
 
-## auditoria_ediciones
+## bitacora
 
-Bitácora reutilizable de ediciones de registros financieros (hoy: `gastos` e `ingresos`). Cada edición guarda el snapshot completo antes/después, no solo el último editor.
+Bitácora general de trazabilidad de **todas** las mutaciones del sistema (ventas, pagos, entregas, financiero, clientes, proveedores, usuarios, catálogos, prospectos). Cada evento guarda quién, cuándo, qué acción y — cuando aplica (crear/editar/eliminar) — el snapshot completo antes/después, no solo el último editor. Antes de la migración 004 esta tabla se llamaba `auditoria_ediciones` y solo cubría ediciones de `gastos`/`ingresos`; se generalizó en vez de crear una tabla paralela, así que las filas históricas siguen siendo válidas (columnas nuevas con default).
+
+Se escribe exclusivamente desde el helper `registrarBitacora()` (`src/lib/pin.ts`/`src/lib/bitacora.ts`), llamado al final de cada server action de mutación, **después** de que la operación principal fue exitosa — un fallo al escribir la bitácora nunca revierte ni interrumpe la transacción de negocio (best-effort).
+
+Se consume de dos formas: (1) el módulo **Trazabilidad** (`/trazabilidad`, solo administradores) muestra el histórico completo sin filtro de fecha por defecto; (2) el bloque "Historial de cambios" en Financiero → Gastos/Ingresos sigue mostrando solo los eventos de edición de ese registro específico (`auditoriaPorTabla` filtra `accion = 'editar'`).
 
 | Columna | Tipo | Nulos/Default | Descripción |
 |---|---|---|---|
 | id | bigint | PK identity | |
-| tabla_afectada | text | not null | `'gastos'` \| `'ingresos'` |
-| registro_id | bigint | not null | id de la fila editada en esa tabla |
-| usuario | text | null | Quién editó |
-| fecha | timestamptz | not null, default `now()` | Cuándo |
-| datos_anteriores | jsonb | null | Snapshot completo antes del cambio (incluye líneas para gastos) |
-| datos_nuevos | jsonb | null | Snapshot completo después del cambio |
-| motivo | text | null | Motivo opcional ingresado por la contadora |
+| tabla_afectada | text | not null | Nombre de la entidad afectada: `ventas`, `clientes`, `proveedores`, `usuarios`, `gastos`, `ingresos`, `cuentas_bancarias`, `listas_maestras`, `productos`, `prospectos`, `configuracion_sistema`, etc. |
+| registro_id | bigint | not null | id de la fila afectada en esa entidad |
+| usuario | text | null | Quién hizo la acción |
+| fecha | timestamptz | not null, default `now()` | Cuándo, con hora exacta |
+| modulo | text | not null, default `'financiero'` | Módulo de la app donde ocurrió: `ventas`, `pagos`, `entregas`, `financiero`, `clientes`, `proveedores`, `configuracion`, `prospectos` |
+| accion | text | not null, default `'editar'` | `crear` \| `editar` \| `eliminar` \| `pagar` \| `cobrar` \| `transferir` \| `cambiar_estado` \| `cambiar_clave` |
+| descripcion | text | not null, default `''` | Resumen legible del evento, ej. `"Venta #123 — $150.000"` |
+| datos_anteriores | jsonb | null | Snapshot antes del cambio (editar/eliminar). Nunca incluye contraseñas ni claves. |
+| datos_nuevos | jsonb | null | Snapshot después del cambio (crear/editar) |
+| motivo | text | null | Motivo opcional (usado hoy por la edición de gastos/ingresos) |
+
+Índices: `idx_bitacora_entidad (tabla_afectada, registro_id)`, `idx_bitacora_fecha (fecha)`, `idx_bitacora_usuario (usuario)`, `idx_bitacora_modulo (modulo)`, `idx_bitacora_accion (accion)`. Sin `check constraint` en `modulo`/`accion` (mismo criterio que `tabla_afectada`, texto libre).
+
+No incluye eventos de inicio/cierre de sesión — solo mutaciones de datos.
 
 Índices: `idx_auditoria_tabla_registro (tabla_afectada, registro_id)`, `idx_auditoria_fecha (fecha)`.
 
@@ -321,7 +332,7 @@ Gastos y costos causados (cuentas por pagar). Admite abonos parciales vía `pago
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_gastos_estado (estado)`, `idx_gastos_fecha (fecha)`, `idx_gastos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarGasto` con `clave_contadora` — cada edición queda en `auditoria_ediciones`.
+Índices: `idx_gastos_estado (estado)`, `idx_gastos_fecha (fecha)`, `idx_gastos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarGasto` con `clave_contadora` — cada edición queda en `bitacora`.
 
 ---
 
@@ -383,7 +394,7 @@ Espejo de `gastos` para dinero que entra (arriendo, servicios públicos, présta
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_ingresos_estado (estado)`, `idx_ingresos_fecha (fecha)`, `idx_ingresos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarIngreso` con `clave_contadora` — cada edición queda en `auditoria_ediciones`.
+Índices: `idx_ingresos_estado (estado)`, `idx_ingresos_fecha (fecha)`, `idx_ingresos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarIngreso` con `clave_contadora` — cada edición queda en `bitacora`.
 
 ---
 
@@ -428,7 +439,7 @@ En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera 
 
 Espejo exacto de `pagar_gasto`: en una sola transacción inserta `pagos_ingresos`, actualiza el ingreso (acumula `cobrado`, recalcula `saldo`, fija `estado` — `Cobrado` si saldo ≤ 0, si no `Abonado`) e inserta el movimiento bancario de **ingreso** (origen `pago_ingreso`). Valida monto > 0 y cuenta obligatoria.
 
-No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como statements directos en la server action (igual que `actualizarVenta`), protegidos por `verificarPinContadora` y registrando el cambio en `auditoria_ediciones`.
+No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como statements directos en la server action (igual que `actualizarVenta`), protegidos por `verificarPinContadora` y registrando el cambio en `bitacora`.
 
 ---
 

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
 import { verificarPin } from "@/lib/pin";
+import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 
 export type LineaVenta = {
@@ -125,6 +126,13 @@ export async function registrarVenta(venta: NuevaVenta) {
     await db().from("productos").upsert({ nombre: l.producto.trim() }, { onConflict: "nombre", ignoreDuplicates: true });
   }
 
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "ventas", accion: "crear",
+    entidad_tipo: "ventas", entidad_id: cab.id,
+    descripcion: descripcionTicket("Venta", cab.ticket, total),
+    datos_nuevos: { ...venta, ticket: cab.ticket, total, lineas },
+  });
+
   revalidatePath("/ventas");
   revalidatePath("/");
   return { ticket: cab.ticket as number };
@@ -142,14 +150,15 @@ export async function actualizarVenta(datos: {
   costo_envio?: number;
   lineas: LineaVenta[];
 }) {
-  await requierePermiso("ventas");
+  const sesion = await requierePermiso("ventas");
   await verificarPin(datos.pin);
   const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
   if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
 
   const { data: venta, error: errGet } = await db()
-    .from("ventas").select("id, ticket, retencion, abono").eq("id", datos.venta_id).single();
+    .from("ventas").select("*").eq("id", datos.venta_id).single();
   if (errGet) throw new Error(errGet.message);
+  const { data: lineasAntes } = await db().from("ventas_detalle").select("*").eq("venta_id", datos.venta_id);
 
   const costoEnvio = Number(datos.costo_envio) || 0;
   const totalProductos = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
@@ -160,12 +169,11 @@ export async function actualizarVenta(datos: {
   // Reemplaza el detalle completo
   const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
   if (errDel) throw new Error(errDel.message);
-  const { error: errIns } = await db().from("ventas_detalle").insert(
-    lineas.map(l => filaDetalle(datos.venta_id, l))
-  );
+  const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l));
+  const { error: errIns } = await db().from("ventas_detalle").insert(nuevasLineas);
   if (errIns) throw new Error(errIns.message);
 
-  const { error: errUpd } = await db().from("ventas").update({
+  const camposActualizados = {
     canal_venta: datos.canal_venta || null,
     campana: datos.campana || null,
     vendedora: datos.vendedora || null,
@@ -177,12 +185,21 @@ export async function actualizarVenta(datos: {
     total_a_pagar: totalAPagar,
     saldo,
     estado_pago: saldo <= 0 && total > 0 ? "Pagado Total" : Number(venta.abono) > 0 ? "Abonado" : "Pendiente",
-  }).eq("id", datos.venta_id);
+  };
+  const { error: errUpd } = await db().from("ventas").update(camposActualizados).eq("id", datos.venta_id);
   if (errUpd) throw new Error(errUpd.message);
 
   for (const l of lineas) {
     await db().from("productos").upsert({ nombre: l.producto.trim() }, { onConflict: "nombre", ignoreDuplicates: true });
   }
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "ventas", accion: "editar",
+    entidad_tipo: "ventas", entidad_id: datos.venta_id,
+    descripcion: descripcionTicket("Venta", venta.ticket, total),
+    datos_anteriores: { ...venta, lineas: lineasAntes || [] },
+    datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas },
+  });
 
   revalidatePath("/ventas");
   revalidatePath("/pagos");
@@ -191,10 +208,28 @@ export async function actualizarVenta(datos: {
 }
 
 export async function eliminarVenta(ventaId: number, pin: string) {
-  await requierePermiso("ventas");
+  const sesion = await requierePermiso("ventas");
   await verificarPin(pin);
+
+  const [{ data: venta }, { data: detalle }, { data: pagos }, { data: historial }] = await Promise.all([
+    db().from("ventas").select("*").eq("id", ventaId).single(),
+    db().from("ventas_detalle").select("*").eq("venta_id", ventaId),
+    db().from("pagos").select("*").eq("venta_id", ventaId),
+    db().from("historial_entregas").select("*").eq("venta_id", ventaId),
+  ]);
+
   const { error } = await db().from("ventas").delete().eq("id", ventaId);
   if (error) throw new Error(error.message);
+
+  if (venta) {
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "ventas", accion: "eliminar",
+      entidad_tipo: "ventas", entidad_id: ventaId,
+      descripcion: descripcionTicket("Venta", venta.ticket, venta.total_compra),
+      datos_anteriores: { ...venta, lineas: detalle || [], pagos: pagos || [], historial: historial || [] },
+    });
+  }
+
   revalidatePath("/ventas");
   revalidatePath("/pagos");
   revalidatePath("/entregas");
@@ -227,13 +262,13 @@ export async function crearCliente(datos: {
   nombre: string; cedula_nit?: string; empresa?: string; contacto?: string;
   ciudad?: string; departamento?: string; direccion?: string; correo?: string; rut?: string;
 }) {
-  await requierePermiso("ventas");
+  const sesion = await requierePermiso("ventas");
   if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
   if (datos.cedula_nit?.trim()) {
     const { data: dup } = await db().from("clientes").select("id").eq("cedula_nit", datos.cedula_nit.trim()).maybeSingle();
     if (dup) throw new Error("Ya existe un cliente con esa cédula/NIT.");
   }
-  const { data, error } = await db().from("clientes").insert({
+  const fila = {
     nombre: datos.nombre.trim(),
     cedula_nit: datos.cedula_nit?.trim() || null,
     empresa: datos.empresa?.trim() || null,
@@ -243,8 +278,15 @@ export async function crearCliente(datos: {
     direccion: datos.direccion?.trim() || null,
     correo: datos.correo?.trim() || null,
     rut: datos.rut?.trim() || null,
-  }).select().single();
+  };
+  const { data, error } = await db().from("clientes").insert(fila).select().single();
   if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "clientes", accion: "crear",
+    entidad_tipo: "clientes", entidad_id: data.id,
+    descripcion: `Cliente creado: ${fila.nombre}`,
+    datos_nuevos: fila,
+  });
   revalidatePath("/ventas");
   revalidatePath("/clientes");
   return data;
