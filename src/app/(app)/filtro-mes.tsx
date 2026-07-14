@@ -10,7 +10,7 @@ export function FiltroMes({ mes, anio }: { mes: number; anio: number }) {
   const anioActual = new Date().getFullYear();
   const anios = [anioActual, anioActual - 1, anioActual - 2];
 
-  const ir = (m: number, a: number) => router.push(`/?mes=${m}&anio=${a}`);
+  const ir = (m: number, a: number) => router.push(`/?mes=${m + 1}&anio=${a}`);
 
   return (
     <div className="flex gap-2">

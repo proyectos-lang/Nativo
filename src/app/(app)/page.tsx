@@ -21,7 +21,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
   const params = await searchParams;
   const mostrarBienvenida = params.bienvenida === "1";
   const hoy = new Date();
-  const mes = params.mes !== undefined ? Number(params.mes) : hoy.getMonth();
+  const mes = params.mes !== undefined ? Number(params.mes) - 1 : hoy.getMonth();
   const anio = params.anio !== undefined ? Number(params.anio) : hoy.getFullYear();
 
   const [ventas, detalles, historial, prospectos] = await Promise.all([
