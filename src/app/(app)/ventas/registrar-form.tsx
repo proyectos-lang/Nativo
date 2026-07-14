@@ -247,12 +247,8 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                   <Label>Guía Bordado</Label>
                   <Input value={l.guia_bordado || ""} onChange={e => setLinea(i, "guia_bordado", e.target.value)} placeholder="Guía #" />
                 </div>
-                {l.estampado?.trim() && (
-                  <SubidaImagen label="Imagen de referencia — Estampado" url={l.imagen_estampado_url} onChange={url => setLinea(i, "imagen_estampado_url", url)} />
-                )}
-                {l.bordado?.trim() && (
-                  <SubidaImagen label="Imagen de referencia — Bordado" url={l.imagen_bordado_url} onChange={url => setLinea(i, "imagen_bordado_url", url)} />
-                )}
+                <SubidaImagen label="Imagen de referencia — Estampado" url={l.imagen_estampado_url} onChange={url => setLinea(i, "imagen_estampado_url", url)} />
+                <SubidaImagen label="Imagen de referencia — Bordado" url={l.imagen_bordado_url} onChange={url => setLinea(i, "imagen_bordado_url", url)} />
               </div>
             </div>
           ))}

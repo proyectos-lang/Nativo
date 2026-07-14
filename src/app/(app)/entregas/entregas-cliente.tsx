@@ -183,11 +183,13 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                         </span>
                         <Badge variant="secondary">x{d.cantidad}</Badge>
                       </div>
-                      {(d.estampado || d.bordado) && (
+                      {(d.estampado || d.guia_estampado || d.imagen_estampado_url || d.bordado || d.guia_bordado || d.imagen_bordado_url) && (
                         <div className="mt-2 flex flex-wrap gap-3">
-                          {d.estampado && (
+                          {(d.estampado || d.guia_estampado || d.imagen_estampado_url) && (
                             <div className="rounded-md border border-dashed p-2">
-                              <p className="text-xs font-semibold text-muted-foreground">Estampado: {d.estampado}</p>
+                              <p className="text-xs font-semibold text-muted-foreground">Estampado</p>
+                              {d.estampado && <p className="text-xs">{d.estampado}</p>}
+                              {d.guia_estampado && <p className="text-xs text-muted-foreground">Guía: {d.guia_estampado}</p>}
                               {d.imagen_estampado_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={d.imagen_estampado_url} alt="Estampado" className="mt-1 h-20 w-20 rounded-md object-cover" />
@@ -196,9 +198,11 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                               )}
                             </div>
                           )}
-                          {d.bordado && (
+                          {(d.bordado || d.guia_bordado || d.imagen_bordado_url) && (
                             <div className="rounded-md border border-dashed p-2">
-                              <p className="text-xs font-semibold text-muted-foreground">Bordado: {d.bordado}</p>
+                              <p className="text-xs font-semibold text-muted-foreground">Bordado</p>
+                              {d.bordado && <p className="text-xs">{d.bordado}</p>}
+                              {d.guia_bordado && <p className="text-xs text-muted-foreground">Guía: {d.guia_bordado}</p>}
                               {d.imagen_bordado_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={d.imagen_bordado_url} alt="Bordado" className="mt-1 h-20 w-20 rounded-md object-cover" />

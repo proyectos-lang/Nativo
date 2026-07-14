@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combo } from "@/components/combo";
@@ -32,7 +33,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [cliente, setCliente] = useState("");
-  const [producto, setProducto] = useState("");
+  const [soloPendientes, setSoloPendientes] = useState(true);
   const [estado, setEstado] = useState("");
 
   // Detalle (solo lectura)
@@ -57,19 +58,17 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
 
   const filas = useMemo(() => {
     const q = cliente.toLowerCase().trim();
-    const qp = producto.toLowerCase().trim();
     return ventas.filter(v => {
-      const dets = detalles[v.id] || [];
       const nombreCliente = v.clientes?.nombre || "";
       const empresa = v.clientes?.empresa || "";
       if (desde && v.fecha < desde) return false;
       if (hasta && v.fecha > hasta) return false;
       if (q && !nombreCliente.toLowerCase().includes(q) && !empresa.toLowerCase().includes(q) && String(v.ticket) !== q) return false;
       if (estado && v.estado_entrega !== estado) return false;
-      if (qp && !dets.some(d => d.producto.toLowerCase().includes(qp))) return false;
+      if (soloPendientes && v.estado_pago === "Pagado Total" && v.estado_entrega === "Entregado") return false;
       return true;
     });
-  }, [ventas, detalles, desde, hasta, cliente, producto, estado]);
+  }, [ventas, desde, hasta, cliente, estado, soloPendientes]);
 
   const exportarExcel = async () => {
     const XLSX = await import("xlsx");
@@ -168,8 +167,14 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
           <div className="grid gap-1.5"><Label>Desde</Label><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></div>
           <div className="grid gap-1.5"><Label>Hasta</Label><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} /></div>
           <div className="grid gap-1.5"><Label>Cliente / Ticket</Label><Combo opciones={opcionesClientes} value={cliente} onChange={setCliente} placeholder="Buscar..." /></div>
-          <div className="grid gap-1.5"><Label>Producto</Label><Combo opciones={productos} value={producto} onChange={setProducto} placeholder="Buscar..." /></div>
           <div className="grid gap-1.5"><Label>Estado</Label><Combo opciones={maestros["estado_entrega"] || []} value={estado} onChange={setEstado} placeholder="Todos" /></div>
+          <div className="grid gap-1.5 content-end">
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={soloPendientes} onCheckedChange={setSoloPendientes} />
+              Solo pendientes
+            </label>
+            <p className="text-xs text-muted-foreground">Oculta pedidos pagados y entregados</p>
+          </div>
           <div className="grid content-end">
             <Button variant="outline" onClick={exportarExcel}><FileSpreadsheet className="size-4" /> Exportar</Button>
           </div>
@@ -379,12 +384,8 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
                   <div className="grid gap-1.5"><Label>Guía Estampado</Label><Input value={l.guia_estampado || ""} onChange={e => setLineaEd(i, "guia_estampado", e.target.value)} /></div>
                   <div className="grid gap-1.5"><Label>Bordado</Label><Input value={l.bordado || ""} onChange={e => setLineaEd(i, "bordado", e.target.value)} /></div>
                   <div className="grid gap-1.5"><Label>Guía Bordado</Label><Input value={l.guia_bordado || ""} onChange={e => setLineaEd(i, "guia_bordado", e.target.value)} /></div>
-                  {l.estampado && (
-                    <SubidaImagen label="Imagen Estampado" url={l.imagen_estampado_url} onChange={url => setLineaEd(i, "imagen_estampado_url", url)} />
-                  )}
-                  {l.bordado && (
-                    <SubidaImagen label="Imagen Bordado" url={l.imagen_bordado_url} onChange={url => setLineaEd(i, "imagen_bordado_url", url)} />
-                  )}
+                  <SubidaImagen label="Imagen Estampado" url={l.imagen_estampado_url} onChange={url => setLineaEd(i, "imagen_estampado_url", url)} />
+                  <SubidaImagen label="Imagen Bordado" url={l.imagen_bordado_url} onChange={url => setLineaEd(i, "imagen_bordado_url", url)} />
                 </div>
               </div>
             ))}

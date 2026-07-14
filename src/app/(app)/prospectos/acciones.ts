@@ -11,13 +11,17 @@ export async function crearProspecto(datos: {
 }) {
   const sesion = await requierePermiso("prospectos");
   if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
+  const descripcion = datos.descripcion?.trim() || null;
   const fila = {
     nombre: datos.nombre.trim(),
     telefono: datos.telefono?.trim() || null,
     correo: datos.correo?.trim() || null,
     referido_por: datos.referido_por?.trim() || null,
     evento_lugar: datos.evento_lugar?.trim() || null,
-    descripcion: datos.descripcion?.trim() || null,
+    descripcion,
+    // La nota inicial entra al mismo historial de observaciones que usan las
+    // actualizaciones de seguimiento, para que quede visible de inmediato.
+    observaciones: descripcion ? `[${new Date().toLocaleDateString("es-CO")} ${sesion.usuario}] ${descripcion}` : null,
     estado: "Pendiente",
   };
   const { data, error } = await db().from("prospectos").insert(fila).select("id").single();

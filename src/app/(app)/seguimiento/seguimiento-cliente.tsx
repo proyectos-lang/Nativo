@@ -1,7 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { actualizarFechaEntregaReal } from "./acciones";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +27,29 @@ type Evento = { fecha: Date; tipo: "venta" | "pago" | "entrega"; titulo: string;
 const DIAS_ALERTA = 10;
 
 export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props) {
+  const router = useRouter();
+  const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("pendientes");
   const [sel, setSel] = useState<Venta | null>(null);
+  const [fechaReal, setFechaReal] = useState("");
+
+  const abrirDetalle = (v: Venta) => {
+    setSel(v);
+    setFechaReal(v.fecha_entrega_real || "");
+  };
+
+  const guardarFechaReal = () => {
+    if (!sel || !fechaReal) return;
+    startTransition(async () => {
+      try {
+        await actualizarFechaEntregaReal(sel.id, fechaReal);
+        toast.success("Fecha real de entrega actualizada");
+        setSel(prev => (prev ? { ...prev, fecha_entrega_real: fechaReal } : prev));
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
 
   const conDias = useMemo(() => {
     const hoy = Date.now();
@@ -132,7 +156,7 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
                     <TableRow
                       key={v.id}
                       className={`cursor-pointer ${alerta ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
-                      onClick={() => setSel(v)}
+                      onClick={() => abrirDetalle(v)}
                     >
                       <TableCell className="font-semibold">#{v.ticket}</TableCell>
                       <TableCell>
@@ -165,7 +189,13 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
           {sel && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
               <span>Programada: <strong>{formatoFecha(sel.fecha_entrega)}</strong></span>
-              <span>Real: <strong>{formatoFecha(sel.fecha_entrega_real)}</strong></span>
+              <span className="flex items-center gap-2">
+                Real:
+                <Input type="date" className="h-8 w-40" value={fechaReal} onChange={e => setFechaReal(e.target.value)} />
+                <Button size="sm" variant="outline" onClick={guardarFechaReal} disabled={pendiente || !fechaReal || fechaReal === sel.fecha_entrega_real}>
+                  {pendiente ? "Guardando..." : "Guardar"}
+                </Button>
+              </span>
               {cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real) && (
                 <Badge variant={cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real) === "A tiempo" ? "default" : "destructive"}>
                   {cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real)}
