@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Combo } from "@/components/combo";
-import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
+import { formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
 
 type Props = {
   ventas: Venta[];
@@ -22,12 +22,11 @@ type Props = {
   historial: Record<number, HistorialEntrega[]>;
   estados: string[];
   transportadoras: string[];
-  esAdmin: boolean;
 };
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras, esAdmin }: Props) {
+export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -124,13 +123,12 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                   <TableHead>Estado</TableHead>
                   <TableHead>Fecha Programada</TableHead>
                   <TableHead>Cumplimiento</TableHead>
-                  {esAdmin && <TableHead className="text-right">Total</TableHead>}
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={esAdmin ? 8 : 7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(v => {
                   const cumplimiento = cumplimientoEntrega(v.fecha_entrega, v.fecha_entrega_real);
@@ -151,7 +149,6 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                           <Badge variant={cumplimiento === "A tiempo" ? "default" : "destructive"}>{cumplimiento}</Badge>
                         )}
                       </TableCell>
-                      {esAdmin && <TableCell className="text-right">{formatoPesos(v.total_compra)}</TableCell>}
                       <TableCell><Button variant="outline" size="sm">Actualizar</Button></TableCell>
                     </TableRow>
                   );
@@ -239,9 +236,8 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                 </div>
               )}
 
-              <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
+              <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
                 <div><p className="text-muted-foreground">Fecha Programada</p><p className="font-medium">{formatoFecha(sel.fecha_entrega)}</p></div>
-                {esAdmin && <div><p className="text-muted-foreground">Costo de Envío</p><p className="font-medium">{formatoPesos(sel.costo_envio)}</p></div>}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
