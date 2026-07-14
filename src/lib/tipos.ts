@@ -72,6 +72,7 @@ export type Venta = {
   numero_guia: string | null;
   comentario_entrega: string | null;
   costo_envio: number;
+  ubicacion_actual: string | null;
   creado_en: string;
   clientes?: Cliente | null;
 };
@@ -114,6 +115,7 @@ export type HistorialEntrega = {
   estado_anterior: string | null;
   estado_nuevo: string;
   comentario: string | null;
+  ubicacion: string | null;
   usuario: string | null;
 };
 

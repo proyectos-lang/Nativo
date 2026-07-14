@@ -22,6 +22,7 @@ export default async function PaginaEntregas() {
       historial={historial as Record<number, HistorialEntrega[]>}
       estados={maestros["estado_entrega"] || []}
       transportadoras={maestros["transportadora"] || []}
+      talleres={maestros["taller"] || []}
     />
   );
 }

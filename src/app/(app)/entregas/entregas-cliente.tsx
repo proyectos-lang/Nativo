@@ -22,11 +22,12 @@ type Props = {
   historial: Record<number, HistorialEntrega[]>;
   estados: string[];
   transportadoras: string[];
+  talleres: string[];
 };
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras }: Props) {
+export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras, talleres }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -37,6 +38,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
   const [fechaEntregaReal, setFechaEntregaReal] = useState("");
   const [transportadora, setTransportadora] = useState("");
   const [numeroGuia, setNumeroGuia] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -59,6 +61,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
     setFechaEntregaReal(v.fecha_entrega_real || (nuevo === "Entregado" ? HOY() : ""));
     setTransportadora(v.transportadora || "");
     setNumeroGuia(v.numero_guia || "");
+    setUbicacion(v.ubicacion_actual || "");
   };
 
   const cambiarEstado = (estado: string) => {
@@ -75,6 +78,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
           fecha_entrega_real: fechaEntregaReal || undefined,
           transportadora: transportadora || undefined,
           numero_guia: numeroGuia || undefined,
+          ubicacion: ubicacion || undefined,
         });
         toast.success(`Ticket #${sel.ticket} actualizado a: ${nuevoEstado}`);
         setSel(null);
@@ -121,6 +125,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                   <TableHead>Cliente</TableHead>
                   <TableHead>Productos</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Ubicación / Taller</TableHead>
                   <TableHead>Fecha Programada</TableHead>
                   <TableHead>Cumplimiento</TableHead>
                   <TableHead></TableHead>
@@ -128,7 +133,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(v => {
                   const cumplimiento = cumplimientoEntrega(v.fecha_entrega, v.fecha_entrega_real);
@@ -143,6 +148,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                         {(detalles[v.id] || []).map(d => d.producto).join(", ") || "-"}
                       </TableCell>
                       <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "Sin Estado"}</Badge></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{v.ubicacion_actual || "-"}</TableCell>
                       <TableCell className="text-sm">{formatoFecha(v.fecha_entrega)}</TableCell>
                       <TableCell>
                         {cumplimiento && (
@@ -228,6 +234,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                           <span className="block text-xs text-muted-foreground">
                             {new Date(h.fecha).toLocaleString("es-CO")} {h.usuario ? `· ${h.usuario}` : ""}
                           </span>
+                          {h.ubicacion && <span className="block text-xs font-medium">Ubicación: {h.ubicacion}</span>}
                           {h.comentario && <span className="block text-xs">{h.comentario}</span>}
                         </li>
                       ))}
@@ -236,8 +243,9 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                 </div>
               )}
 
-              <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+              <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
                 <div><p className="text-muted-foreground">Fecha Programada</p><p className="font-medium">{formatoFecha(sel.fecha_entrega)}</p></div>
+                <div><p className="text-muted-foreground">Ubicación / Taller actual</p><p className="font-medium">{sel.ubicacion_actual || "-"}</p></div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -261,6 +269,10 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                 <div className="grid gap-1.5">
                   <Label>Número de guía</Label>
                   <Input value={numeroGuia} onChange={e => setNumeroGuia(e.target.value)} placeholder="Ej. 123456789" />
+                </div>
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label>Ubicación / Taller</Label>
+                  <Combo opciones={talleres} value={ubicacion} onChange={setUbicacion} placeholder="Ej. Tribey, Bordados JA, Madamis, o motivo si está Sin Procesar (falta tela, faltan botones)..." />
                 </div>
                 <div className="grid gap-1.5 sm:col-span-2">
                   <Label>Comentario / Notas de envío</Label>

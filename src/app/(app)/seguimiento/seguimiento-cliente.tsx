@@ -95,7 +95,7 @@ export function SeguimientoCliente({ ventas, pagos, historial, detalles }: Props
         fecha: new Date(h.fecha),
         tipo: "entrega" as const,
         titulo: `${h.estado_anterior || "(inicio)"} → ${h.estado_nuevo}`,
-        detalle: h.comentario || undefined,
+        detalle: [h.ubicacion && `Ubicación: ${h.ubicacion}`, h.comentario].filter(Boolean).join(" — ") || undefined,
       })),
     ];
     return evs.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());

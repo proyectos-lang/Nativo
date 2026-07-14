@@ -93,7 +93,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -133,6 +133,7 @@ Una fila por pedido/ticket. Toda la trazabilidad (pagos, estados de entrega) cue
 | numero_guia | text | null | Número de guía de envío |
 | comentario_entrega | text | null | Último comentario |
 | costo_envio | numeric | not null, default 0 | Se suma al `total_compra`/`saldo` — lo paga el cliente |
+| ubicacion_actual | text | null | Última ubicación/taller conocido de la prenda (ej. "Tribey", "Bordados JA", "Madamis"), o motivo si está Sin Procesar (ej. "Falta tela"). Lista maestra tipo `taller`. El historial completo de ubicaciones por cambio de estado vive en `historial_entregas.ubicacion` |
 | creado_en | timestamptz | not null, default `now()` | |
 
 Índices: `idx_ventas_ticket (ticket)`, `idx_ventas_cliente (cliente_id)`, `idx_ventas_estado_pago (estado_pago)`, `idx_ventas_estado_entrega (estado_entrega)`, `idx_ventas_fecha (fecha)`.
@@ -198,6 +199,7 @@ Un registro por cada cambio de estado de entrega.
 | estado_anterior | text | null | |
 | estado_nuevo | text | not null | |
 | comentario | text | null | Notas de envío |
+| ubicacion | text | null | Ubicación/taller o motivo registrado en ese cambio de estado específico (lista maestra tipo `taller`) |
 | usuario | text | null | Usuario de la app que hizo el cambio |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -431,9 +433,9 @@ En una sola transacción: inserta `pagos_gastos`, actualiza el gasto (acumula `a
 
 En una sola transacción: inserta el **egreso** en la cuenta origen y el **ingreso** en la destino (origen `transferencia`), enlazados entre sí vía `movimiento_relacionado_id`. Valida monto > 0, cuentas distintas y existentes.
 
-### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text, p_fecha_entrega_real date default null, p_transportadora text default null, p_numero_guia text default null) → nativo.ventas`
+### `nativo.actualizar_entrega(p_venta_id bigint, p_estado_nuevo text, p_comentario text, p_usuario text, p_fecha_entrega_real date default null, p_transportadora text default null, p_numero_guia text default null, p_ubicacion text default null) → nativo.ventas`
 
-En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera (`estado_entrega`, `comentario_entrega`, y si vienen, `fecha_entrega_real`, `transportadora`, `numero_guia`) e inserta la fila de auditoría en `historial_entregas` con estado anterior → nuevo. Lanza excepción si la venta no existe.
+En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera (`estado_entrega`, `comentario_entrega`, y si vienen, `fecha_entrega_real`, `transportadora`, `numero_guia`, `ubicacion_actual`) e inserta la fila de auditoría en `historial_entregas` con estado anterior → nuevo y la `ubicacion` de ese cambio. Lanza excepción si la venta no existe.
 
 ### `nativo.cobrar_ingreso(p_ingreso_id bigint, p_cuenta_id bigint, p_monto numeric, p_fecha date, p_comentario text, p_usuario text) → nativo.ingresos`
 

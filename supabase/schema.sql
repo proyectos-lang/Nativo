@@ -94,6 +94,7 @@ create table nativo.ventas (
   numero_guia text,
   comentario_entrega text,
   costo_envio numeric not null default 0,
+  ubicacion_actual text,
   creado_en timestamptz not null default now()
 );
 create index idx_ventas_ticket on nativo.ventas (ticket);
@@ -151,6 +152,7 @@ create table nativo.historial_entregas (
   estado_anterior text,
   estado_nuevo text not null,
   comentario text,
+  ubicacion text,
   usuario text,
   creado_en timestamptz not null default now()
 );
@@ -501,7 +503,8 @@ create or replace function nativo.actualizar_entrega(
   p_usuario text,
   p_fecha_entrega_real date default null,
   p_transportadora text default null,
-  p_numero_guia text default null
+  p_numero_guia text default null,
+  p_ubicacion text default null
 ) returns nativo.ventas
 language plpgsql
 as $$
@@ -519,12 +522,13 @@ begin
       comentario_entrega = coalesce(p_comentario, comentario_entrega),
       fecha_entrega_real = coalesce(p_fecha_entrega_real, fecha_entrega_real),
       transportadora = coalesce(p_transportadora, transportadora),
-      numero_guia = coalesce(p_numero_guia, numero_guia)
+      numero_guia = coalesce(p_numero_guia, numero_guia),
+      ubicacion_actual = coalesce(p_ubicacion, ubicacion_actual)
   where id = p_venta_id
   returning * into v;
 
-  insert into nativo.historial_entregas (venta_id, estado_anterior, estado_nuevo, comentario, usuario)
-  values (p_venta_id, v_anterior, p_estado_nuevo, p_comentario, p_usuario);
+  insert into nativo.historial_entregas (venta_id, estado_anterior, estado_nuevo, comentario, usuario, ubicacion)
+  values (p_venta_id, v_anterior, p_estado_nuevo, p_comentario, p_usuario, p_ubicacion);
 
   return v;
 end;
@@ -587,6 +591,15 @@ insert into nativo.listas_maestras (tipo, valor) values
   ('transportadora', 'Coordinadora'),
   ('transportadora', 'Envía'),
   ('transportadora', 'Entrega propia')
+on conflict do nothing;
+
+-- ------------------------------------------------------------
+-- Semillas: lista maestra de talleres/ubicaciones
+-- ------------------------------------------------------------
+insert into nativo.listas_maestras (tipo, valor) values
+  ('taller', 'Tribey'),
+  ('taller', 'Bordados JA'),
+  ('taller', 'Madamis')
 on conflict do nothing;
 
 -- ------------------------------------------------------------

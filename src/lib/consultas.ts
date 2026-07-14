@@ -59,7 +59,7 @@ export async function ventasConClienteSinMontos() {
     .select(`
       id, ticket, fecha, cliente_id, canal_venta, campana, vendedora, profesional, motivo_compra,
       estado_pago, fecha_pago, tipo_pago, medio_pago, observaciones_pago, estado_entrega, fecha_entrega,
-      fecha_entrega_real, transportadora, numero_guia, comentario_entrega, creado_en,
+      fecha_entrega_real, transportadora, numero_guia, comentario_entrega, ubicacion_actual, creado_en,
       clientes(id, nombre, empresa, contacto, ciudad)
     `)
     .order("ticket", { ascending: false });

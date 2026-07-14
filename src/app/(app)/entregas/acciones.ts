@@ -12,6 +12,7 @@ export async function actualizarEntrega(datos: {
   fecha_entrega_real?: string;
   transportadora?: string;
   numero_guia?: string;
+  ubicacion?: string;
 }) {
   const sesion = await requierePermiso("entregas");
   if (!datos.estado_nuevo?.trim()) throw new Error("Selecciona un estado.");
@@ -24,6 +25,7 @@ export async function actualizarEntrega(datos: {
     p_fecha_entrega_real: datos.fecha_entrega_real || null,
     p_transportadora: datos.transportadora || null,
     p_numero_guia: datos.numero_guia || null,
+    p_ubicacion: datos.ubicacion || null,
   });
   if (error) throw new Error(error.message);
 
