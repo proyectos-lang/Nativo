@@ -86,6 +86,7 @@ export async function agregarValorMaestro(tipo: string, valor: string) {
     datos_nuevos: { tipo, valor: limpio },
   });
   revalidatePath("/configuracion");
+  revalidatePath("/financiero");
 }
 
 export async function eliminarValorMaestro(id: number) {
@@ -100,6 +101,7 @@ export async function eliminarValorMaestro(id: number) {
     datos_anteriores: anterior ?? null,
   });
   revalidatePath("/configuracion");
+  revalidatePath("/financiero");
 }
 
 export async function crearProducto(nombre: string) {
