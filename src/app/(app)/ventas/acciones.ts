@@ -238,21 +238,21 @@ export async function eliminarVenta(ventaId: number, pin: string) {
   revalidatePath("/");
 }
 
-const TIPOS_IMAGEN_PERMITIDOS = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic"];
+const TIPOS_ARCHIVO_PERMITIDOS = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "application/pdf"];
 const TAMANO_MAXIMO = 5 * 1024 * 1024;
 
 export async function subirImagenLinea(formData: FormData) {
   await requierePermiso("ventas");
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File)) throw new Error("Archivo inválido.");
-  if (!TIPOS_IMAGEN_PERMITIDOS.includes(archivo.type)) throw new Error("Solo se permiten imágenes (PNG, JPG, WEBP, HEIC).");
-  if (archivo.size > TAMANO_MAXIMO) throw new Error("La imagen no debe superar 5MB.");
+  if (!TIPOS_ARCHIVO_PERMITIDOS.includes(archivo.type)) throw new Error("Solo se permiten imágenes (PNG, JPG, WEBP, HEIC) o archivos PDF.");
+  if (archivo.size > TAMANO_MAXIMO) throw new Error("El archivo no debe superar 5MB.");
 
   const ext = archivo.name.split(".").pop() || "jpg";
   const ruta = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const { error } = await db().storage.from("guias").upload(ruta, archivo, { contentType: archivo.type });
-  if (error) throw new Error("No se pudo subir la imagen: " + error.message);
+  if (error) throw new Error("No se pudo subir el archivo: " + error.message);
 
   const { data } = db().storage.from("guias").getPublicUrl(ruta);
   return data.publicUrl;

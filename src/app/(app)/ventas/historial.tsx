@@ -255,16 +255,24 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
                         <div className="mt-2 flex gap-3">
                           {d.imagen_estampado_url && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Estampado</p>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={d.imagen_estampado_url} alt="Estampado" className="h-16 w-16 rounded-md border object-cover" />
+                              <p className="text-xs text-muted-foreground">Guía de Estampado</p>
+                              {d.imagen_estampado_url.toLowerCase().endsWith(".pdf") ? (
+                                <a href={d.imagen_estampado_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">Ver PDF</a>
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={d.imagen_estampado_url} alt="Guía de Estampado" className="h-16 w-16 rounded-md border object-cover" />
+                              )}
                             </div>
                           )}
                           {d.imagen_bordado_url && (
                             <div>
-                              <p className="text-xs text-muted-foreground">Bordado</p>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={d.imagen_bordado_url} alt="Bordado" className="h-16 w-16 rounded-md border object-cover" />
+                              <p className="text-xs text-muted-foreground">Guía de Bordado</p>
+                              {d.imagen_bordado_url.toLowerCase().endsWith(".pdf") ? (
+                                <a href={d.imagen_bordado_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">Ver PDF</a>
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={d.imagen_bordado_url} alt="Guía de Bordado" className="h-16 w-16 rounded-md border object-cover" />
+                              )}
                             </div>
                           )}
                         </div>
@@ -380,12 +388,10 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
                   <div className="grid gap-1.5"><Label>Color</Label><Combo opciones={maestros["color"] || []} value={l.color || ""} onChange={v => setLineaEd(i, "color", v)} placeholder="N/A" /></div>
                   <div className="grid gap-1.5"><Label>Sexo</Label><Combo opciones={maestros["sexo"] || []} value={l.sexo || ""} onChange={v => setLineaEd(i, "sexo", v)} placeholder="N/A" /></div>
                   <div className="grid gap-1.5"><Label>Total Línea</Label><Input readOnly value={formatoPesos((Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0))} className="bg-muted font-semibold" /></div>
-                  <div className="grid gap-1.5"><Label>Estampado</Label><Input value={l.estampado || ""} onChange={e => setLineaEd(i, "estampado", e.target.value)} /></div>
-                  <div className="grid gap-1.5"><Label>Guía Estampado</Label><Input value={l.guia_estampado || ""} onChange={e => setLineaEd(i, "guia_estampado", e.target.value)} /></div>
-                  <div className="grid gap-1.5"><Label>Bordado</Label><Input value={l.bordado || ""} onChange={e => setLineaEd(i, "bordado", e.target.value)} /></div>
-                  <div className="grid gap-1.5"><Label>Guía Bordado</Label><Input value={l.guia_bordado || ""} onChange={e => setLineaEd(i, "guia_bordado", e.target.value)} /></div>
-                  <SubidaImagen label="Imagen Estampado" url={l.imagen_estampado_url} onChange={url => setLineaEd(i, "imagen_estampado_url", url)} />
-                  <SubidaImagen label="Imagen Bordado" url={l.imagen_bordado_url} onChange={url => setLineaEd(i, "imagen_bordado_url", url)} />
+                  <SubidaImagen label="Guía de Estampado" url={l.imagen_estampado_url} onChange={url => setLineaEd(i, "imagen_estampado_url", url)} />
+                  <div className="grid gap-1.5"><Label>Observaciones de Estampado</Label><Input value={l.estampado || ""} onChange={e => setLineaEd(i, "estampado", e.target.value)} /></div>
+                  <SubidaImagen label="Guía de Bordado" url={l.imagen_bordado_url} onChange={url => setLineaEd(i, "imagen_bordado_url", url)} />
+                  <div className="grid gap-1.5"><Label>Observaciones de Bordado</Label><Input value={l.bordado || ""} onChange={e => setLineaEd(i, "bordado", e.target.value)} /></div>
                 </div>
               </div>
             ))}

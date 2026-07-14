@@ -190,27 +190,35 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                         <div className="mt-2 flex flex-wrap gap-3">
                           {(d.estampado || d.guia_estampado || d.imagen_estampado_url) && (
                             <div className="rounded-md border border-dashed p-2">
-                              <p className="text-xs font-semibold text-muted-foreground">Estampado</p>
-                              {d.estampado && <p className="text-xs">{d.estampado}</p>}
+                              <p className="text-xs font-semibold text-muted-foreground">Guía de Estampado</p>
+                              {d.estampado && <p className="text-xs">Observaciones: {d.estampado}</p>}
                               {d.guia_estampado && <p className="text-xs text-muted-foreground">Guía: {d.guia_estampado}</p>}
                               {d.imagen_estampado_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={d.imagen_estampado_url} alt="Estampado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                d.imagen_estampado_url.toLowerCase().endsWith(".pdf") ? (
+                                  <a href={d.imagen_estampado_url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-primary underline">Ver PDF</a>
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={d.imagen_estampado_url} alt="Guía de Estampado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                )
                               ) : (
-                                <p className="mt-1 text-xs text-muted-foreground">Sin imagen de referencia</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Sin guía de referencia</p>
                               )}
                             </div>
                           )}
                           {(d.bordado || d.guia_bordado || d.imagen_bordado_url) && (
                             <div className="rounded-md border border-dashed p-2">
-                              <p className="text-xs font-semibold text-muted-foreground">Bordado</p>
-                              {d.bordado && <p className="text-xs">{d.bordado}</p>}
+                              <p className="text-xs font-semibold text-muted-foreground">Guía de Bordado</p>
+                              {d.bordado && <p className="text-xs">Observaciones: {d.bordado}</p>}
                               {d.guia_bordado && <p className="text-xs text-muted-foreground">Guía: {d.guia_bordado}</p>}
                               {d.imagen_bordado_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={d.imagen_bordado_url} alt="Bordado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                d.imagen_bordado_url.toLowerCase().endsWith(".pdf") ? (
+                                  <a href={d.imagen_bordado_url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-primary underline">Ver PDF</a>
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={d.imagen_bordado_url} alt="Guía de Bordado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                )
                               ) : (
-                                <p className="mt-1 text-xs text-muted-foreground">Sin imagen de referencia</p>
+                                <p className="mt-1 text-xs text-muted-foreground">Sin guía de referencia</p>
                               )}
                             </div>
                           )}

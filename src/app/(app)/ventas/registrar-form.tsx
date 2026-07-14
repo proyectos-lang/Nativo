@@ -231,24 +231,16 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                   <Label>Total Línea</Label>
                   <Input readOnly value={formatoPesos((Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0))} className="bg-muted font-semibold" />
                 </div>
+                <SubidaImagen label="Guía de Estampado" url={l.imagen_estampado_url} onChange={url => setLinea(i, "imagen_estampado_url", url)} />
                 <div className="grid gap-1.5">
-                  <Label>Estampado</Label>
+                  <Label>Observaciones de Estampado</Label>
                   <Input value={l.estampado || ""} onChange={e => setLinea(i, "estampado", e.target.value)} placeholder="Detalle..." />
                 </div>
+                <SubidaImagen label="Guía de Bordado" url={l.imagen_bordado_url} onChange={url => setLinea(i, "imagen_bordado_url", url)} />
                 <div className="grid gap-1.5">
-                  <Label>Guía Estampado</Label>
-                  <Input value={l.guia_estampado || ""} onChange={e => setLinea(i, "guia_estampado", e.target.value)} placeholder="Guía #" />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Bordado</Label>
+                  <Label>Observaciones de Bordado</Label>
                   <Input value={l.bordado || ""} onChange={e => setLinea(i, "bordado", e.target.value)} placeholder="Detalle..." />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label>Guía Bordado</Label>
-                  <Input value={l.guia_bordado || ""} onChange={e => setLinea(i, "guia_bordado", e.target.value)} placeholder="Guía #" />
-                </div>
-                <SubidaImagen label="Imagen de referencia — Estampado" url={l.imagen_estampado_url} onChange={url => setLinea(i, "imagen_estampado_url", url)} />
-                <SubidaImagen label="Imagen de referencia — Bordado" url={l.imagen_bordado_url} onChange={url => setLinea(i, "imagen_bordado_url", url)} />
               </div>
             </div>
           ))}
