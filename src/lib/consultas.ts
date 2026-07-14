@@ -73,7 +73,7 @@ export async function detallesPorVentaSinMontos(): Promise<Record<number, unknow
     .from("ventas_detalle")
     .select(`
       id, venta_id, producto, codigo_producto, cantidad, talla, color, sexo, estampado, bordado,
-      guia_estampado, guia_bordado, imagen_estampado_url, imagen_bordado_url
+      guia_estampado, guia_bordado, imagen_estampado_url, imagen_bordado_url, listo
     `)
     .order("id");
   if (error) throw new Error(error.message);

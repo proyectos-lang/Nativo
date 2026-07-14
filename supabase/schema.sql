@@ -123,6 +123,7 @@ create table nativo.ventas_detalle (
   imagen_bordado_url text,
   valor_unitario numeric not null default 0,
   valor_total numeric not null default 0,
+  listo boolean not null default false,
   creado_en timestamptz not null default now()
 );
 create index idx_detalle_venta on nativo.ventas_detalle (venta_id);

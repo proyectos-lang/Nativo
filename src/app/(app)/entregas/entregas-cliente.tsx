@@ -3,12 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { actualizarEntrega } from "./acciones";
+import { actualizarEntrega, marcarLineaLista } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,6 +31,7 @@ const HOY = () => new Date().toISOString().slice(0, 10);
 export function EntregasCliente({ ventas, detalles, historial, estados, transportadoras, talleres }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
+  const [, startTransitionLinea] = useTransition();
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
   const [sel, setSel] = useState<Venta | null>(null);
@@ -39,6 +41,29 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
   const [transportadora, setTransportadora] = useState("");
   const [numeroGuia, setNumeroGuia] = useState("");
   const [ubicacion, setUbicacion] = useState("");
+  const [lineasListo, setLineasListo] = useState<Record<number, boolean>>({});
+
+  const estaLista = (d: VentaDetalle) => lineasListo[d.id] ?? d.listo;
+
+  const progreso = (ventaId: number) => {
+    const dets = detalles[ventaId] || [];
+    if (!dets.length) return null;
+    return { listos: dets.filter(estaLista).length, total: dets.length };
+  };
+
+  const toggleLinea = (d: VentaDetalle, ventaId: number) => {
+    const nuevoValor = !estaLista(d);
+    setLineasListo(prev => ({ ...prev, [d.id]: nuevoValor }));
+    startTransitionLinea(async () => {
+      try {
+        await marcarLineaLista(d.id, ventaId, nuevoValor);
+        router.refresh();
+      } catch (e) {
+        setLineasListo(prev => ({ ...prev, [d.id]: !nuevoValor }));
+        toast.error((e as Error).message);
+      }
+    });
+  };
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -137,6 +162,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                 )}
                 {lista.map(v => {
                   const cumplimiento = cumplimientoEntrega(v.fecha_entrega, v.fecha_entrega_real);
+                  const prog = progreso(v.id);
                   return (
                     <TableRow key={v.id} className="cursor-pointer" onClick={() => abrir(v)}>
                       <TableCell className="font-semibold">#{v.ticket}</TableCell>
@@ -144,8 +170,13 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                         {v.clientes?.nombre || "-"}
                         {v.clientes?.empresa && <span className="block text-xs text-muted-foreground">{v.clientes.empresa}</span>}
                       </TableCell>
-                      <TableCell className="max-w-56 truncate text-sm">
-                        {(detalles[v.id] || []).map(d => d.producto).join(", ") || "-"}
+                      <TableCell className="max-w-56 text-sm">
+                        <span className="block truncate">{(detalles[v.id] || []).map(d => d.producto).join(", ") || "-"}</span>
+                        {prog && (
+                          <Badge variant={prog.listos === prog.total ? "default" : "secondary"} className="mt-1">
+                            {prog.listos}/{prog.total} listos
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "Sin Estado"}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{v.ubicacion_actual || "-"}</TableCell>
@@ -176,15 +207,21 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                 <p className="mb-1 text-sm font-semibold">Productos del pedido</p>
                 <div className="grid gap-2">
                   {(detalles[sel.id] || []).map(d => (
-                    <div key={d.id} className="rounded-md border p-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span>
-                          {d.producto}
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            {[d.talla && `Talla ${d.talla}`, d.color].filter(Boolean).join(" · ")}
+                    <div key={d.id} className={`rounded-md border p-2 text-sm ${estaLista(d) ? "bg-primary/5" : ""}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2">
+                          <Checkbox checked={estaLista(d)} onCheckedChange={() => toggleLinea(d, sel.id)} />
+                          <span className={estaLista(d) ? "text-muted-foreground line-through" : ""}>
+                            {d.producto}
+                            <span className="ml-1 text-xs text-muted-foreground no-underline">
+                              {[d.talla && `Talla ${d.talla}`, d.color].filter(Boolean).join(" · ")}
+                            </span>
                           </span>
-                        </span>
-                        <Badge variant="secondary">x{d.cantidad}</Badge>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={estaLista(d) ? "default" : "outline"}>{estaLista(d) ? "Listo" : "Pendiente"}</Badge>
+                          <Badge variant="secondary">x{d.cantidad}</Badge>
+                        </div>
                       </div>
                       {(d.estampado || d.guia_estampado || d.imagen_estampado_url || d.bordado || d.guia_bordado || d.imagen_bordado_url) && (
                         <div className="mt-2 flex flex-wrap gap-3">

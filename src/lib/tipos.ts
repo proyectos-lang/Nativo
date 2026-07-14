@@ -94,6 +94,7 @@ export type VentaDetalle = {
   imagen_bordado_url: string | null;
   valor_unitario: number;
   valor_total: number;
+  listo: boolean;
 };
 
 export type Pago = {

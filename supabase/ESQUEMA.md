@@ -162,6 +162,7 @@ Una fila por producto de cada venta.
 | imagen_bordado_url | text | null | URL pública en el bucket de Storage `guias` |
 | valor_unitario | numeric | not null, default 0 | |
 | valor_total | numeric | not null, default 0 | `cantidad × valor_unitario` |
+| listo | boolean | not null, default `false` | Marca de control en Entregas: si esa línea/producto ya está lista, independiente del `estado_entrega` general del pedido |
 | creado_en | timestamptz | not null, default `now()` | |
 
 Índice: `idx_detalle_venta (venta_id)`.

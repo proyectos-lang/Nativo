@@ -41,3 +41,19 @@ export async function actualizarEntrega(datos: {
   revalidatePath("/");
   return data;
 }
+
+export async function marcarLineaLista(detalleId: number, ventaId: number, listo: boolean) {
+  const sesion = await requierePermiso("entregas");
+  const { error } = await db().from("ventas_detalle").update({ listo }).eq("id", detalleId);
+  if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "entregas", accion: "editar",
+    entidad_tipo: "ventas_detalle", entidad_id: detalleId,
+    descripcion: `Línea de venta #${ventaId} marcada como ${listo ? "lista" : "pendiente"}`,
+    datos_nuevos: { listo },
+  });
+
+  revalidatePath("/entregas");
+  revalidatePath("/seguimiento");
+}
