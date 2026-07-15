@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Combo } from "@/components/combo";
+import { Maximize2 } from "lucide-react";
 import { formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type HistorialEntrega } from "@/lib/tipos";
 
 type Props = {
@@ -42,6 +43,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
   const [numeroGuia, setNumeroGuia] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   const [lineasListo, setLineasListo] = useState<Record<number, boolean>>({});
+  const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null);
 
   const estaLista = (d: VentaDetalle) => lineasListo[d.id] ?? d.listo;
 
@@ -234,8 +236,17 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                                 d.imagen_estampado_url.toLowerCase().endsWith(".pdf") ? (
                                   <a href={d.imagen_estampado_url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-primary underline">Ver PDF</a>
                                 ) : (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={d.imagen_estampado_url} alt="Guía de Estampado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                  <div className="relative mt-1 w-fit">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={d.imagen_estampado_url} alt="Guía de Estampado" className="h-20 w-20 rounded-md object-cover" />
+                                    <button
+                                      type="button" title="Ampliar"
+                                      onClick={() => setImagenAmpliada(d.imagen_estampado_url)}
+                                      className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border bg-background/90 shadow-sm"
+                                    >
+                                      <Maximize2 className="size-3" />
+                                    </button>
+                                  </div>
                                 )
                               ) : (
                                 <p className="mt-1 text-xs text-muted-foreground">Sin guía de referencia</p>
@@ -251,8 +262,17 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                                 d.imagen_bordado_url.toLowerCase().endsWith(".pdf") ? (
                                   <a href={d.imagen_bordado_url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-primary underline">Ver PDF</a>
                                 ) : (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={d.imagen_bordado_url} alt="Guía de Bordado" className="mt-1 h-20 w-20 rounded-md object-cover" />
+                                  <div className="relative mt-1 w-fit">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={d.imagen_bordado_url} alt="Guía de Bordado" className="h-20 w-20 rounded-md object-cover" />
+                                    <button
+                                      type="button" title="Ampliar"
+                                      onClick={() => setImagenAmpliada(d.imagen_bordado_url)}
+                                      className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border bg-background/90 shadow-sm"
+                                    >
+                                      <Maximize2 className="size-3" />
+                                    </button>
+                                  </div>
                                 )
                               ) : (
                                 <p className="mt-1 text-xs text-muted-foreground">Sin guía de referencia</p>
@@ -332,6 +352,16 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
               {pendiente ? "Guardando..." : "Guardar Actualización"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!imagenAmpliada} onOpenChange={o => !o && setImagenAmpliada(null)}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-auto p-2">
+          <DialogHeader className="sr-only"><DialogTitle>Imagen ampliada</DialogTitle></DialogHeader>
+          {imagenAmpliada && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagenAmpliada} alt="Imagen ampliada" className="max-h-[80vh] w-full rounded-md object-contain" />
+          )}
         </DialogContent>
       </Dialog>
     </div>
