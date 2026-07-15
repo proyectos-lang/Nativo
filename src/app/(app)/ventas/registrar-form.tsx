@@ -45,7 +45,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null);
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [dialogCliente, setDialogCliente] = useState(false);
-  const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "", departamento: "", direccion: "", rut: "" });
+  const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "", departamento: "", direccion: "", rut: "", digito_verificacion: "" });
 
   // Líneas
   const [lineas, setLineas] = useState<LineaVenta[]>([{ ...LINEA_VACIA }]);
@@ -80,7 +80,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         setClienteSel(c as Cliente);
         setBusquedaCliente((c as Cliente).nombre);
         setDialogCliente(false);
-        setNuevoCliente({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "", departamento: "", direccion: "", rut: "" });
+        setNuevoCliente({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "", departamento: "", direccion: "", rut: "", digito_verificacion: "" });
         toast.success("Cliente registrado y seleccionado");
       } catch (e) {
         toast.error((e as Error).message);
@@ -127,14 +127,20 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
             <DialogContent className="sm:max-w-2xl">
               <DialogHeader><DialogTitle>Registrar Nuevo Cliente</DialogTitle></DialogHeader>
               <div className="grid grid-cols-2 gap-3">
+                <p className="col-span-2 text-xs font-semibold uppercase text-muted-foreground">Representante Legal</p>
                 <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} /></div>
-                <div className="grid gap-1.5"><Label>Cédula / NIT</Label><Input value={nuevoCliente.cedula_nit} onChange={e => setNuevoCliente({ ...nuevoCliente, cedula_nit: e.target.value })} /></div>
-                <div className="grid gap-1.5"><Label>Empresa</Label><Input value={nuevoCliente.empresa} onChange={e => setNuevoCliente({ ...nuevoCliente, empresa: e.target.value })} /></div>
-                <div className="grid gap-1.5"><Label>Contacto</Label><Input value={nuevoCliente.contacto} onChange={e => setNuevoCliente({ ...nuevoCliente, contacto: e.target.value })} /></div>
+                <div className="grid gap-1.5"><Label>Cédula</Label><Input value={nuevoCliente.cedula_nit} onChange={e => setNuevoCliente({ ...nuevoCliente, cedula_nit: e.target.value })} /></div>
+
+                <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
+                <div className="grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={nuevoCliente.empresa} onChange={e => setNuevoCliente({ ...nuevoCliente, empresa: e.target.value })} /></div>
+                <div className="grid gap-1.5"><Label>RUT / NIT</Label><Input value={nuevoCliente.rut} onChange={e => setNuevoCliente({ ...nuevoCliente, rut: e.target.value })} /></div>
+                <div className="grid gap-1.5"><Label>Dígito de Verificación</Label><Input value={nuevoCliente.digito_verificacion} onChange={e => setNuevoCliente({ ...nuevoCliente, digito_verificacion: e.target.value })} /></div>
                 <div className="grid gap-1.5"><Label>Correo</Label><Input value={nuevoCliente.correo} onChange={e => setNuevoCliente({ ...nuevoCliente, correo: e.target.value })} /></div>
+                <div className="grid gap-1.5"><Label>Contacto</Label><Input value={nuevoCliente.contacto} onChange={e => setNuevoCliente({ ...nuevoCliente, contacto: e.target.value })} /></div>
+
+                <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Ubicación</p>
                 <div className="grid gap-1.5"><Label>Ciudad</Label><Input value={nuevoCliente.ciudad} onChange={e => setNuevoCliente({ ...nuevoCliente, ciudad: e.target.value })} /></div>
                 <div className="grid gap-1.5"><Label>Departamento</Label><Input value={nuevoCliente.departamento} onChange={e => setNuevoCliente({ ...nuevoCliente, departamento: e.target.value })} /></div>
-                <div className="grid gap-1.5"><Label>RUT</Label><Input value={nuevoCliente.rut} onChange={e => setNuevoCliente({ ...nuevoCliente, rut: e.target.value })} /></div>
                 <div className="col-span-2 grid gap-1.5"><Label>Dirección</Label><Input value={nuevoCliente.direccion} onChange={e => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })} /></div>
               </div>
               <DialogFooter>

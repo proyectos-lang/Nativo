@@ -228,6 +228,7 @@ export async function actualizarClienteVenta(datos: Partial<Cliente> & { id: num
     direccion: datos.direccion?.trim() || null,
     correo: datos.correo?.trim() || null,
     rut: datos.rut?.trim() || null,
+    digito_verificacion: datos.digito_verificacion?.trim() || null,
   };
   const { data: anterior } = await db().from("clientes").select("*").eq("id", datos.id).single();
   const { error } = await db().from("clientes").update(fila).eq("id", datos.id);
@@ -296,7 +297,7 @@ export async function subirImagenLinea(formData: FormData) {
 
 export async function crearCliente(datos: {
   nombre: string; cedula_nit?: string; empresa?: string; contacto?: string;
-  ciudad?: string; departamento?: string; direccion?: string; correo?: string; rut?: string;
+  ciudad?: string; departamento?: string; direccion?: string; correo?: string; rut?: string; digito_verificacion?: string;
 }) {
   const sesion = await requierePermiso("ventas");
   if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
@@ -314,6 +315,7 @@ export async function crearCliente(datos: {
     direccion: datos.direccion?.trim() || null,
     correo: datos.correo?.trim() || null,
     rut: datos.rut?.trim() || null,
+    digito_verificacion: datos.digito_verificacion?.trim() || null,
   };
   const { data, error } = await db().from("clientes").insert(fila).select().single();
   if (error) throw new Error(error.message);

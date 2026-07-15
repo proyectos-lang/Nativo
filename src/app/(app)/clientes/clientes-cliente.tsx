@@ -156,14 +156,20 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>{form.id ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <p className="col-span-2 text-xs font-semibold uppercase text-muted-foreground">Representante Legal</p>
             {campo("nombre", "Nombre *")}
-            {campo("cedula_nit", "Cédula / NIT")}
-            {campo("empresa", "Empresa")}
-            {campo("contacto", "Contacto")}
+            {campo("cedula_nit", "Cédula")}
+
+            <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
+            {campo("empresa", "Nombre de la Empresa")}
+            {campo("rut", "RUT / NIT")}
+            {campo("digito_verificacion", "Dígito de Verificación")}
             {campo("correo", "Correo")}
+            {campo("contacto", "Contacto")}
+
+            <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Ubicación</p>
             {campo("ciudad", "Ciudad")}
             {campo("departamento", "Departamento")}
-            {campo("rut", "RUT")}
             <div className="col-span-2">{campo("direccion", "Dirección")}</div>
           </div>
           <DialogFooter>

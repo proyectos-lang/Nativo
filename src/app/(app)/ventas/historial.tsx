@@ -480,14 +480,20 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <p className="col-span-2 text-xs font-semibold uppercase text-muted-foreground">Representante Legal</p>
             <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={formCliente.nombre} onChange={e => setFormCliente({ ...formCliente, nombre: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Cédula / NIT</Label><Input value={formCliente.cedula_nit || ""} onChange={e => setFormCliente({ ...formCliente, cedula_nit: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Empresa</Label><Input value={formCliente.empresa || ""} onChange={e => setFormCliente({ ...formCliente, empresa: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Contacto</Label><Input value={formCliente.contacto || ""} onChange={e => setFormCliente({ ...formCliente, contacto: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Cédula</Label><Input value={formCliente.cedula_nit || ""} onChange={e => setFormCliente({ ...formCliente, cedula_nit: e.target.value })} /></div>
+
+            <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
+            <div className="grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={formCliente.empresa || ""} onChange={e => setFormCliente({ ...formCliente, empresa: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>RUT / NIT</Label><Input value={formCliente.rut || ""} onChange={e => setFormCliente({ ...formCliente, rut: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Dígito de Verificación</Label><Input value={formCliente.digito_verificacion || ""} onChange={e => setFormCliente({ ...formCliente, digito_verificacion: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Correo</Label><Input value={formCliente.correo || ""} onChange={e => setFormCliente({ ...formCliente, correo: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Contacto</Label><Input value={formCliente.contacto || ""} onChange={e => setFormCliente({ ...formCliente, contacto: e.target.value })} /></div>
+
+            <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Ubicación</p>
             <div className="grid gap-1.5"><Label>Ciudad</Label><Input value={formCliente.ciudad || ""} onChange={e => setFormCliente({ ...formCliente, ciudad: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Departamento</Label><Input value={formCliente.departamento || ""} onChange={e => setFormCliente({ ...formCliente, departamento: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>RUT</Label><Input value={formCliente.rut || ""} onChange={e => setFormCliente({ ...formCliente, rut: e.target.value })} /></div>
             <div className="col-span-2 grid gap-1.5"><Label>Dirección</Label><Input value={formCliente.direccion || ""} onChange={e => setFormCliente({ ...formCliente, direccion: e.target.value })} /></div>
           </div>
           <DialogFooter>

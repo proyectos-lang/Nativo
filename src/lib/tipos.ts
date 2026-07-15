@@ -32,6 +32,7 @@ export type Cliente = {
   correo: string | null;
   cedula_nit: string | null;
   rut: string | null;
+  digito_verificacion: string | null;
   activo: boolean;
 };
 

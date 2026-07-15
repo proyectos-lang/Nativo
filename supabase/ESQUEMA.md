@@ -33,15 +33,16 @@ Usuarios de la aplicación con permisos por módulo.
 | Columna | Tipo | Nulos/Default | Descripción |
 |---|---|---|---|
 | id | bigint | PK identity | |
-| nombre | text | not null | |
-| empresa | text | null | |
+| nombre | text | not null | Nombre del representante legal |
+| empresa | text | null | Nombre de la empresa |
 | contacto | text | null | Teléfono |
 | ciudad | text | null | |
 | departamento | text | null | |
 | direccion | text | null | |
 | correo | text | null | |
-| cedula_nit | text | null | Usada como clave de deduplicación al crear clientes |
-| rut | text | null | |
+| cedula_nit | text | null | Cédula del representante legal. Usada como clave de deduplicación al crear clientes |
+| rut | text | null | RUT / NIT de la empresa (sin el dígito de verificación) |
+| digito_verificacion | text | null | Dígito de verificación (DV) del NIT de la empresa, en campo separado de `rut` |
 | activo | boolean | not null, default `true` | Un cliente inactivo deja de aparecer en el selector de clientes de Ventas (`clientesActivos()`), pero sigue visible en el módulo Clientes |
 | creado_en | timestamptz | not null, default `now()` | |
 

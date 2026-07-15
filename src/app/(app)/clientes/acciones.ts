@@ -20,6 +20,7 @@ export async function guardarCliente(datos: Partial<Cliente> & { nombre: string 
     correo: datos.correo?.trim() || null,
     cedula_nit: datos.cedula_nit?.trim() || null,
     rut: datos.rut?.trim() || null,
+    digito_verificacion: datos.digito_verificacion?.trim() || null,
   };
 
   if (datos.id) {
