@@ -161,9 +161,11 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
             {campo("cedula_nit", "Cédula")}
 
             <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
-            {campo("empresa", "Nombre de la Empresa")}
-            {campo("rut", "RUT / NIT")}
-            {campo("digito_verificacion", "Dígito de Verificación")}
+            <div className="col-span-2">{campo("empresa", "Nombre de la Empresa")}</div>
+            <div className="col-span-2 grid grid-cols-3 gap-3">
+              <div className="col-span-2">{campo("rut", "RUT / NIT")}</div>
+              {campo("digito_verificacion", "Dígito Verif.")}
+            </div>
             {campo("correo", "Correo")}
             {campo("contacto", "Contacto")}
 

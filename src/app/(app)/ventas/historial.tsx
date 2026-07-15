@@ -485,9 +485,11 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
             <div className="grid gap-1.5"><Label>Cédula</Label><Input value={formCliente.cedula_nit || ""} onChange={e => setFormCliente({ ...formCliente, cedula_nit: e.target.value })} /></div>
 
             <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
-            <div className="grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={formCliente.empresa || ""} onChange={e => setFormCliente({ ...formCliente, empresa: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>RUT / NIT</Label><Input value={formCliente.rut || ""} onChange={e => setFormCliente({ ...formCliente, rut: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Dígito de Verificación</Label><Input value={formCliente.digito_verificacion || ""} onChange={e => setFormCliente({ ...formCliente, digito_verificacion: e.target.value })} /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={formCliente.empresa || ""} onChange={e => setFormCliente({ ...formCliente, empresa: e.target.value })} /></div>
+            <div className="col-span-2 grid grid-cols-3 gap-3">
+              <div className="col-span-2 grid gap-1.5"><Label>RUT / NIT</Label><Input value={formCliente.rut || ""} onChange={e => setFormCliente({ ...formCliente, rut: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Dígito Verif.</Label><Input value={formCliente.digito_verificacion || ""} onChange={e => setFormCliente({ ...formCliente, digito_verificacion: e.target.value })} /></div>
+            </div>
             <div className="grid gap-1.5"><Label>Correo</Label><Input value={formCliente.correo || ""} onChange={e => setFormCliente({ ...formCliente, correo: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Contacto</Label><Input value={formCliente.contacto || ""} onChange={e => setFormCliente({ ...formCliente, contacto: e.target.value })} /></div>
 
