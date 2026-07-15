@@ -132,8 +132,8 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                 <div className="grid gap-1.5"><Label>Cédula</Label><Input value={nuevoCliente.cedula_nit} onChange={e => setNuevoCliente({ ...nuevoCliente, cedula_nit: e.target.value })} /></div>
 
                 <p className="col-span-2 mt-1 text-xs font-semibold uppercase text-muted-foreground">Empresa</p>
-                <div className="col-span-2 grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={nuevoCliente.empresa} onChange={e => setNuevoCliente({ ...nuevoCliente, empresa: e.target.value })} /></div>
-                <div className="col-span-2 grid grid-cols-3 gap-3">
+                <div className="col-span-2 grid grid-cols-5 gap-3">
+                  <div className="col-span-2 grid gap-1.5"><Label>Nombre de la Empresa</Label><Input value={nuevoCliente.empresa} onChange={e => setNuevoCliente({ ...nuevoCliente, empresa: e.target.value })} /></div>
                   <div className="col-span-2 grid gap-1.5"><Label>RUT / NIT</Label><Input value={nuevoCliente.rut} onChange={e => setNuevoCliente({ ...nuevoCliente, rut: e.target.value })} /></div>
                   <div className="grid gap-1.5"><Label>Dígito Verif.</Label><Input value={nuevoCliente.digito_verificacion} onChange={e => setNuevoCliente({ ...nuevoCliente, digito_verificacion: e.target.value })} /></div>
                 </div>
