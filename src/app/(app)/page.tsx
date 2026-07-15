@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requierePermisoPagina } from "@/lib/sesion";
-import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos } from "@/lib/consultas";
+import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos, cuentasConSaldo } from "@/lib/consultas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,9 +8,9 @@ import { GraficoVentas } from "./grafico-ventas";
 import { FiltroMes } from "./filtro-mes";
 import { SplashBienvenida } from "@/components/splash-bienvenida";
 import {
-  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact,
+  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact, Landmark,
 } from "lucide-react";
-import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega, type Prospecto } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega, type Prospecto, type CuentaBancaria } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +24,18 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
   const mes = params.mes !== undefined ? Number(params.mes) - 1 : hoy.getMonth();
   const anio = params.anio !== undefined ? Number(params.anio) : hoy.getFullYear();
 
-  const [ventas, detalles, historial, prospectos] = await Promise.all([
+  const esFinanciero = sesion.rol === "admin" || sesion.permisos.financiero;
+
+  const [ventas, detalles, historial, prospectos, cuentas] = await Promise.all([
     ventasConCliente() as Promise<Venta[]>,
     detallesPorVenta() as Promise<Record<number, VentaDetalle[]>>,
     historialPorVenta() as Promise<Record<number, HistorialEntrega[]>>,
     prospectosTodos() as Promise<Prospecto[]>,
+    (esFinanciero ? cuentasConSaldo() : Promise.resolve([])) as Promise<CuentaBancaria[]>,
   ]);
+
+  const cuentasActivas = cuentas.filter(c => c.activa);
+  const totalBancos = cuentasActivas.reduce((s, c) => s + (c.saldo_actual || 0), 0);
 
   const prospectosPendientes = prospectos.filter(p => p.estado === "Pendiente");
 
@@ -186,6 +192,33 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
           </Card>
         </Link>
       </div>
+
+      {/* Consolidado bancario */}
+      {esFinanciero && (
+        <Link href="/financiero">
+          <Card className="transition hover:-translate-y-0.5 hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base"><Landmark className="size-4" /> Consolidado Bancario</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cuentasActivas.length === 0 && <p className="text-sm text-muted-foreground">Sin cuentas bancarias activas.</p>}
+                {cuentasActivas.map(c => (
+                  <div key={c.id} className="rounded-lg border p-3">
+                    <p className="truncate text-xs font-medium uppercase text-muted-foreground">{c.nombre}</p>
+                    <p className={`text-lg font-bold ${(c.saldo_actual || 0) >= 0 ? "" : "text-destructive"}`}>{formatoPesos(c.saldo_actual)}</p>
+                    {c.banco && <p className="truncate text-xs text-muted-foreground">{c.banco}</p>}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t pt-3">
+                <span className="text-sm font-medium text-muted-foreground">Total en bancos</span>
+                <span className={`text-xl font-bold ${totalBancos >= 0 ? "text-primary" : "text-destructive"}`}>{formatoPesos(totalBancos)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       {/* Gráfico + tops */}
       <div className="grid gap-4 lg:grid-cols-3">
