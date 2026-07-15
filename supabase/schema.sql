@@ -38,6 +38,7 @@ create table nativo.clientes (
   correo text,
   cedula_nit text,
   rut text,
+  activo boolean not null default true,
   creado_en timestamptz not null default now()
 );
 create index idx_clientes_cedula on nativo.clientes (cedula_nit);

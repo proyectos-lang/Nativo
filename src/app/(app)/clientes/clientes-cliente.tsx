@@ -3,14 +3,16 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { guardarCliente, eliminarCliente } from "./acciones";
+import { guardarCliente, eliminarCliente, cambiarActivoCliente } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil, UserPlus, Trash2 } from "lucide-react";
+import { Pencil, UserPlus, Trash2, UserCheck, UserX } from "lucide-react";
 import type { Cliente } from "@/lib/tipos";
 
 const VACIO: Partial<Cliente> & { nombre: string } = { nombre: "" };
@@ -19,19 +21,22 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("activos");
   const [abierto, setAbierto] = useState(false);
   const [form, setForm] = useState<Partial<Cliente> & { nombre: string }>(VACIO);
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
-    if (!q) return clientes;
-    return clientes.filter(c =>
-      c.nombre.toLowerCase().includes(q) ||
-      (c.empresa || "").toLowerCase().includes(q) ||
-      (c.cedula_nit || "").toLowerCase().includes(q) ||
-      (c.ciudad || "").toLowerCase().includes(q)
-    );
-  }, [clientes, busqueda]);
+    return clientes.filter(c => {
+      if (filtroEstado === "activos" && !c.activo) return false;
+      if (filtroEstado === "inactivos" && c.activo) return false;
+      if (!q) return true;
+      return c.nombre.toLowerCase().includes(q) ||
+        (c.empresa || "").toLowerCase().includes(q) ||
+        (c.cedula_nit || "").toLowerCase().includes(q) ||
+        (c.ciudad || "").toLowerCase().includes(q);
+    });
+  }, [clientes, busqueda, filtroEstado]);
 
   const abrir = (c?: Cliente) => {
     setForm(c ? { ...c } : VACIO);
@@ -60,6 +65,18 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
     });
   };
 
+  const alternarActivo = (c: Cliente) => {
+    const nuevoValor = !c.activo;
+    if (!nuevoValor && !confirm(`¿Desactivar a "${c.nombre}"? Dejará de aparecer para seleccionar en Ventas.`)) return;
+    startTransition(async () => {
+      try {
+        await cambiarActivoCliente(c.id, nuevoValor);
+        toast.success(nuevoValor ? "Cliente activado" : "Cliente desactivado");
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
   const campo = (k: keyof Cliente, label: string) => (
     <div className="grid gap-1.5">
       <Label>{label}</Label>
@@ -74,8 +91,16 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
           <h2 className="text-xl font-bold">Clientes</h2>
           <p className="text-sm text-muted-foreground">{clientes.length} clientes registrados.</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <Input className="w-64" placeholder="Buscar por nombre, cédula, empresa..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <Select value={filtroEstado} onValueChange={v => setFiltroEstado(v || "activos")}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="activos">Activos</SelectItem>
+              <SelectItem value="inactivos">Inactivos</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={() => abrir()}><UserPlus className="size-4" /> Nuevo Cliente</Button>
         </div>
       </div>
@@ -92,21 +117,32 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
                   <TableHead>Contacto</TableHead>
                   <TableHead>Ciudad</TableHead>
                   <TableHead>Correo</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {lista.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                )}
                 {lista.map(c => (
-                  <TableRow key={c.id}>
+                  <TableRow key={c.id} className={!c.activo ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{c.nombre}</TableCell>
                     <TableCell>{c.cedula_nit || "-"}</TableCell>
                     <TableCell>{c.empresa || "-"}</TableCell>
                     <TableCell>{c.contacto || "-"}</TableCell>
                     <TableCell>{c.ciudad || "-"}{c.departamento ? `, ${c.departamento}` : ""}</TableCell>
                     <TableCell className="text-sm">{c.correo || "-"}</TableCell>
+                    <TableCell><Badge variant={c.activo ? "default" : "secondary"}>{c.activo ? "Activo" : "Inactivo"}</Badge></TableCell>
                     <TableCell className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => abrir(c)}><Pencil className="size-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => eliminar(c)} disabled={pendiente}><Trash2 className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => abrir(c)} title="Editar"><Pencil className="size-4" /></Button>
+                      <Button
+                        variant="ghost" size="icon" disabled={pendiente} onClick={() => alternarActivo(c)}
+                        title={c.activo ? "Desactivar" : "Activar"}
+                      >
+                        {c.activo ? <UserX className="size-4" /> : <UserCheck className="size-4 text-primary" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => eliminar(c)} disabled={pendiente} title="Eliminar"><Trash2 className="size-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

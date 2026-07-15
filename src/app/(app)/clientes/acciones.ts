@@ -50,6 +50,21 @@ export async function guardarCliente(datos: Partial<Cliente> & { nombre: string 
   revalidatePath("/ventas");
 }
 
+export async function cambiarActivoCliente(id: number, activo: boolean) {
+  const sesion = await requierePermiso("clientes");
+  const { data: anterior } = await db().from("clientes").select("nombre, activo").eq("id", id).single();
+  const { error } = await db().from("clientes").update({ activo }).eq("id", id);
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "clientes", accion: "editar",
+    entidad_tipo: "clientes", entidad_id: id,
+    descripcion: `Cliente ${activo ? "activado" : "desactivado"}: ${anterior?.nombre ?? id}`,
+    datos_anteriores: anterior ?? null, datos_nuevos: { activo },
+  });
+  revalidatePath("/clientes");
+  revalidatePath("/ventas");
+}
+
 export async function eliminarCliente(id: number) {
   const sesion = await requierePermiso("clientes");
   const { data: anterior } = await db().from("clientes").select("*").eq("id", id).single();

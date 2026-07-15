@@ -19,6 +19,13 @@ export async function clientesTodos() {
   return data || [];
 }
 
+/** Solo clientes activos — usada en Ventas para que uno desactivado no aparezca en el selector. */
+export async function clientesActivos() {
+  const { data, error } = await db().from("clientes").select("*").eq("activo", true).order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function proveedoresTodos() {
   const { data, error } = await db().from("proveedores").select("*").order("nombre");
   if (error) throw new Error(error.message);

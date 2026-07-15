@@ -42,6 +42,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | cedula_nit | text | null | Usada como clave de deduplicación al crear clientes |
 | rut | text | null | |
+| activo | boolean | not null, default `true` | Un cliente inactivo deja de aparecer en el selector de clientes de Ventas (`clientesActivos()`), pero sigue visible en el módulo Clientes |
 | creado_en | timestamptz | not null, default `now()` | |
 
 Índices: `idx_clientes_cedula (cedula_nit)`, `idx_clientes_nombre (nombre)`.
