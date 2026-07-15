@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { actualizarVenta, eliminarVenta, type LineaVenta } from "./acciones";
+import { actualizarVenta, actualizarClienteVenta, eliminarVenta, type LineaVenta } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
 import { SubidaImagen } from "@/components/subida-imagen";
 import { FileSpreadsheet, Pencil, Plus, Trash2, ShieldAlert } from "lucide-react";
-import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type Pago } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type Pago, type Cliente } from "@/lib/tipos";
 
 type Props = {
   ventas: Venta[];
@@ -23,11 +24,12 @@ type Props = {
   pagos: Record<number, Pago[]>;
   maestros: Record<string, string[]>;
   productos: string[];
+  clientes: Cliente[];
 };
 
 type AccionPin = "editar" | "eliminar" | null;
 
-export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }: Props) {
+export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [desde, setDesde] = useState("");
@@ -50,6 +52,10 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
   const [pinEdicion, setPinEdicion] = useState("");
   const [lineasEd, setLineasEd] = useState<LineaVenta[]>([]);
   const [genEd, setGenEd] = useState({ canal_venta: "", campana: "", vendedora: "", profesional: "", motivo_compra: "", fecha_entrega: "", costo_envio: 0 });
+  const [clienteEdSel, setClienteEdSel] = useState<Cliente | null>(null);
+  const [busquedaClienteEd, setBusquedaClienteEd] = useState("");
+  const [dialogEditarCliente, setDialogEditarCliente] = useState(false);
+  const [formCliente, setFormCliente] = useState<Partial<Cliente> & { nombre: string }>({ nombre: "" });
 
   const opcionesClientes = useMemo(
     () => [...new Set(ventas.map(v => v.clientes?.nombre).filter(Boolean))] as string[],
@@ -105,11 +111,34 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
       profesional: v.profesional || "", motivo_compra: v.motivo_compra || "", fecha_entrega: v.fecha_entrega || "",
       costo_envio: Number(v.costo_envio) || 0,
     });
+    const clienteCompleto = clientes.find(c => c.id === v.cliente_id) || v.clientes || null;
+    setClienteEdSel(clienteCompleto as Cliente | null);
+    setBusquedaClienteEd(clienteCompleto?.nombre || "");
     setEdicionAbierta(true);
   };
 
   const setLineaEd = (i: number, campo: keyof LineaVenta, valor: string | number | null) => {
     setLineasEd(prev => prev.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
+  };
+
+  const abrirEditarCliente = () => {
+    if (!clienteEdSel) return;
+    setFormCliente({ ...clienteEdSel });
+    setDialogEditarCliente(true);
+  };
+
+  const guardarClienteEditado = () => {
+    if (!clienteEdSel) return;
+    startTransition(async () => {
+      try {
+        const actualizado = await actualizarClienteVenta({ ...formCliente, id: clienteEdSel.id }) as Cliente;
+        toast.success("Cliente actualizado");
+        setClienteEdSel(actualizado);
+        setBusquedaClienteEd(actualizado.nombre);
+        setDialogEditarCliente(false);
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
   };
 
   const totalEd = useMemo(
@@ -152,7 +181,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
     if (!edicionVentaId) return;
     startTransition(async () => {
       try {
-        await actualizarVenta({ venta_id: edicionVentaId, pin: pinEdicion, ...genEd, lineas: lineasEd });
+        await actualizarVenta({ venta_id: edicionVentaId, pin: pinEdicion, cliente_id: clienteEdSel?.id, ...genEd, lineas: lineasEd });
         toast.success("Venta actualizada");
         setEdicionAbierta(false);
         router.refresh();
@@ -356,6 +385,43 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
             <DialogTitle>Editar Venta #{edicionTicket ?? ""}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4">
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Cliente</Label>
+                {clienteEdSel && (
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={abrirEditarCliente}>
+                    <Pencil className="size-3.5" /> Editar datos del cliente
+                  </Button>
+                )}
+              </div>
+              <Combobox
+                items={clientes}
+                itemToStringLabel={(c: Cliente | null) => c?.nombre ?? ""}
+                value={clienteEdSel}
+                onValueChange={v => setClienteEdSel((v as Cliente) ?? null)}
+                inputValue={busquedaClienteEd}
+                onInputValueChange={v => setBusquedaClienteEd(v ?? "")}
+                openOnInputClick
+              >
+                <ComboboxInput placeholder="Buscar por nombre, cédula/NIT o empresa..." className="w-full" showClear />
+                <ComboboxContent>
+                  <ComboboxEmpty>No se encontró.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(c: Cliente) => (
+                      <ComboboxItem key={c.id} value={c}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {c.nombre} {c.cedula_nit && <span className="text-primary">· {c.cedula_nit}</span>}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{c.empresa || "Sin empresa"}{c.ciudad ? ` | ${c.ciudad}` : ""}</span>
+                        </div>
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="grid gap-1.5"><Label>Canal de Venta</Label><Combo opciones={maestros["canal_venta"] || []} value={genEd.canal_venta} onChange={v => setGenEd({ ...genEd, canal_venta: v })} /></div>
               <div className="grid gap-1.5"><Label>Campaña</Label><Combo opciones={maestros["campana"] || []} value={genEd.campana} onChange={v => setGenEd({ ...genEd, campana: v })} /></div>
@@ -402,9 +468,31 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos }
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEdicionAbierta(false)}>Cancelar</Button>
-            <Button onClick={guardarEdicion} disabled={pendiente}>
+            <Button onClick={guardarEdicion} disabled={pendiente || !clienteEdSel}>
               {pendiente ? "Guardando..." : "Guardar Cambios"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDITAR DATOS DEL CLIENTE (desde la edición de venta) */}
+      <Dialog open={dialogEditarCliente} onOpenChange={setDialogEditarCliente}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={formCliente.nombre} onChange={e => setFormCliente({ ...formCliente, nombre: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Cédula / NIT</Label><Input value={formCliente.cedula_nit || ""} onChange={e => setFormCliente({ ...formCliente, cedula_nit: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Empresa</Label><Input value={formCliente.empresa || ""} onChange={e => setFormCliente({ ...formCliente, empresa: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Contacto</Label><Input value={formCliente.contacto || ""} onChange={e => setFormCliente({ ...formCliente, contacto: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Correo</Label><Input value={formCliente.correo || ""} onChange={e => setFormCliente({ ...formCliente, correo: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Ciudad</Label><Input value={formCliente.ciudad || ""} onChange={e => setFormCliente({ ...formCliente, ciudad: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Departamento</Label><Input value={formCliente.departamento || ""} onChange={e => setFormCliente({ ...formCliente, departamento: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>RUT</Label><Input value={formCliente.rut || ""} onChange={e => setFormCliente({ ...formCliente, rut: e.target.value })} /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>Dirección</Label><Input value={formCliente.direccion || ""} onChange={e => setFormCliente({ ...formCliente, direccion: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogEditarCliente(false)}>Cancelar</Button>
+            <Button onClick={guardarClienteEditado} disabled={pendiente || !formCliente.nombre?.trim()}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

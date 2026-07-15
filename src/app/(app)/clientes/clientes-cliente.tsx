@@ -3,14 +3,14 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { guardarCliente } from "./acciones";
+import { guardarCliente, eliminarCliente } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pencil, UserPlus } from "lucide-react";
+import { Pencil, UserPlus, Trash2 } from "lucide-react";
 import type { Cliente } from "@/lib/tipos";
 
 const VACIO: Partial<Cliente> & { nombre: string } = { nombre: "" };
@@ -44,6 +44,17 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
         await guardarCliente(form);
         toast.success(form.id ? "Cliente actualizado" : "Cliente creado");
         setAbierto(false);
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
+  const eliminar = (c: Cliente) => {
+    if (!confirm(`¿Eliminar a "${c.nombre}"? Esta acción no se puede deshacer.`)) return;
+    startTransition(async () => {
+      try {
+        await eliminarCliente(c.id);
+        toast.success("Cliente eliminado");
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
     });
@@ -93,8 +104,9 @@ export function ClientesCliente({ clientes }: { clientes: Cliente[] }) {
                     <TableCell>{c.contacto || "-"}</TableCell>
                     <TableCell>{c.ciudad || "-"}{c.departamento ? `, ${c.departamento}` : ""}</TableCell>
                     <TableCell className="text-sm">{c.correo || "-"}</TableCell>
-                    <TableCell>
+                    <TableCell className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => abrir(c)}><Pencil className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => eliminar(c)} disabled={pendiente}><Trash2 className="size-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

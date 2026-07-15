@@ -5,6 +5,7 @@ import { requierePermiso } from "@/lib/sesion";
 import { verificarPin } from "@/lib/pin";
 import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
+import type { Cliente } from "@/lib/tipos";
 
 export type LineaVenta = {
   producto: string;
@@ -141,6 +142,7 @@ export async function registrarVenta(venta: NuevaVenta) {
 export async function actualizarVenta(datos: {
   venta_id: number;
   pin: string;
+  cliente_id?: number;
   canal_venta?: string;
   campana?: string;
   vendedora?: string;
@@ -151,60 +153,94 @@ export async function actualizarVenta(datos: {
   lineas: LineaVenta[];
 }) {
   const sesion = await requierePermiso("ventas");
-  await verificarPin(datos.pin);
-  const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
-  if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
+  try {
+    await verificarPin(datos.pin);
+    const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
+    if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
 
-  const { data: venta, error: errGet } = await db()
-    .from("ventas").select("*").eq("id", datos.venta_id).single();
-  if (errGet) throw new Error(errGet.message);
-  const { data: lineasAntes } = await db().from("ventas_detalle").select("*").eq("venta_id", datos.venta_id);
+    const { data: venta, error: errGet } = await db()
+      .from("ventas").select("*").eq("id", datos.venta_id).single();
+    if (errGet) throw new Error(errGet.message);
+    const { data: lineasAntes } = await db().from("ventas_detalle").select("*").eq("venta_id", datos.venta_id);
 
-  const costoEnvio = Number(datos.costo_envio) || 0;
-  const totalProductos = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
-  const total = totalProductos + costoEnvio;
-  const totalAPagar = total - Number(venta.retencion || 0);
-  const saldo = totalAPagar - Number(venta.abono || 0);
+    const costoEnvio = Number(datos.costo_envio) || 0;
+    const totalProductos = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.valor_unitario) || 0), 0);
+    const total = totalProductos + costoEnvio;
+    const totalAPagar = total - Number(venta.retencion || 0);
+    const saldo = totalAPagar - Number(venta.abono || 0);
 
-  // Reemplaza el detalle completo
-  const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
-  if (errDel) throw new Error(errDel.message);
-  const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l));
-  const { error: errIns } = await db().from("ventas_detalle").insert(nuevasLineas);
-  if (errIns) throw new Error(errIns.message);
+    // Reemplaza el detalle completo
+    const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
+    if (errDel) throw new Error(errDel.message);
+    const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l));
+    const { error: errIns } = await db().from("ventas_detalle").insert(nuevasLineas);
+    if (errIns) throw new Error(errIns.message);
 
-  const camposActualizados = {
-    canal_venta: datos.canal_venta || null,
-    campana: datos.campana || null,
-    vendedora: datos.vendedora || null,
-    profesional: datos.profesional || null,
-    motivo_compra: datos.motivo_compra || null,
-    fecha_entrega: datos.fecha_entrega || null,
-    costo_envio: costoEnvio,
-    total_compra: total,
-    total_a_pagar: totalAPagar,
-    saldo,
-    estado_pago: saldo <= 0 && total > 0 ? "Pagado Total" : Number(venta.abono) > 0 ? "Abonado" : "Pendiente",
-  };
-  const { error: errUpd } = await db().from("ventas").update(camposActualizados).eq("id", datos.venta_id);
-  if (errUpd) throw new Error(errUpd.message);
+    const camposActualizados = {
+      cliente_id: datos.cliente_id || venta.cliente_id,
+      canal_venta: datos.canal_venta || null,
+      campana: datos.campana || null,
+      vendedora: datos.vendedora || null,
+      profesional: datos.profesional || null,
+      motivo_compra: datos.motivo_compra || null,
+      fecha_entrega: datos.fecha_entrega || null,
+      costo_envio: costoEnvio,
+      total_compra: total,
+      total_a_pagar: totalAPagar,
+      saldo,
+      estado_pago: saldo <= 0 && total > 0 ? "Pagado Total" : Number(venta.abono) > 0 ? "Abonado" : "Pendiente",
+    };
+    const { error: errUpd } = await db().from("ventas").update(camposActualizados).eq("id", datos.venta_id);
+    if (errUpd) throw new Error(errUpd.message);
 
-  for (const l of lineas) {
-    await db().from("productos").upsert({ nombre: l.producto.trim() }, { onConflict: "nombre", ignoreDuplicates: true });
+    for (const l of lineas) {
+      await db().from("productos").upsert({ nombre: l.producto.trim() }, { onConflict: "nombre", ignoreDuplicates: true });
+    }
+
+    await registrarBitacora({
+      usuario: sesion.usuario, modulo: "ventas", accion: "editar",
+      entidad_tipo: "ventas", entidad_id: datos.venta_id,
+      descripcion: descripcionTicket("Venta", venta.ticket, total),
+      datos_anteriores: { ...venta, lineas: lineasAntes || [] },
+      datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas },
+    });
+
+    revalidatePath("/ventas");
+    revalidatePath("/pagos");
+    revalidatePath("/");
+    return { ticket: venta.ticket as number };
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error("No se pudo actualizar la venta. Intenta de nuevo.");
   }
+}
 
+export async function actualizarClienteVenta(datos: Partial<Cliente> & { id: number; nombre: string }) {
+  const sesion = await requierePermiso("ventas");
+  if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
+  const fila = {
+    nombre: datos.nombre.trim(),
+    cedula_nit: datos.cedula_nit?.trim() || null,
+    empresa: datos.empresa?.trim() || null,
+    contacto: datos.contacto?.trim() || null,
+    ciudad: datos.ciudad?.trim() || null,
+    departamento: datos.departamento?.trim() || null,
+    direccion: datos.direccion?.trim() || null,
+    correo: datos.correo?.trim() || null,
+    rut: datos.rut?.trim() || null,
+  };
+  const { data: anterior } = await db().from("clientes").select("*").eq("id", datos.id).single();
+  const { error } = await db().from("clientes").update(fila).eq("id", datos.id);
+  if (error) throw new Error(error.message);
   await registrarBitacora({
-    usuario: sesion.usuario, modulo: "ventas", accion: "editar",
-    entidad_tipo: "ventas", entidad_id: datos.venta_id,
-    descripcion: descripcionTicket("Venta", venta.ticket, total),
-    datos_anteriores: { ...venta, lineas: lineasAntes || [] },
-    datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas },
+    usuario: sesion.usuario, modulo: "clientes", accion: "editar",
+    entidad_tipo: "clientes", entidad_id: datos.id,
+    descripcion: `Cliente: ${fila.nombre}`,
+    datos_anteriores: anterior ?? null, datos_nuevos: fila,
   });
-
   revalidatePath("/ventas");
-  revalidatePath("/pagos");
-  revalidatePath("/");
-  return { ticket: venta.ticket as number };
+  revalidatePath("/clientes");
+  return { ...anterior, ...fila, id: datos.id };
 }
 
 export async function eliminarVenta(ventaId: number, pin: string) {

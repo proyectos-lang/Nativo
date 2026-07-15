@@ -30,6 +30,7 @@ export default async function PaginaVentas() {
             pagos={pagos as Record<number, Pago[]>}
             maestros={maestros}
             productos={productos}
+            clientes={clientes as Cliente[]}
           />
         </TabsContent>
       </Tabs>

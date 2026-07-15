@@ -49,3 +49,21 @@ export async function guardarCliente(datos: Partial<Cliente> & { nombre: string 
   revalidatePath("/clientes");
   revalidatePath("/ventas");
 }
+
+export async function eliminarCliente(id: number) {
+  const sesion = await requierePermiso("clientes");
+  const { data: anterior } = await db().from("clientes").select("*").eq("id", id).single();
+  const { error } = await db().from("clientes").delete().eq("id", id);
+  if (error) {
+    if (error.code === "23503") throw new Error("No se puede eliminar: este cliente tiene ventas registradas.");
+    throw new Error(error.message);
+  }
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "clientes", accion: "eliminar",
+    entidad_tipo: "clientes", entidad_id: id,
+    descripcion: `Cliente eliminado: ${anterior?.nombre ?? id}`,
+    datos_anteriores: anterior ?? null,
+  });
+  revalidatePath("/clientes");
+  revalidatePath("/ventas");
+}
