@@ -14,19 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Landmark, Pencil, ArrowLeftRight, PlusCircle, ReceiptText } from "lucide-react";
-import { formatoPesos, formatoFecha, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
 
 type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
 
 const HOY = () => new Date().toISOString().slice(0, 10);
-
-const NOMBRE_ORIGEN: Record<string, string> = {
-  manual: "Manual",
-  pago_venta: "Pago de venta",
-  pago_gasto: "Pago de gasto",
-  transferencia: "Transferencia",
-  pago_ingreso: "Cobro de ingreso",
-};
 
 export function CuentasCliente({ cuentas, movimientos }: Props) {
   const router = useRouter();
@@ -239,7 +231,7 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
                 {movsCuenta.map(m => (
                   <TableRow key={m.id}>
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
-                    <TableCell><Badge variant="secondary">{NOMBRE_ORIGEN[m.origen] || m.origen}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary">{NOMBRE_ORIGEN_MOVIMIENTO[m.origen] || m.origen}</Badge></TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>

@@ -8,6 +8,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardFinanciero } from "./dashboard-fin";
 import { CuentasCliente } from "./cuentas-cliente";
+import { HistorialCliente } from "./historial-cliente";
 import { GastosCliente } from "./gastos-cliente";
 import { IngresosCliente } from "./ingresos-cliente";
 import { CierreDiario } from "./cierre-diario";
@@ -39,6 +40,7 @@ export default async function PaginaFinanciero() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="cuentas">Cuentas</TabsTrigger>
+          <TabsTrigger value="historial">Historial</TabsTrigger>
           <TabsTrigger value="gastos">Gastos y Costos</TabsTrigger>
           <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
           <TabsTrigger value="cierre">Cierre Diario</TabsTrigger>
@@ -54,6 +56,12 @@ export default async function PaginaFinanciero() {
         </TabsContent>
         <TabsContent value="cuentas">
           <CuentasCliente
+            cuentas={cuentas as CuentaBancaria[]}
+            movimientos={movimientos as MovimientoBancario[]}
+          />
+        </TabsContent>
+        <TabsContent value="historial">
+          <HistorialCliente
             cuentas={cuentas as CuentaBancaria[]}
             movimientos={movimientos as MovimientoBancario[]}
           />

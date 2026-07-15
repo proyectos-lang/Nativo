@@ -202,6 +202,14 @@ export type MovimientoBancario = {
   creado_en: string;
 };
 
+export const NOMBRE_ORIGEN_MOVIMIENTO: Record<string, string> = {
+  manual: "Manual",
+  pago_venta: "Pago de venta",
+  pago_gasto: "Pago de gasto",
+  transferencia: "Transferencia",
+  pago_ingreso: "Cobro de ingreso",
+};
+
 export type GastoDetalle = {
   id: number;
   gasto_id: number;
