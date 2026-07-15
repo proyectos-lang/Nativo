@@ -13,6 +13,18 @@ import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancar
 
 type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
 
+type FilaHistorial = {
+  id: string;
+  cuenta_id: number;
+  fecha: string;
+  tipo: "ingreso" | "egreso";
+  origen: string;
+  monto: number;
+  concepto: string | null;
+};
+
+const NOMBRES_ORIGEN_EXTENDIDO: Record<string, string> = { ...NOMBRE_ORIGEN_MOVIMIENTO, saldo_inicial: "Saldo Inicial" };
+
 export function HistorialCliente({ cuentas, movimientos }: Props) {
   const [cuentaId, setCuentaId] = useState("todas");
   const [origen, setOrigen] = useState("todas");
@@ -25,15 +37,31 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
     return m;
   }, [cuentas]);
 
+  const todasLasFilas = useMemo((): FilaHistorial[] => {
+    const filasSaldoInicial: FilaHistorial[] = cuentas.map(c => ({
+      id: `saldo-${c.id}`,
+      cuenta_id: c.id,
+      fecha: c.creado_en.slice(0, 10),
+      tipo: Number(c.saldo_inicial) >= 0 ? "ingreso" : "egreso",
+      origen: "saldo_inicial",
+      monto: Math.abs(Number(c.saldo_inicial)),
+      concepto: "Saldo inicial de la cuenta",
+    }));
+    const filasMovimientos: FilaHistorial[] = movimientos.map(m => ({
+      id: String(m.id), cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
+    }));
+    return [...filasSaldoInicial, ...filasMovimientos].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [cuentas, movimientos]);
+
   const filtrados = useMemo(() => {
-    return movimientos.filter(m => {
+    return todasLasFilas.filter(m => {
       if (cuentaId !== "todas" && m.cuenta_id !== Number(cuentaId)) return false;
       if (origen !== "todas" && m.origen !== origen) return false;
       if (desde && m.fecha < desde) return false;
       if (hasta && m.fecha > hasta) return false;
       return true;
     });
-  }, [movimientos, cuentaId, origen, desde, hasta]);
+  }, [todasLasFilas, cuentaId, origen, desde, hasta]);
 
   const totalIngresos = filtrados.filter(m => m.tipo === "ingreso").reduce((s, m) => s + Number(m.monto), 0);
   const totalEgresos = filtrados.filter(m => m.tipo === "egreso").reduce((s, m) => s + Number(m.monto), 0);
@@ -61,7 +89,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todos</SelectItem>
-                {Object.entries(NOMBRE_ORIGEN_MOVIMIENTO).map(([valor, etiqueta]) => (
+                {Object.entries(NOMBRES_ORIGEN_EXTENDIDO).map(([valor, etiqueta]) => (
                   <SelectItem key={valor} value={valor}>{etiqueta}</SelectItem>
                 ))}
               </SelectContent>
@@ -103,7 +131,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                   <TableRow key={m.id}>
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
                     <TableCell>{nombreCuenta.get(m.cuenta_id) || "-"}</TableCell>
-                    <TableCell><Badge variant="secondary">{NOMBRE_ORIGEN_MOVIMIENTO[m.origen] || m.origen}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary">{NOMBRES_ORIGEN_EXTENDIDO[m.origen] || m.origen}</Badge></TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>
