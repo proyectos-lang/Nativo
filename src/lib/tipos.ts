@@ -233,6 +233,7 @@ export type DevolucionDetalle = {
   valor_unitario: number;
   cantidad_devuelta: number;
   causal: string | null;
+  observacion: string | null;
   recuperable: boolean;
   estado: "Pendiente" | "En Reproceso" | "Recuperada" | "Perdida";
   costo_recuperacion: number | null;

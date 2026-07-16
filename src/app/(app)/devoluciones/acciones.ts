@@ -15,6 +15,7 @@ export type ItemDevolucion = {
   ventas_detalle_id: number;
   cantidad_devuelta: number;
   causal: string;
+  observacion?: string;
   recuperable: boolean;
 };
 
@@ -57,6 +58,7 @@ export async function crearDevolucion(datos: {
       valor_unitario: Number(linea.valor_unitario) || 0,
       cantidad_devuelta: Number(it.cantidad_devuelta),
       causal: it.causal?.trim() || null,
+      observacion: it.observacion?.trim() || null,
       recuperable: !!it.recuperable,
       estado: "Pendiente",
     };

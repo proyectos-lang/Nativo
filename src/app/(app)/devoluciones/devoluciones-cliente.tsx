@@ -30,7 +30,7 @@ type Props = {
   cuentas: CuentaBancaria[];
 };
 
-type SeleccionLinea = { incluir: boolean; cantidad: number; causal: string; recuperable: boolean };
+type SeleccionLinea = { incluir: boolean; cantidad: number; causal: string; observacion: string; recuperable: boolean };
 
 function SelectorCuenta({ cuentas, valor, onCambio }: { cuentas: CuentaBancaria[]; valor: number; onCambio: (id: number) => void }) {
   return (
@@ -105,7 +105,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
   };
 
   const selDe = (lineaId: number, linea: VentaDetalle): SeleccionLinea =>
-    seleccion[lineaId] || { incluir: false, cantidad: linea.cantidad, causal: "", recuperable: true };
+    seleccion[lineaId] || { incluir: false, cantidad: linea.cantidad, causal: "", observacion: "", recuperable: true };
 
   const actualizarSel = (lineaId: number, linea: VentaDetalle, patch: Partial<SeleccionLinea>) => {
     setSeleccion(prev => ({ ...prev, [lineaId]: { ...selDe(lineaId, linea), ...patch } }));
@@ -115,7 +115,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
     if (!ventaSel) return;
     const items: ItemDevolucion[] = Object.entries(seleccion)
       .filter(([, s]) => s.incluir && Number(s.cantidad) > 0)
-      .map(([id, s]) => ({ ventas_detalle_id: Number(id), cantidad_devuelta: Number(s.cantidad), causal: s.causal, recuperable: s.recuperable }));
+      .map(([id, s]) => ({ ventas_detalle_id: Number(id), cantidad_devuelta: Number(s.cantidad), causal: s.causal, observacion: s.observacion, recuperable: s.recuperable }));
     if (!items.length) { toast.error("Selecciona al menos una prenda a devolver."); return; }
     correr(
       () => crearDevolucion({ venta_id: ventaSel.id, comentario: comentarioNueva, items }),
@@ -269,6 +269,11 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                             <Label className="text-xs">Causal</Label>
                             <Combo opciones={causales} value={sel.causal} onChange={v => actualizarSel(l.id, l, { causal: v })} />
                           </div>
+                          <div className="col-span-3 grid gap-1">
+                            <Label className="text-xs">Observación (motivo detallado)</Label>
+                            <Textarea rows={2} value={sel.observacion} onChange={e => actualizarSel(l.id, l, { observacion: e.target.value })}
+                              placeholder="Ej. El bordado quedó corrido 2cm hacia la manga izquierda" />
+                          </div>
                           <label className="col-span-3 flex items-center gap-2 text-sm">
                             <Switch checked={sel.recuperable} onCheckedChange={v => actualizarSel(l.id, l, { recuperable: v })} />
                             Recuperable (entra a reproceso)
@@ -313,6 +318,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                       <p className="text-xs text-muted-foreground">
                         {[det.talla && `Talla ${det.talla}`, det.color, det.causal].filter(Boolean).join(" · ") || "Sin causal"}
                       </p>
+                      {det.observacion && <p className="text-xs">{det.observacion}</p>}
                     </div>
                     <Badge variant={BADGE_ESTADO[det.estado] || "outline"}>{det.estado}</Badge>
                   </div>

@@ -378,6 +378,7 @@ create table nativo.devoluciones_detalle (
   valor_unitario numeric not null default 0,
   cantidad_devuelta numeric not null default 1,
   causal text,
+  observacion text,
   recuperable boolean not null default true,
   estado text not null default 'Pendiente'
     check (estado in ('Pendiente', 'En Reproceso', 'Recuperada', 'Perdida')),

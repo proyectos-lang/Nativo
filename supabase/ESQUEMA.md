@@ -241,7 +241,8 @@ Una fila por prenda/línea devuelta dentro de una devolución. **No depende de u
 | color | text | null | Copiado de `ventas_detalle` |
 | valor_unitario | numeric | not null, default 0 | Copiado de `ventas_detalle`; usado para calcular `valor_perdido = valor_unitario × cantidad_devuelta` |
 | cantidad_devuelta | numeric | not null, default 1 | |
-| causal | text | null | Lista maestra tipo `causal_devolucion` |
+| causal | text | null | Lista maestra tipo `causal_devolucion` (categoría) |
+| observacion | text | null | Motivo detallado en texto libre, complementa `causal` |
 | recuperable | boolean | not null, default `true` | Decisión tomada al crear la devolución: si es `false`, la prenda no entra al pipeline de reproceso y solo puede resolverse como `Perdida` |
 | estado | text | not null, default `'Pendiente'`, check `('Pendiente','En Reproceso','Recuperada','Perdida')` | |
 | costo_recuperacion | numeric | null | Solo si `estado = 'Recuperada'` |
