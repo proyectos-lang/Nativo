@@ -3,7 +3,7 @@ import { formatoPesos, formatoFecha, type Venta, type Prospecto, type CuentaBanc
 export type Insight = {
   id: string;
   severidad: "danger" | "warning" | "info" | "success";
-  icono: "reloj" | "camion" | "dinero" | "usuario" | "tendencia" | "banco" | "chispa";
+  icono: "reloj" | "camion" | "dinero" | "usuario" | "tendencia" | "banco" | "chispa" | "devolucion";
   titulo: string;
   descripcion: string;
   href?: string;
@@ -21,6 +21,7 @@ type ParametrosInsights = {
   totalVentasMes: number;
   cuentasActivas: CuentaBancaria[];
   esFinanciero: boolean;
+  devolucionesPendientes: { id: number; estado: string; creado_en: string }[];
 };
 
 const ORDEN_SEVERIDAD: Record<Insight["severidad"], number> = { danger: 0, warning: 1, info: 2, success: 3 };
@@ -109,6 +110,19 @@ export function construirInsights(p: ParametrosInsights): Insight[] {
       descripcion: p.variacion >= 0
         ? `Vas ${formatoPesos(p.totalVentasMes)} este mes, mejor que el anterior. ¡Buen ritmo!`
         : `Vas ${formatoPesos(p.totalVentasMes)} este mes, por debajo del anterior. Puede ser buen momento para reactivar clientes.`,
+    });
+  }
+
+  if (p.devolucionesPendientes.length > 0) {
+    const masAntigua = [...p.devolucionesPendientes].sort((a, b) => a.creado_en.localeCompare(b.creado_en))[0];
+    const dias = Math.floor((new Date(p.hoyStr + "T00:00:00").getTime() - new Date(masAntigua.creado_en).getTime()) / 86400000);
+    insights.push({
+      id: "devoluciones-pendientes",
+      severidad: dias >= p.diasAlerta ? "danger" : "warning",
+      icono: "devolucion",
+      titulo: `${p.devolucionesPendientes.length} devolución${p.devolucionesPendientes.length > 1 ? "es" : ""} sin resolver`,
+      descripcion: `Hay prendas devueltas pendientes o en reproceso; la más antigua lleva ${dias} día${dias === 1 ? "" : "s"} sin resolverse.`,
+      href: "/devoluciones",
     });
   }
 

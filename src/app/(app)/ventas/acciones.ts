@@ -256,7 +256,10 @@ export async function eliminarVenta(ventaId: number, pin: string) {
   ]);
 
   const { error } = await db().from("ventas").delete().eq("id", ventaId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23503") throw new Error("No se puede eliminar: esta venta tiene devoluciones registradas.");
+    throw new Error(error.message);
+  }
 
   if (venta) {
     await registrarBitacora({

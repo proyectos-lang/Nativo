@@ -160,6 +160,44 @@ export async function historialPorVenta(): Promise<Record<number, unknown[]>> {
   return out;
 }
 
+export async function devolucionesTodas() {
+  const { data, error } = await db().from("devoluciones").select("*").order("creado_en", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function devolucionesDetallePorDevolucion(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("devoluciones_detalle").select("*").order("id");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const d of data || []) {
+    if (!out[d.devolucion_id]) out[d.devolucion_id] = [];
+    out[d.devolucion_id].push(d);
+  }
+  return out;
+}
+
+export async function devolucionesHistorialPorDetalle(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("devoluciones_historial").select("*").order("fecha");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const h of data || []) {
+    if (!out[h.devolucion_detalle_id]) out[h.devolucion_detalle_id] = [];
+    out[h.devolucion_detalle_id].push(h);
+  }
+  return out;
+}
+
+/** Conteo liviano para el KPI/insight del dashboard: solo prendas sin resolver. */
+export async function devolucionesDetallePendientes() {
+  const { data, error } = await db()
+    .from("devoluciones_detalle")
+    .select("id, estado, creado_en")
+    .in("estado", ["Pendiente", "En Reproceso"]);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function gastosDetallePorGasto(): Promise<Record<number, unknown[]>> {
   const { data, error } = await db().from("gastos_detalle").select("*").order("id");
   if (error) throw new Error(error.message);

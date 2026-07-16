@@ -9,6 +9,7 @@ export type Permisos = {
   proveedores: boolean;
   configuracion: boolean;
   financiero: boolean;
+  devoluciones: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -152,6 +153,7 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "ventas", nombre: "Ventas" },
   { clave: "pagos", nombre: "Pagos" },
   { clave: "entregas", nombre: "Entregas" },
+  { clave: "devoluciones", nombre: "Devoluciones" },
   { clave: "seguimiento", nombre: "Seguimiento" },
   { clave: "prospectos", nombre: "Prospectos" },
   { clave: "clientes", nombre: "Clientes" },
@@ -166,6 +168,7 @@ export const MODULO_URL: Record<Modulo, string> = {
   ventas: "/ventas",
   pagos: "/pagos",
   entregas: "/entregas",
+  devoluciones: "/devoluciones",
   seguimiento: "/seguimiento",
   prospectos: "/prospectos",
   clientes: "/clientes",
@@ -191,7 +194,7 @@ export type MovimientoBancario = {
   cuenta_id: number;
   fecha: string;
   tipo: "ingreso" | "egreso";
-  origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia" | "pago_ingreso";
+  origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia" | "pago_ingreso" | "devolucion_venta";
   monto: number;
   concepto: string | null;
   pago_id: number | null;
@@ -208,6 +211,44 @@ export const NOMBRE_ORIGEN_MOVIMIENTO: Record<string, string> = {
   pago_gasto: "Pago de gasto",
   transferencia: "Transferencia",
   pago_ingreso: "Cobro de ingreso",
+  devolucion_venta: "Reembolso por devolución",
+};
+
+export type Devolucion = {
+  id: number;
+  venta_id: number;
+  fecha: string;
+  usuario: string | null;
+  comentario: string | null;
+  creado_en: string;
+};
+
+export type DevolucionDetalle = {
+  id: number;
+  devolucion_id: number;
+  ventas_detalle_id: number | null;
+  producto: string;
+  talla: string | null;
+  color: string | null;
+  valor_unitario: number;
+  cantidad_devuelta: number;
+  causal: string | null;
+  recuperable: boolean;
+  estado: "Pendiente" | "En Reproceso" | "Recuperada" | "Perdida";
+  costo_recuperacion: number | null;
+  valor_perdido: number | null;
+  gasto_id: number | null;
+  creado_en: string;
+};
+
+export type DevolucionHistorial = {
+  id: number;
+  devolucion_detalle_id: number;
+  fecha: string;
+  estado_anterior: string | null;
+  estado_nuevo: string;
+  comentario: string | null;
+  usuario: string | null;
 };
 
 export type GastoDetalle = {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requierePermisoPagina } from "@/lib/sesion";
-import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos, cuentasConSaldo } from "@/lib/consultas";
+import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos, cuentasConSaldo, devolucionesDetallePendientes } from "@/lib/consultas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,7 +10,7 @@ import { SplashBienvenida } from "@/components/splash-bienvenida";
 import { AlertasCarousel } from "./alertas-carousel";
 import { construirInsights } from "./insights";
 import {
-  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact, Landmark,
+  DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact, Landmark, RotateCcw,
 } from "lucide-react";
 import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type HistorialEntrega, type Prospecto, type CuentaBancaria } from "@/lib/tipos";
 
@@ -32,12 +32,13 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
 
   const esFinanciero = sesion.rol === "admin" || sesion.permisos.financiero;
 
-  const [ventas, detalles, historial, prospectos, cuentas] = await Promise.all([
+  const [ventas, detalles, historial, prospectos, cuentas, devolucionesPendientes] = await Promise.all([
     ventasConCliente() as Promise<Venta[]>,
     detallesPorVenta() as Promise<Record<number, VentaDetalle[]>>,
     historialPorVenta() as Promise<Record<number, HistorialEntrega[]>>,
     prospectosTodos() as Promise<Prospecto[]>,
     (esFinanciero ? cuentasConSaldo() : Promise.resolve([])) as Promise<CuentaBancaria[]>,
+    devolucionesDetallePendientes(),
   ]);
 
   const cuentasActivas = cuentas.filter(c => c.activa);
@@ -111,7 +112,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
 
   const insights = construirInsights({
     hoyStr, limiteProximosStr, ventas, noEntregadas, alertasDetalle, diasAlerta: DIAS_ALERTA,
-    prospectos, variacion, totalVentasMes, cuentasActivas, esFinanciero,
+    prospectos, variacion, totalVentasMes, cuentasActivas, esFinanciero, devolucionesPendientes,
   });
 
   return (
@@ -201,6 +202,18 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
               </div>
               <p className="text-2xl font-bold">{prospectosPendientes.length}</p>
               <p className="text-xs text-muted-foreground">por contactar</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/devoluciones">
+          <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
+            <CardContent className="pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-muted-foreground">Devoluciones Activas</p>
+                <RotateCcw className="size-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold">{devolucionesPendientes.length}</p>
+              <p className="text-xs text-muted-foreground">pendientes o en reproceso</p>
             </CardContent>
           </Card>
         </Link>

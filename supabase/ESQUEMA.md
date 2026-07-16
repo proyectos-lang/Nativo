@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion` y `financiero` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero` y `devoluciones` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -95,7 +95,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -210,6 +210,67 @@ Un registro por cada cambio de estado de entrega.
 
 ---
 
+## devoluciones
+
+Cabecera de una devolución, amarrada a su ticket de venta. Una venta puede tener varias devoluciones a lo largo del tiempo.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| venta_id | bigint | not null, FK → `ventas(id)` | **Sin** `on delete cascade` a propósito: no se debe poder borrar una venta con devoluciones registradas sin antes resolverlas (ver `eliminarVenta`, código `23503`) |
+| fecha | date | not null, default `current_date` | |
+| usuario | text | null | |
+| comentario | text | null | Motivo general de la devolución |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_devoluciones_venta (venta_id)`.
+
+---
+
+## devoluciones_detalle
+
+Una fila por prenda/línea devuelta dentro de una devolución. **No depende de una FK dura hacia `ventas_detalle` para sus datos de negocio** — copia `producto`/`talla`/`color`/`valor_unitario` desde `ventas_detalle` en el momento de crearse, porque `actualizarVenta()` borra y reinserta *todas* las líneas de `ventas_detalle` al editar una venta (no hace diff): una FK dura ahí rompería la edición de cualquier venta con una devolución registrada. `ventas_detalle_id` es una referencia blanda, solo para trazabilidad/navegación en la UI.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| devolucion_id | bigint | not null, FK → `devoluciones(id)` **on delete cascade** | |
+| ventas_detalle_id | bigint | null, FK → `ventas_detalle(id)` **on delete set null** | Referencia blanda; no se usa para calcular nada |
+| producto | text | not null | Copiado de `ventas_detalle` al crear la devolución |
+| talla | text | null | Copiado de `ventas_detalle` |
+| color | text | null | Copiado de `ventas_detalle` |
+| valor_unitario | numeric | not null, default 0 | Copiado de `ventas_detalle`; usado para calcular `valor_perdido = valor_unitario × cantidad_devuelta` |
+| cantidad_devuelta | numeric | not null, default 1 | |
+| causal | text | null | Lista maestra tipo `causal_devolucion` |
+| recuperable | boolean | not null, default `true` | Decisión tomada al crear la devolución: si es `false`, la prenda no entra al pipeline de reproceso y solo puede resolverse como `Perdida` |
+| estado | text | not null, default `'Pendiente'`, check `('Pendiente','En Reproceso','Recuperada','Perdida')` | |
+| costo_recuperacion | numeric | null | Solo si `estado = 'Recuperada'` |
+| valor_perdido | numeric | null | Solo si `estado = 'Perdida'` — lo que se restó a `ventas.total_compra` |
+| gasto_id | bigint | null, FK → `gastos(id)` **on delete set null** | Gasto generado en Financiero (categoría "Reproceso") si `costo_recuperacion > 0` |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_devoluciones_detalle_devolucion (devolucion_id)`, `idx_devoluciones_detalle_estado (estado)`.
+
+---
+
+## devoluciones_historial
+
+Historial de cambios de estado por prenda devuelta (una prenda puede reprocesarse más de una vez si vuelve a fallar), análogo a `historial_entregas`. El "número de reprocesos" se calcula contando filas con `estado_nuevo = 'En Reproceso'`, sin columna contador redundante.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| devolucion_detalle_id | bigint | not null, FK → `devoluciones_detalle(id)` **on delete cascade** | |
+| fecha | timestamptz | not null, default `now()` | |
+| estado_anterior | text | null | |
+| estado_nuevo | text | not null | |
+| comentario | text | null | |
+| usuario | text | null | |
+
+Índice: `idx_devoluciones_historial_detalle (devolucion_detalle_id)`.
+
+---
+
 ## prospectos
 
 Clientes por contactar.
@@ -301,7 +362,7 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` | |
 | fecha | date | not null, default `current_date` | |
 | tipo | text | not null, check `('ingreso','egreso')` | |
-| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso')` | |
+| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso','devolucion_venta')` | `devolucion_venta` = reembolso al cliente generado por `registrar_devolucion_perdida()` cuando una pérdida deja el saldo de la venta en negativo |
 | monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
 | concepto | text | null | |
 | pago_id | bigint | null, FK → `pagos(id)` **on delete cascade** | Cuando origen = pago_venta — al eliminar la venta/pago, el movimiento bancario también se elimina y el saldo de la cuenta se corrige |
@@ -445,6 +506,10 @@ En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera 
 Espejo exacto de `pagar_gasto`: en una sola transacción inserta `pagos_ingresos`, actualiza el ingreso (acumula `cobrado`, recalcula `saldo`, fija `estado` — `Cobrado` si saldo ≤ 0, si no `Abonado`) e inserta el movimiento bancario de **ingreso** (origen `pago_ingreso`). Valida monto > 0 y cuenta obligatoria.
 
 No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como statements directos en la server action (igual que `actualizarVenta`), protegidos por `verificarPinContadora` y registrando el cambio en `bitacora`.
+
+### `nativo.registrar_devolucion_perdida(p_devolucion_detalle_id bigint, p_valor_perdido numeric, p_cuenta_id bigint default null, p_fecha date default current_date, p_comentario text default null, p_usuario text default null) → nativo.ventas`
+
+En una sola transacción: resta `p_valor_perdido` de `ventas.total_compra` de la venta dueña del detalle, recalcula `total_a_pagar`/`saldo` y `estado_pago` con la misma regla que `actualizarVenta()` (`saldo ≤ 0 && total > 0 → 'Pagado Total'`, si no `abono > 0 → 'Abonado'`, si no `'Pendiente'`). Si el nuevo saldo queda negativo (el cliente ya había pagado de más), exige `p_cuenta_id` (si no viene, lanza excepción pidiéndola), reduce `abono` en esa diferencia, fija `saldo = 0` y `estado_pago = 'Pagado Total'`, e inserta el movimiento bancario de **egreso** (origen `devolucion_venta`) por el reembolso. Siempre actualiza `devoluciones_detalle.estado = 'Perdida'` + `valor_perdido`, e inserta la fila correspondiente en `devoluciones_historial`. Lanza excepción si el detalle no existe o ya fue resuelto (`Recuperada`/`Perdida`).
 
 ---
 

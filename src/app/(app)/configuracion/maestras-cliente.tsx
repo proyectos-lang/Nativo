@@ -25,6 +25,7 @@ const NOMBRES_TIPO: Record<string, string> = {
   sexo: "Sexo",
   categoria_gasto: "Categorías de Gastos",
   categoria_ingreso: "Categorías de Ingresos",
+  causal_devolucion: "Causales de Devolución",
 };
 
 export function MaestrasCliente({ valores }: { valores: { id: number; tipo: string; valor: string }[] }) {
@@ -65,7 +66,7 @@ export function MaestrasCliente({ valores }: { valores: { id: number; tipo: stri
     });
   };
 
-  const tipos = Object.keys(NOMBRES_TIPO).filter(t => grupos[t] || ["vendedora", "talla", "color", "campana", "motivo_compra", "profesional", "estado_entrega", "categoria_gasto", "categoria_ingreso"].includes(t));
+  const tipos = Object.keys(NOMBRES_TIPO).filter(t => grupos[t] || ["vendedora", "talla", "color", "campana", "motivo_compra", "profesional", "estado_entrega", "categoria_gasto", "categoria_ingreso", "causal_devolucion"].includes(t));
 
   return (
     <div className="mt-2 grid gap-4 md:grid-cols-2">

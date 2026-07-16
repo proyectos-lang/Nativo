@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Truck, Hourglass,
-  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText,
+  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText, RotateCcw,
 } from "lucide-react";
 import { LogoNativo } from "@/components/logo-nativo";
 import type { Sesion, Modulo } from "@/lib/tipos";
@@ -19,6 +19,7 @@ const ITEMS: { clave: Modulo; titulo: string; url: string; icono: React.ElementT
   { clave: "ventas", titulo: "Ventas", url: "/ventas", icono: ShoppingCart },
   { clave: "pagos", titulo: "Pagos", url: "/pagos", icono: DollarSign },
   { clave: "entregas", titulo: "Entregas", url: "/entregas", icono: Truck },
+  { clave: "devoluciones", titulo: "Devoluciones", url: "/devoluciones", icono: RotateCcw },
   { clave: "seguimiento", titulo: "Seguimiento", url: "/seguimiento", icono: Hourglass },
   { clave: "prospectos", titulo: "Prospectos", url: "/prospectos", icono: Contact },
   { clave: "clientes", titulo: "Clientes", url: "/clientes", icono: Users },
