@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { GraficoVentas } from "./grafico-ventas";
 import { FiltroMes } from "./filtro-mes";
 import { SplashBienvenida } from "@/components/splash-bienvenida";
+import { AlertasCarousel } from "./alertas-carousel";
+import { construirInsights } from "./insights";
 import {
   DollarSign, Truck, AlertTriangle, TrendingUp, CheckCircle2, ArrowUpRight, ArrowDownRight, Contact, Landmark,
 } from "lucide-react";
@@ -21,6 +23,10 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
   const params = await searchParams;
   const mostrarBienvenida = params.bienvenida === "1";
   const hoy = new Date();
+  const hoyStr = hoy.toISOString().slice(0, 10);
+  const limiteProximos = new Date(hoy);
+  limiteProximos.setDate(limiteProximos.getDate() + 3);
+  const limiteProximosStr = limiteProximos.toISOString().slice(0, 10);
   const mes = params.mes !== undefined ? Number(params.mes) - 1 : hoy.getMonth();
   const anio = params.anio !== undefined ? Number(params.anio) : hoy.getFullYear();
 
@@ -103,6 +109,11 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
 
   const nombreMes = new Date(anio, mes, 1).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
 
+  const insights = construirInsights({
+    hoyStr, limiteProximosStr, ventas, noEntregadas, alertasDetalle, diasAlerta: DIAS_ALERTA,
+    prospectos, variacion, totalVentasMes, cuentasActivas, esFinanciero,
+  });
+
   return (
     <div className="mx-auto grid max-w-7xl gap-4">
       {mostrarBienvenida && <SplashBienvenida nombre={sesion.nombre} />}
@@ -113,6 +124,8 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
         </div>
         <FiltroMes mes={mes} anio={anio} />
       </div>
+
+      <AlertasCarousel insights={insights} />
 
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">

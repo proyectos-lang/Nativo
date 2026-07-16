@@ -1,0 +1,140 @@
+import { formatoPesos, formatoFecha, type Venta, type Prospecto, type CuentaBancaria } from "@/lib/tipos";
+
+export type Insight = {
+  id: string;
+  severidad: "danger" | "warning" | "info" | "success";
+  icono: "reloj" | "camion" | "dinero" | "usuario" | "tendencia" | "banco" | "chispa";
+  titulo: string;
+  descripcion: string;
+  href?: string;
+};
+
+type ParametrosInsights = {
+  hoyStr: string;
+  limiteProximosStr: string;
+  ventas: Venta[];
+  noEntregadas: Venta[];
+  alertasDetalle: { v: Venta; dias: number }[];
+  diasAlerta: number;
+  prospectos: Prospecto[];
+  variacion: number | null;
+  totalVentasMes: number;
+  cuentasActivas: CuentaBancaria[];
+  esFinanciero: boolean;
+};
+
+const ORDEN_SEVERIDAD: Record<Insight["severidad"], number> = { danger: 0, warning: 1, info: 2, success: 3 };
+
+/** Genera las alertas/insights dinámicos del dashboard a partir de datos ya calculados en la página. */
+export function construirInsights(p: ParametrosInsights): Insight[] {
+  const insights: Insight[] = [];
+
+  const vencidos = p.noEntregadas.filter(v => v.fecha_entrega && v.fecha_entrega < p.hoyStr);
+  if (vencidos.length > 0) {
+    const masAntiguo = [...vencidos].sort((a, b) => (a.fecha_entrega || "").localeCompare(b.fecha_entrega || ""))[0];
+    insights.push({
+      id: "vencidos",
+      severidad: "danger",
+      icono: "camion",
+      titulo: `${vencidos.length} pedido${vencidos.length > 1 ? "s" : ""} vencido${vencidos.length > 1 ? "s" : ""}`,
+      descripcion: `El ticket #${masAntiguo.ticket} (${masAntiguo.clientes?.nombre || "sin cliente"}) debía entregarse el ${formatoFecha(masAntiguo.fecha_entrega)} y sigue sin salir.`,
+      href: "/entregas",
+    });
+  }
+
+  const proximos = p.noEntregadas.filter(v => v.fecha_entrega && v.fecha_entrega >= p.hoyStr && v.fecha_entrega <= p.limiteProximosStr);
+  if (proximos.length > 0) {
+    insights.push({
+      id: "proximos",
+      severidad: "warning",
+      icono: "reloj",
+      titulo: `${proximos.length} pedido${proximos.length > 1 ? "s" : ""} por vencer`,
+      descripcion: "Tienen fecha de entrega programada en los próximos 3 días. Revisa que estén listos a tiempo.",
+      href: "/entregas",
+    });
+  }
+
+  const entregadosConSaldo = p.ventas.filter(v => (v.estado_entrega || "").trim().toLowerCase() === "entregado" && v.saldo > 0);
+  if (entregadosConSaldo.length > 0) {
+    const totalSaldo = entregadosConSaldo.reduce((s, v) => s + v.saldo, 0);
+    insights.push({
+      id: "entregados-saldo",
+      severidad: "warning",
+      icono: "dinero",
+      titulo: `${entregadosConSaldo.length} pedido${entregadosConSaldo.length > 1 ? "s" : ""} entregado${entregadosConSaldo.length > 1 ? "s" : ""} sin cobrar`,
+      descripcion: `Ya se entregaron pero suman ${formatoPesos(totalSaldo)} pendientes de pago.`,
+      href: "/pagos",
+    });
+  }
+
+  if (p.alertasDetalle.length > 0) {
+    const peor = p.alertasDetalle[0];
+    insights.push({
+      id: "sin-movimiento",
+      severidad: peor.dias >= p.diasAlerta * 2 ? "danger" : "warning",
+      icono: "camion",
+      titulo: `${p.alertasDetalle.length} pedido${p.alertasDetalle.length > 1 ? "s" : ""} estancado${p.alertasDetalle.length > 1 ? "s" : ""}`,
+      descripcion: `El ticket #${peor.v.ticket} lleva ${peor.dias} días sin ningún movimiento de estado.`,
+      href: "/seguimiento",
+    });
+  }
+
+  const prospectosSinAtender = p.prospectos
+    .filter(pr => pr.estado === "Pendiente")
+    .map(pr => {
+      const base = pr.fecha_contacto || pr.fecha;
+      const dias = Math.floor((new Date(p.hoyStr + "T00:00:00").getTime() - new Date(base + "T00:00:00").getTime()) / 86400000);
+      return { pr, dias };
+    })
+    .filter(x => x.dias >= 5)
+    .sort((a, b) => b.dias - a.dias);
+  if (prospectosSinAtender.length > 0) {
+    const peor = prospectosSinAtender[0];
+    insights.push({
+      id: "prospectos",
+      severidad: "warning",
+      icono: "usuario",
+      titulo: `${prospectosSinAtender.length} prospecto${prospectosSinAtender.length > 1 ? "s" : ""} sin atender`,
+      descripcion: `${peor.pr.nombre} lleva ${peor.dias} días sin seguimiento. No dejes que se enfríe.`,
+      href: "/prospectos",
+    });
+  }
+
+  if (p.variacion !== null) {
+    insights.push({
+      id: "tendencia",
+      severidad: p.variacion >= 0 ? "success" : "info",
+      icono: "tendencia",
+      titulo: p.variacion >= 0 ? `Ventas al alza: +${p.variacion.toFixed(1)}%` : `Ventas a la baja: ${p.variacion.toFixed(1)}%`,
+      descripcion: p.variacion >= 0
+        ? `Vas ${formatoPesos(p.totalVentasMes)} este mes, mejor que el anterior. ¡Buen ritmo!`
+        : `Vas ${formatoPesos(p.totalVentasMes)} este mes, por debajo del anterior. Puede ser buen momento para reactivar clientes.`,
+    });
+  }
+
+  if (p.esFinanciero) {
+    const enRojo = p.cuentasActivas.filter(c => (c.saldo_actual || 0) < 0);
+    if (enRojo.length > 0) {
+      insights.push({
+        id: "cuentas-rojo",
+        severidad: "danger",
+        icono: "banco",
+        titulo: `${enRojo.length} cuenta${enRojo.length > 1 ? "s" : ""} en números rojos`,
+        descripcion: `${enRojo.map(c => c.nombre).join(", ")} ${enRojo.length > 1 ? "tienen" : "tiene"} saldo negativo.`,
+        href: "/financiero",
+      });
+    }
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      id: "todo-bien",
+      severidad: "success",
+      icono: "chispa",
+      titulo: "Todo al día",
+      descripcion: "No hay pedidos vencidos, prospectos abandonados ni alertas pendientes. Buen trabajo.",
+    });
+  }
+
+  return insights.sort((a, b) => ORDEN_SEVERIDAD[a.severidad] - ORDEN_SEVERIDAD[b.severidad]);
+}
