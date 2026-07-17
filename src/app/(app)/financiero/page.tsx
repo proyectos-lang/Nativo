@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import {
   cuentasConSaldo, movimientosBancarios, gastosTodos, pagosGastosPorGasto,
   ventasConCliente, listasMaestras, pagosPorVenta, proveedoresTodos, gastosDetallePorGasto,
-  ingresosTodos, pagosIngresosPorIngreso, auditoriaPorTabla,
+  ingresosTodos, pagosIngresosPorIngreso, auditoriaPorTabla, clientesActivos,
 } from "@/lib/consultas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardFinanciero } from "./dashboard-fin";
@@ -14,7 +14,7 @@ import { IngresosCliente } from "./ingresos-cliente";
 import { CierreDiario } from "./cierre-diario";
 import type {
   CuentaBancaria, MovimientoBancario, Gasto, GastoDetalle, PagoGasto, Venta, Pago,
-  Proveedor, Ingreso, PagoIngreso, Bitacora,
+  Proveedor, Ingreso, PagoIngreso, Bitacora, Cliente,
 } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +25,13 @@ export default async function PaginaFinanciero() {
 
   const [
     cuentas, movimientos, gastos, pagosGastos, ventas, maestros, pagosVentas,
-    proveedores, gastosDetalle, ingresos, pagosIngresos, auditoriaGastos, auditoriaIngresos,
+    proveedores, gastosDetalle, ingresos, pagosIngresos, auditoriaGastos, auditoriaIngresos, clientes,
   ] = await Promise.all([
     cuentasConSaldo(), movimientosBancarios(), gastosTodos(), pagosGastosPorGasto(),
     ventasConCliente(), listasMaestras(), pagosPorVenta(),
     proveedoresTodos(), gastosDetallePorGasto(), ingresosTodos(), pagosIngresosPorIngreso(),
-    auditoriaPorTabla("gastos"), auditoriaPorTabla("ingresos"),
+    auditoriaPorTabla("gastos"), auditoriaPorTabla("ingresos", ["editar", "actualizar_facturacion"]),
+    clientesActivos(),
   ]);
 
   return (
@@ -85,6 +86,7 @@ export default async function PaginaFinanciero() {
             cuentas={(cuentas as CuentaBancaria[]).filter(c => c.activa)}
             categorias={maestros["categoria_ingreso"] || []}
             auditoriaIngresos={auditoriaIngresos as Record<number, Bitacora[]>}
+            clientes={clientes as Cliente[]}
           />
         </TabsContent>
         <TabsContent value="cierre">

@@ -297,6 +297,11 @@ export type Ingreso = {
   fecha: string;
   categoria: string | null;
   concepto: string | null;
+  cliente: string | null;
+  cliente_id: number | null;
+  tipo_ingreso: "Abono a Factura" | "Cancela Factura" | "Otro" | null;
+  estado_facturacion: "Pendiente de Facturar" | "Facturado" | "No Aplica";
+  numero_factura: string | null;
   monto: number;
   cobrado: number;
   saldo: number;

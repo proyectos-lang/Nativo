@@ -313,7 +313,7 @@ Bitácora general de trazabilidad de **todas** las mutaciones del sistema (venta
 
 Se escribe exclusivamente desde el helper `registrarBitacora()` (`src/lib/pin.ts`/`src/lib/bitacora.ts`), llamado al final de cada server action de mutación, **después** de que la operación principal fue exitosa — un fallo al escribir la bitácora nunca revierte ni interrumpe la transacción de negocio (best-effort).
 
-Se consume de dos formas: (1) el módulo **Trazabilidad** (`/trazabilidad`, solo administradores) muestra el histórico completo sin filtro de fecha por defecto; (2) el bloque "Historial de cambios" en Financiero → Gastos/Ingresos sigue mostrando solo los eventos de edición de ese registro específico (`auditoriaPorTabla` filtra `accion = 'editar'`).
+Se consume de dos formas: (1) el módulo **Trazabilidad** (`/trazabilidad`, solo administradores) muestra el histórico completo sin filtro de fecha por defecto; (2) el bloque "Historial de cambios" en Financiero → Gastos/Ingresos muestra los eventos de ese registro específico vía `auditoriaPorTabla(tabla, acciones?)` — por defecto solo `accion = 'editar'`; para **ingresos** se llama con `["editar", "actualizar_facturacion"]` para incluir también los cambios de estado de facturación/número de factura (gastos sigue solo con `'editar'`).
 
 | Columna | Tipo | Nulos/Default | Descripción |
 |---|---|---|---|
@@ -323,7 +323,7 @@ Se consume de dos formas: (1) el módulo **Trazabilidad** (`/trazabilidad`, solo
 | usuario | text | null | Quién hizo la acción |
 | fecha | timestamptz | not null, default `now()` | Cuándo, con hora exacta |
 | modulo | text | not null, default `'financiero'` | Módulo de la app donde ocurrió: `ventas`, `pagos`, `entregas`, `financiero`, `clientes`, `proveedores`, `configuracion`, `prospectos` |
-| accion | text | not null, default `'editar'` | `crear` \| `editar` \| `eliminar` \| `pagar` \| `cobrar` \| `transferir` \| `cambiar_estado` \| `cambiar_clave` |
+| accion | text | not null, default `'editar'` | `crear` \| `editar` \| `eliminar` \| `pagar` \| `cobrar` \| `transferir` \| `cambiar_estado` \| `cambiar_clave` \| `actualizar_facturacion` |
 | descripcion | text | not null, default `''` | Resumen legible del evento, ej. `"Venta #123 — $150.000"` |
 | datos_anteriores | jsonb | null | Snapshot antes del cambio (editar/eliminar). Nunca incluye contraseñas ni claves. |
 | datos_nuevos | jsonb | null | Snapshot después del cambio (crear/editar) |
@@ -454,6 +454,11 @@ Espejo de `gastos` para dinero que entra (arriendo, servicios públicos, présta
 | fecha | date | not null, default `current_date` | Fecha de causación |
 | categoria | text | null | Lista maestra tipo `categoria_ingreso` |
 | concepto | text | null | Descripción libre (a diferencia de gastos, sin líneas múltiples) |
+| cliente_id | bigint | null, FK → `clientes(id)` | Cliente vinculado (Combobox + "Nuevo Cliente" al vuelo vía `crearClienteDesdeFinanciero`), sin `on delete cascade` |
+| cliente | text | null | Caché del nombre del cliente al vincularlo, mismo patrón que `gastos.proveedor` |
+| tipo_ingreso | text | null, check `is null or in ('Abono a Factura','Cancela Factura','Otro')` | Relación del pago con una factura del cliente |
+| estado_facturacion | text | not null, default `'No Aplica'`, check `('Pendiente de Facturar','Facturado','No Aplica')` | Editable después vía `actualizarFacturacionIngreso`, **sin** clave de la contadora (no modifica montos) |
+| numero_factura | text | null | Se completa normalmente al pasar `estado_facturacion` a `'Facturado'` |
 | monto | numeric | not null, default 0 | |
 | cobrado | numeric | not null, default 0 | Acumulado de `pagos_ingresos` |
 | saldo | numeric | not null, default 0 | **Calculado:** `monto − cobrado` |
@@ -461,7 +466,7 @@ Espejo de `gastos` para dinero que entra (arriendo, servicios públicos, présta
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_ingresos_estado (estado)`, `idx_ingresos_fecha (fecha)`, `idx_ingresos_ticket (ticket)`. Solo se puede **editar** (nunca eliminar), vía `editarIngreso` con `clave_contadora` — cada edición queda en `bitacora`.
+Índices: `idx_ingresos_estado (estado)`, `idx_ingresos_fecha (fecha)`, `idx_ingresos_ticket (ticket)`, `idx_ingresos_cliente (cliente_id)`. Solo se puede **editar** (nunca eliminar): fecha/categoría/concepto/cliente/tipo_ingreso/monto vía `editarIngreso` con `clave_contadora`; estado_facturacion/numero_factura vía `actualizarFacturacionIngreso` sin clave (acción separada y liviana). Ambas quedan en `bitacora`.
 
 ---
 

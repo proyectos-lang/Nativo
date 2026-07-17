@@ -272,6 +272,37 @@ export async function crearProveedor(datos: {
   return data;
 }
 
+export async function crearClienteDesdeFinanciero(datos: {
+  nombre: string; cedula_nit?: string; empresa?: string; contacto?: string; correo?: string; ciudad?: string;
+}) {
+  const sesion = await requierePermiso("financiero");
+  if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
+  if (datos.cedula_nit?.trim()) {
+    const { data: dup } = await db().from("clientes").select("id").eq("cedula_nit", datos.cedula_nit.trim()).maybeSingle();
+    if (dup) throw new Error("Ya existe un cliente con esa cédula/NIT.");
+  }
+  const fila = {
+    nombre: datos.nombre.trim(),
+    cedula_nit: datos.cedula_nit?.trim() || null,
+    empresa: datos.empresa?.trim() || null,
+    contacto: datos.contacto?.trim() || null,
+    correo: datos.correo?.trim() || null,
+    ciudad: datos.ciudad?.trim() || null,
+  };
+  const { data, error } = await db().from("clientes").insert(fila).select().single();
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "clientes", accion: "crear",
+    entidad_tipo: "clientes", entidad_id: data.id,
+    descripcion: `Cliente creado: ${fila.nombre}`,
+    datos_nuevos: fila,
+  });
+  revalidatePath("/financiero");
+  revalidatePath("/clientes");
+  revalidatePath("/ventas");
+  return data;
+}
+
 export async function crearCategoriaGasto(valor: string) {
   const sesion = await requierePermiso("financiero");
   const limpio = valor?.trim();
@@ -321,10 +352,18 @@ export async function pagarGasto(datos: {
 // INGRESOS (espejo de gastos, sin líneas múltiples)
 // ------------------------------------------------------------
 
+const TIPOS_INGRESO = ["Abono a Factura", "Cancela Factura", "Otro"] as const;
+const ESTADOS_FACTURACION = ["Pendiente de Facturar", "Facturado", "No Aplica"] as const;
+
 export async function crearIngreso(datos: {
   fecha?: string;
   categoria?: string;
   concepto?: string;
+  cliente_id?: number | null;
+  cliente?: string;
+  tipo_ingreso?: string;
+  estado_facturacion?: string;
+  numero_factura?: string;
   monto: number;
   cobrarAhora?: boolean;
   cuenta_id?: number;
@@ -333,6 +372,13 @@ export async function crearIngreso(datos: {
   const monto = Number(datos.monto) || 0;
   if (monto <= 0) throw new Error("El monto debe ser mayor a cero.");
   if (datos.cobrarAhora && !datos.cuenta_id) throw new Error("Selecciona la cuenta donde se recibe el ingreso.");
+  if (datos.tipo_ingreso && !TIPOS_INGRESO.includes(datos.tipo_ingreso as typeof TIPOS_INGRESO[number])) {
+    throw new Error("Tipo de ingreso inválido.");
+  }
+  const estadoFacturacion = datos.estado_facturacion?.trim() || "No Aplica";
+  if (!ESTADOS_FACTURACION.includes(estadoFacturacion as typeof ESTADOS_FACTURACION[number])) {
+    throw new Error("Estado de facturación inválido.");
+  }
 
   const { data: maxData, error: errMax } = await db().from("ingresos").select("ticket").order("ticket", { ascending: false }).limit(1);
   if (errMax) throw new Error(errMax.message);
@@ -343,6 +389,11 @@ export async function crearIngreso(datos: {
     fecha: datos.fecha || new Date().toISOString().slice(0, 10),
     categoria: datos.categoria?.trim() || null,
     concepto: datos.concepto?.trim() || null,
+    cliente_id: datos.cliente_id || null,
+    cliente: datos.cliente?.trim() || null,
+    tipo_ingreso: datos.tipo_ingreso?.trim() || null,
+    estado_facturacion: estadoFacturacion,
+    numero_factura: datos.numero_factura?.trim() || null,
     monto,
     cobrado: 0,
     saldo: monto,
@@ -380,6 +431,9 @@ export async function editarIngreso(datos: {
   fecha?: string;
   categoria?: string;
   concepto?: string;
+  cliente_id?: number | null;
+  cliente?: string;
+  tipo_ingreso?: string;
   monto: number;
   motivo?: string;
 }) {
@@ -387,6 +441,9 @@ export async function editarIngreso(datos: {
   await verificarPinContadora(datos.clave_contadora);
   const nuevoMonto = Number(datos.monto) || 0;
   if (nuevoMonto <= 0) throw new Error("El monto debe ser mayor a cero.");
+  if (datos.tipo_ingreso && !TIPOS_INGRESO.includes(datos.tipo_ingreso as typeof TIPOS_INGRESO[number])) {
+    throw new Error("Tipo de ingreso inválido.");
+  }
 
   const { data: anterior, error: errGet } = await db().from("ingresos").select("*").eq("id", datos.ingreso_id).single();
   if (errGet) throw new Error(errGet.message);
@@ -398,6 +455,9 @@ export async function editarIngreso(datos: {
     fecha: datos.fecha || anterior.fecha,
     categoria: datos.categoria?.trim() || null,
     concepto: datos.concepto?.trim() || null,
+    cliente_id: datos.cliente_id || null,
+    cliente: datos.cliente?.trim() || null,
+    tipo_ingreso: datos.tipo_ingreso?.trim() || null,
     monto: nuevoMonto,
     saldo: nuevoMonto - Number(anterior.cobrado),
     estado: nuevoMonto - Number(anterior.cobrado) <= 0 ? "Cobrado" : Number(anterior.cobrado) > 0 ? "Abonado" : "Pendiente",
@@ -459,4 +519,34 @@ export async function crearCategoriaIngreso(valor: string) {
   });
   revalidarFinanciero();
   revalidatePath("/configuracion");
+}
+
+export async function actualizarFacturacionIngreso(datos: {
+  ingreso_id: number;
+  estado_facturacion: string;
+  numero_factura?: string;
+}) {
+  const sesion = await requierePermiso("financiero");
+  if (!ESTADOS_FACTURACION.includes(datos.estado_facturacion as typeof ESTADOS_FACTURACION[number])) {
+    throw new Error("Estado de facturación inválido.");
+  }
+
+  const { data: anterior, error: errGet } = await db().from("ingresos").select("*").eq("id", datos.ingreso_id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const nuevaFila = {
+    estado_facturacion: datos.estado_facturacion,
+    numero_factura: datos.numero_factura?.trim() || null,
+  };
+  const { error: errUpd } = await db().from("ingresos").update(nuevaFila).eq("id", datos.ingreso_id);
+  if (errUpd) throw new Error(errUpd.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "actualizar_facturacion",
+    entidad_tipo: "ingresos", entidad_id: datos.ingreso_id,
+    descripcion: descripcionTicket("Facturación Ingreso", anterior.ticket),
+    datos_anteriores: { estado_facturacion: anterior.estado_facturacion, numero_factura: anterior.numero_factura },
+    datos_nuevos: { ...anterior, ...nuevaFila },
+  });
+  revalidarFinanciero();
 }

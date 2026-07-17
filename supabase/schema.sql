@@ -302,6 +302,13 @@ create table nativo.ingresos (
   fecha date not null default current_date,
   categoria text,
   concepto text,
+  cliente_id bigint references nativo.clientes (id),
+  cliente text,
+  tipo_ingreso text
+    check (tipo_ingreso is null or tipo_ingreso in ('Abono a Factura', 'Cancela Factura', 'Otro')),
+  estado_facturacion text not null default 'No Aplica'
+    check (estado_facturacion in ('Pendiente de Facturar', 'Facturado', 'No Aplica')),
+  numero_factura text,
   monto numeric not null default 0,
   cobrado numeric not null default 0,
   saldo numeric not null default 0,
@@ -312,6 +319,7 @@ create table nativo.ingresos (
 create index idx_ingresos_estado on nativo.ingresos (estado);
 create index idx_ingresos_fecha on nativo.ingresos (fecha);
 create index idx_ingresos_ticket on nativo.ingresos (ticket);
+create index idx_ingresos_cliente on nativo.ingresos (cliente_id);
 
 -- PAGOS DE INGRESOS (cada cobro de un ingreso entra a una cuenta)
 create table nativo.pagos_ingresos (

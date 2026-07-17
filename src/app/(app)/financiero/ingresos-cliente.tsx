@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { crearIngreso, editarIngreso, cobrarIngreso, crearCategoriaIngreso } from "./acciones";
+import { crearIngreso, editarIngreso, cobrarIngreso, crearCategoriaIngreso, crearClienteDesdeFinanciero, actualizarFacturacionIngreso } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { HandCoins, PlusCircle, Pencil, ShieldAlert } from "lucide-react";
-import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type Bitacora } from "@/lib/tipos";
+import { HandCoins, PlusCircle, Pencil, ShieldAlert, UserPlus, CheckCircle2, FileText } from "lucide-react";
+import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type Bitacora, type Cliente } from "@/lib/tipos";
 
 type Props = {
   ingresos: Ingreso[];
@@ -24,23 +25,48 @@ type Props = {
   cuentas: CuentaBancaria[];
   categorias: string[];
   auditoriaIngresos: Record<number, Bitacora[]>;
+  clientes: Cliente[];
 };
 
 const HOY = () => new Date().toISOString().slice(0, 10);
+const TIPOS_INGRESO = ["Abono a Factura", "Cancela Factura", "Otro"] as const;
+const ESTADOS_FACTURACION = ["Pendiente de Facturar", "Facturado", "No Aplica"] as const;
 
-export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: categoriasIniciales, auditoriaIngresos }: Props) {
+export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: categoriasIniciales, auditoriaIngresos, clientes: clientesIniciales }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [categorias, setCategorias] = useState(categoriasIniciales);
+  const [clientes, setClientes] = useState(clientesIniciales);
 
   // Causación
   const [nuevo, setNuevo] = useState({
     fecha: HOY(), categoria: "", concepto: "", monto: 0, cobrarAhora: false, cuenta_id: 0,
+    tipo_ingreso: "", estado_facturacion: "No Aplica", numero_factura: "",
   });
+  const [clienteSel, setClienteSel] = useState<Cliente | null>(null);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
 
   // Nueva categoría
   const [dialogCategoria, setDialogCategoria] = useState(false);
   const [nuevaCategoria, setNuevaCategoria] = useState("");
+
+  // Nuevo cliente (al vuelo)
+  const [dialogCliente, setDialogCliente] = useState(false);
+  const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "" });
+
+  const guardarNuevoCliente = () => {
+    startTransition(async () => {
+      try {
+        const c = await crearClienteDesdeFinanciero(nuevoCliente);
+        setClientes(prev => [...prev, c as Cliente]);
+        setClienteSel(c as Cliente);
+        setBusquedaCliente((c as Cliente).nombre);
+        setDialogCliente(false);
+        setNuevoCliente({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "" });
+        toast.success("Cliente registrado y seleccionado");
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
 
   const guardarCategoria = () => {
     const valor = nuevaCategoria.trim();
@@ -78,8 +104,14 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   const [edicionIngresoId, setEdicionIngresoId] = useState<number | null>(null);
   const [edicionTicket, setEdicionTicket] = useState<number | null>(null);
   const [claveEdicion, setClaveEdicion] = useState("");
-  const [genEd, setGenEd] = useState({ fecha: "", categoria: "", concepto: "", monto: 0 });
+  const [genEd, setGenEd] = useState({ fecha: "", categoria: "", concepto: "", monto: 0, tipo_ingreso: "" });
+  const [clienteEdSel, setClienteEdSel] = useState<Cliente | null>(null);
+  const [busquedaClienteEd, setBusquedaClienteEd] = useState("");
   const [motivoEdicion, setMotivoEdicion] = useState("");
+
+  // Actualizar Facturación (liviano, sin clave)
+  const [selFacturacion, setSelFacturacion] = useState<Ingreso | null>(null);
+  const [facturacion, setFacturacion] = useState({ estado_facturacion: "No Aplica", numero_factura: "" });
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -89,6 +121,8 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
       if (!q) return true;
       return (i.concepto || "").toLowerCase().includes(q) ||
         (i.categoria || "").toLowerCase().includes(q) ||
+        (i.cliente || "").toLowerCase().includes(q) ||
+        (i.numero_factura || "").toLowerCase().includes(q) ||
         String(i.ticket) === q;
     });
   }, [ingresos, filtroEstado, busqueda]);
@@ -98,9 +132,16 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   const guardarNuevo = () => {
     startTransition(async () => {
       try {
-        const r = await crearIngreso({ ...nuevo, cuenta_id: nuevo.cuenta_id || undefined });
+        const r = await crearIngreso({
+          ...nuevo,
+          cliente_id: clienteSel?.id || null,
+          cliente: clienteSel?.nombre || "",
+          cuenta_id: nuevo.cuenta_id || undefined,
+        });
         toast.success(`Ingreso #${r.ticket} ${nuevo.cobrarAhora ? "registrado y cobrado" : "causado (pendiente por cobrar)"}`);
-        setNuevo({ fecha: HOY(), categoria: "", concepto: "", monto: 0, cobrarAhora: false, cuenta_id: 0 });
+        setNuevo({ fecha: HOY(), categoria: "", concepto: "", monto: 0, cobrarAhora: false, cuenta_id: 0, tipo_ingreso: "", estado_facturacion: "No Aplica", numero_factura: "" });
+        setClienteSel(null);
+        setBusquedaCliente("");
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
     });
@@ -133,7 +174,10 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   };
 
   const abrirEdicion = (i: Ingreso) => {
-    setGenEd({ fecha: i.fecha, categoria: i.categoria || "", concepto: i.concepto || "", monto: Number(i.monto) || 0 });
+    setGenEd({ fecha: i.fecha, categoria: i.categoria || "", concepto: i.concepto || "", monto: Number(i.monto) || 0, tipo_ingreso: i.tipo_ingreso || "" });
+    const cli = clientes.find(c => c.id === i.cliente_id) || null;
+    setClienteEdSel(cli);
+    setBusquedaClienteEd(cli?.nombre || i.cliente || "");
     setMotivoEdicion("");
     setEdicionAbierta(true);
   };
@@ -154,9 +198,34 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
     if (!edicionIngresoId) return;
     startTransition(async () => {
       try {
-        await editarIngreso({ ingreso_id: edicionIngresoId, clave_contadora: claveEdicion, ...genEd, motivo: motivoEdicion });
+        await editarIngreso({
+          ingreso_id: edicionIngresoId, clave_contadora: claveEdicion,
+          ...genEd,
+          cliente_id: clienteEdSel?.id || null,
+          cliente: clienteEdSel?.nombre || busquedaClienteEd,
+          motivo: motivoEdicion,
+        });
         toast.success("Ingreso actualizado");
         setEdicionAbierta(false);
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
+  const abrirFacturacionDesdeDetalle = () => {
+    if (!sel) return;
+    setSelFacturacion(sel);
+    setFacturacion({ estado_facturacion: sel.estado_facturacion, numero_factura: sel.numero_factura || "" });
+    setSel(null);
+  };
+
+  const guardarFacturacion = () => {
+    if (!selFacturacion) return;
+    startTransition(async () => {
+      try {
+        await actualizarFacturacionIngreso({ ingreso_id: selFacturacion.id, ...facturacion });
+        toast.success("Facturación actualizada");
+        setSelFacturacion(null);
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
     });
@@ -180,6 +249,47 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
         <CardHeader><CardTitle>Registrar Ingreso</CardTitle></CardHeader>
         <CardContent className="grid gap-3">
           <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={nuevo.fecha} onChange={e => setNuevo({ ...nuevo, fecha: e.target.value })} /></div>
+
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Cliente</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { setNuevoCliente({ nombre: "", cedula_nit: "", empresa: "", contacto: "", correo: "", ciudad: "" }); setDialogCliente(true); }}>
+                <UserPlus className="size-3.5" /> Nuevo
+              </Button>
+            </div>
+            <Combobox
+              items={clientes}
+              itemToStringLabel={(c: Cliente | null) => c?.nombre ?? ""}
+              value={clienteSel}
+              onValueChange={v => setClienteSel((v as Cliente) ?? null)}
+              inputValue={busquedaCliente}
+              onInputValueChange={v => setBusquedaCliente(v ?? "")}
+              openOnInputClick
+            >
+              <ComboboxInput placeholder="Buscar cliente..." className="w-full" showClear />
+              <ComboboxContent>
+                <ComboboxEmpty>No se encontró. Usa &quot;Nuevo&quot;.</ComboboxEmpty>
+                <ComboboxList>
+                  {(c: Cliente) => (
+                    <ComboboxItem key={c.id} value={c}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{c.nombre} {c.empresa && <span className="text-primary">· {c.empresa}</span>}</span>
+                        <span className="text-xs text-muted-foreground">{c.ciudad || "-"}</span>
+                      </div>
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+            {clienteSel && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
+                <CheckCircle2 className="size-3.5 text-primary" />
+                <span className="font-semibold">{clienteSel.nombre}</span>
+                {clienteSel.empresa && <span className="text-muted-foreground">{clienteSel.empresa}</span>}
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-1.5">
             <Label>Categoría</Label>
             <div className="flex gap-1.5">
@@ -189,8 +299,33 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               </Button>
             </div>
           </div>
+
+          <div className="grid gap-1.5">
+            <Label>Tipo de Ingreso</Label>
+            <Select value={nuevo.tipo_ingreso} onValueChange={v => setNuevo({ ...nuevo, tipo_ingreso: v || "" })}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona (opcional)..." /></SelectTrigger>
+              <SelectContent>
+                {TIPOS_INGRESO.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-1.5"><Label>Concepto / Descripción</Label><Textarea rows={2} value={nuevo.concepto} onChange={e => setNuevo({ ...nuevo, concepto: e.target.value })} /></div>
           <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={nuevo.monto || ""} onChange={e => setNuevo({ ...nuevo, monto: Number(e.target.value) })} placeholder="0" /></div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Estado de Facturación</Label>
+              <Select value={nuevo.estado_facturacion} onValueChange={v => v && setNuevo({ ...nuevo, estado_facturacion: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ESTADOS_FACTURACION.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5"><Label>Número de Factura</Label><Input value={nuevo.numero_factura} onChange={e => setNuevo({ ...nuevo, numero_factura: e.target.value })} placeholder="Opcional" /></div>
+          </div>
+
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={nuevo.cobrarAhora} onCheckedChange={v => setNuevo({ ...nuevo, cobrarAhora: v })} />
             Cobrar ahora (entrada inmediata a la cuenta)
@@ -230,6 +365,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                 <TableRow>
                   <TableHead>Ticket</TableHead>
                   <TableHead>Fecha</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
@@ -238,19 +374,27 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(i => (
                   <TableRow key={i.id} className="cursor-pointer" onClick={() => abrirDetalle(i)}>
                     <TableCell className="font-semibold">#{i.ticket}</TableCell>
                     <TableCell>{formatoFecha(i.fecha)}</TableCell>
+                    <TableCell className="max-w-40 truncate">{i.cliente || "-"}</TableCell>
                     <TableCell className="max-w-56">
                       <span className="block truncate font-medium">{i.concepto || i.categoria || "-"}</span>
-                      <span className="block text-xs text-muted-foreground">{i.categoria || ""}</span>
+                      <span className="block text-xs text-muted-foreground">{[i.categoria, i.tipo_ingreso].filter(Boolean).join(" · ")}</span>
                     </TableCell>
                     <TableCell className="text-right">{formatoPesos(i.monto)}</TableCell>
                     <TableCell className={`text-right font-bold ${i.saldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(i.saldo)}</TableCell>
-                    <TableCell><Badge variant={i.estado === "Cobrado" ? "default" : i.estado === "Abonado" ? "secondary" : "outline"}>{i.estado}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={i.estado === "Cobrado" ? "default" : i.estado === "Abonado" ? "secondary" : "outline"}>{i.estado}</Badge>
+                        {i.estado_facturacion !== "No Aplica" && (
+                          <Badge variant={i.estado_facturacion === "Facturado" ? "default" : "outline"} className="w-fit text-[10px]">{i.estado_facturacion}</Badge>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -275,6 +419,24 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
         </DialogContent>
       </Dialog>
 
+      {/* DIALOG NUEVO CLIENTE (al vuelo) */}
+      <Dialog open={dialogCliente} onOpenChange={setDialogCliente}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Nuevo Cliente</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={nuevoCliente.nombre} onChange={e => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Cédula / NIT</Label><Input value={nuevoCliente.cedula_nit} onChange={e => setNuevoCliente({ ...nuevoCliente, cedula_nit: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Empresa</Label><Input value={nuevoCliente.empresa} onChange={e => setNuevoCliente({ ...nuevoCliente, empresa: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={nuevoCliente.contacto} onChange={e => setNuevoCliente({ ...nuevoCliente, contacto: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Correo</Label><Input value={nuevoCliente.correo} onChange={e => setNuevoCliente({ ...nuevoCliente, correo: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Ciudad</Label><Input value={nuevoCliente.ciudad} onChange={e => setNuevoCliente({ ...nuevoCliente, ciudad: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button onClick={guardarNuevoCliente} disabled={pendiente || !nuevoCliente.nombre.trim()}>Guardar y Seleccionar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* DETALLE DE SOLO LECTURA */}
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
@@ -284,7 +446,11 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
                 <div><p className="text-muted-foreground">Fecha</p><p className="font-medium">{formatoFecha(sel.fecha)}</p></div>
                 <div><p className="text-muted-foreground">Categoría</p><p className="font-medium">{sel.categoria || "-"}</p></div>
+                <div><p className="text-muted-foreground">Cliente</p><p className="font-medium">{sel.cliente || "-"}</p></div>
+                <div><p className="text-muted-foreground">Tipo de Ingreso</p><p className="font-medium">{sel.tipo_ingreso || "-"}</p></div>
                 <div className="col-span-2"><p className="text-muted-foreground">Concepto</p><p className="font-medium">{sel.concepto || "-"}</p></div>
+                <div><p className="text-muted-foreground">Estado de Facturación</p><p className="font-medium">{sel.estado_facturacion}</p></div>
+                <div><p className="text-muted-foreground">Número de Factura</p><p className="font-medium">{sel.numero_factura || "-"}</p></div>
               </div>
 
               {(pagosIngresos[sel.id]?.length ?? 0) > 0 && (
@@ -338,6 +504,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               <ShieldAlert className="size-3.5" /> Editar requiere la clave de la contadora.
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={abrirFacturacionDesdeDetalle}><FileText className="size-4" /> Facturación</Button>
               {sel && sel.saldo > 0 && <Button variant="outline" onClick={abrirCobroDesdeDetalle}><HandCoins className="size-4" /> Cobrar</Button>}
               <Button variant="outline" onClick={pedirClave}><Pencil className="size-4" /> Editar</Button>
             </div>
@@ -394,6 +561,31 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
         </DialogContent>
       </Dialog>
 
+      {/* DIALOG ACTUALIZAR FACTURACIÓN (sin clave) */}
+      <Dialog open={!!selFacturacion} onOpenChange={o => !o && setSelFacturacion(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Facturación — Ingreso #{selFacturacion?.ticket}</DialogTitle></DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label>Estado de Facturación</Label>
+              <Select value={facturacion.estado_facturacion} onValueChange={v => v && setFacturacion({ ...facturacion, estado_facturacion: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ESTADOS_FACTURACION.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5"><Label>Número de Factura</Label><Input value={facturacion.numero_factura} onChange={e => setFacturacion({ ...facturacion, numero_factura: e.target.value })} placeholder="Opcional" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelFacturacion(null)}>Cancelar</Button>
+            <Button onClick={guardarFacturacion} disabled={pendiente}>
+              {pendiente ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* EDICIÓN DE INGRESO */}
       <Dialog open={edicionAbierta} onOpenChange={setEdicionAbierta}>
         <DialogContent className="sm:max-w-lg">
@@ -403,6 +595,38 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={genEd.fecha} onChange={e => setGenEd({ ...genEd, fecha: e.target.value })} /></div>
               <div className="grid gap-1.5"><Label>Categoría</Label><Combo opciones={categorias} value={genEd.categoria} onChange={v => setGenEd({ ...genEd, categoria: v })} /></div>
             </div>
+
+            <div className="grid gap-1.5">
+              <Label>Cliente</Label>
+              <Combobox
+                items={clientes}
+                itemToStringLabel={(c: Cliente | null) => c?.nombre ?? ""}
+                value={clienteEdSel}
+                onValueChange={v => setClienteEdSel((v as Cliente) ?? null)}
+                inputValue={busquedaClienteEd}
+                onInputValueChange={v => setBusquedaClienteEd(v ?? "")}
+                openOnInputClick
+              >
+                <ComboboxInput placeholder="Buscar cliente..." className="w-full" showClear />
+                <ComboboxContent>
+                  <ComboboxEmpty>Sin resultados.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(c: Cliente) => <ComboboxItem key={c.id} value={c}>{c.nombre}</ComboboxItem>}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Tipo de Ingreso</Label>
+              <Select value={genEd.tipo_ingreso} onValueChange={v => setGenEd({ ...genEd, tipo_ingreso: v || "" })}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona (opcional)..." /></SelectTrigger>
+                <SelectContent>
+                  {TIPOS_INGRESO.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-1.5"><Label>Concepto / Descripción</Label><Textarea rows={2} value={genEd.concepto} onChange={e => setGenEd({ ...genEd, concepto: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={genEd.monto || ""} onChange={e => setGenEd({ ...genEd, monto: Number(e.target.value) })} /></div>
             <div className="grid gap-1.5">

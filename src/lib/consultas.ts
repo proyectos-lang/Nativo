@@ -226,10 +226,10 @@ export async function pagosIngresosPorIngreso(): Promise<Record<number, unknown[
   return out;
 }
 
-export async function auditoriaPorTabla(tabla: "gastos" | "ingresos"): Promise<Record<number, unknown[]>> {
+export async function auditoriaPorTabla(tabla: "gastos" | "ingresos", acciones: string[] = ["editar"]): Promise<Record<number, unknown[]>> {
   const { data, error } = await db()
     .from("bitacora").select("*")
-    .eq("tabla_afectada", tabla).eq("accion", "editar").order("fecha", { ascending: false });
+    .eq("tabla_afectada", tabla).in("accion", acciones).order("fecha", { ascending: false });
   if (error) throw new Error(error.message);
   const out: Record<number, unknown[]> = {};
   for (const a of data || []) {
