@@ -17,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { RotateCcw, PlusCircle, Wrench, CheckCircle2, XCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RotateCcw, PlusCircle, Wrench, CheckCircle2, XCircle, ListFilter } from "lucide-react";
 import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type Devolucion, type DevolucionDetalle, type DevolucionHistorial, type CuentaBancaria } from "@/lib/tipos";
 
 type Props = {
@@ -52,22 +53,35 @@ const BADGE_ESTADO: Record<string, "outline" | "secondary" | "default" | "destru
   Perdida: "destructive",
 };
 
+const ESTADOS_DEVOLUCION = ["Pendiente", "En Reproceso", "Recuperada", "Perdida"];
+
 export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detalles, historial, causales, cuentas }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
+  const [filtroEstados, setFiltroEstados] = useState<string[]>([]);
 
   const nombreCliente = (ventaId: number) => ventas.find(v => v.id === ventaId)?.clientes?.nombre || "-";
   const ticketDe = (ventaId: number) => ventas.find(v => v.id === ventaId)?.ticket;
 
+  const toggleFiltroEstado = (estado: string) => {
+    setFiltroEstados(prev => prev.includes(estado) ? prev.filter(e => e !== estado) : [...prev, estado]);
+  };
+
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
     return devoluciones.filter(d => {
-      if (!q) return true;
-      const ticket = String(ticketDe(d.venta_id) ?? "");
-      return ticket.includes(q) || nombreCliente(d.venta_id).toLowerCase().includes(q);
+      if (q) {
+        const ticket = String(ticketDe(d.venta_id) ?? "");
+        if (!ticket.includes(q) && !nombreCliente(d.venta_id).toLowerCase().includes(q)) return false;
+      }
+      if (filtroEstados.length > 0) {
+        const dets = detalles[d.id] || [];
+        if (!dets.some(det => filtroEstados.includes(det.estado))) return false;
+      }
+      return true;
     });
-  }, [devoluciones, busqueda]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [devoluciones, busqueda, filtroEstados, detalles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resumenEstado = (dets: DevolucionDetalle[]) => {
     const total = dets.length;
@@ -174,6 +188,28 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Input className="w-64" placeholder="Buscar por ticket o cliente..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" />}>
+              <ListFilter className="size-4" /> Estado{filtroEstados.length > 0 ? ` (${filtroEstados.length})` : ""}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {ESTADOS_DEVOLUCION.map(estado => (
+                <DropdownMenuCheckboxItem
+                  key={estado}
+                  checked={filtroEstados.includes(estado)}
+                  onCheckedChange={() => toggleFiltroEstado(estado)}
+                >
+                  {estado}
+                </DropdownMenuCheckboxItem>
+              ))}
+              {filtroEstados.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setFiltroEstados([])}>Limpiar filtro</DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={abrirNueva}><PlusCircle className="size-4" /> Nueva Devolución</Button>
         </div>
       </div>
