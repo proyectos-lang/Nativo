@@ -91,6 +91,7 @@ create table nativo.listas_maestras (
   id bigint generated always as identity primary key,
   tipo text not null,
   valor text not null,
+  activo boolean not null default true,
   creado_en timestamptz not null default now(),
   unique (tipo, valor)
 );

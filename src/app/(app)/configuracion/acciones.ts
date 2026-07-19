@@ -89,6 +89,39 @@ export async function agregarValorMaestro(tipo: string, valor: string) {
   revalidatePath("/financiero");
 }
 
+export async function actualizarValorMaestro(id: number, datos: { valor?: string; activo?: boolean }) {
+  const sesion = await requierePermiso("configuracion");
+  const { data: anterior, error: errGet } = await db().from("listas_maestras").select("*").eq("id", id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const cambios: { valor?: string; activo?: boolean } = {};
+  if (datos.valor !== undefined) {
+    const limpio = datos.valor.trim();
+    if (!limpio) throw new Error("El valor no puede quedar vacío.");
+    const { data: dup } = await db().from("listas_maestras").select("id").eq("tipo", anterior.tipo).eq("valor", limpio).neq("id", id).maybeSingle();
+    if (dup) throw new Error("Ese valor ya existe en la lista.");
+    cambios.valor = limpio;
+  }
+  if (datos.activo !== undefined) cambios.activo = datos.activo;
+  if (!Object.keys(cambios).length) throw new Error("Nada que actualizar.");
+
+  const { error } = await db().from("listas_maestras").update(cambios).eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "configuracion", accion: "editar",
+    entidad_tipo: "listas_maestras", entidad_id: id,
+    descripcion: cambios.valor !== undefined
+      ? `Valor de lista "${anterior.tipo}" renombrado: "${anterior.valor}" → "${cambios.valor}"`
+      : `Valor "${anterior.valor}" de lista "${anterior.tipo}" ${cambios.activo ? "activado" : "inactivado"}`,
+    datos_anteriores: anterior, datos_nuevos: { ...anterior, ...cambios },
+  });
+  revalidatePath("/configuracion");
+  revalidatePath("/financiero");
+  revalidatePath("/ventas");
+  revalidatePath("/inventario");
+}
+
 export async function eliminarValorMaestro(id: number) {
   const sesion = await requierePermiso("configuracion");
   const { data: anterior } = await db().from("listas_maestras").select("*").eq("id", id).single();

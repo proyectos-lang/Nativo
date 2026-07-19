@@ -38,7 +38,7 @@ export default async function PaginaConfiguracion() {
           <UsuariosCliente usuarios={(usuarios || []) as Usuario[]} sesionId={sesion.id} />
         </TabsContent>
         <TabsContent value="maestras">
-          <MaestrasCliente valores={(maestras || []) as { id: number; tipo: string; valor: string }[]} />
+          <MaestrasCliente valores={(maestras || []) as { id: number; tipo: string; valor: string; activo: boolean }[]} />
         </TabsContent>
         <TabsContent value="productos">
           <ProductosCliente productos={(productos || []) as { id: number; nombre: string }[]} />

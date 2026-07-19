@@ -113,9 +113,10 @@ Valores de los desplegables de la app, administrables desde Configuración.
 | id | bigint | PK identity |
 | tipo | text | not null |
 | valor | text | not null |
+| activo | boolean | not null, default `true` |
 | creado_en | timestamptz | not null, default `now()` |
 
-Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
+Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`. Los valores se administran por línea en Configuración → Listas Maestras (editar, activar/inactivar, eliminar). Un valor **inactivo** desaparece de los selectores (`listasMaestras()` filtra `activo = true`) pero los registros históricos guardan el texto copiado y no cambian; renombrar un valor tampoco altera registros pasados.
 
 Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`.
 

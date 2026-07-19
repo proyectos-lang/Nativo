@@ -1,9 +1,9 @@
 import "server-only";
 import { db } from "./db";
 
-/** Todas las listas maestras agrupadas por tipo. */
+/** Listas maestras ACTIVAS agrupadas por tipo (para los selectores de la app). */
 export async function listasMaestras(): Promise<Record<string, string[]>> {
-  const { data, error } = await db().from("listas_maestras").select("tipo, valor").order("valor");
+  const { data, error } = await db().from("listas_maestras").select("tipo, valor").eq("activo", true).order("valor");
   if (error) throw new Error(error.message);
   const out: Record<string, string[]> = {};
   for (const f of data || []) {
