@@ -199,6 +199,23 @@ export async function movimientosInventario(limite = 500) {
   return data || [];
 }
 
+export async function ordenesCompra() {
+  const { data, error } = await db().from("ordenes_compra").select("*").order("numero", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function ordenesCompraDetallePorOrden(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("ordenes_compra_detalle").select("*").order("id");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const d of data || []) {
+    if (!out[d.orden_compra_id]) out[d.orden_compra_id] = [];
+    out[d.orden_compra_id].push(d);
+  }
+  return out;
+}
+
 export async function devolucionesTodas() {
   const { data, error } = await db().from("devoluciones").select("*").order("creado_en", { ascending: false });
   if (error) throw new Error(error.message);

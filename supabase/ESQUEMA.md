@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones` e `inventario` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario` y `compras` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -371,6 +371,40 @@ Stock comprometido por ventas (se crea al registrar/editar una venta con product
 
 ---
 
+## ordenes_compra
+
+Órdenes de compra del módulo Compras. Flujo de estados: `Borrador` (editable) → `Enviada` → `Recibida Parcial` → `Recibida`; `Anulada` solo sin recepciones (exige PIN de autorización).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| numero | integer | not null, **unique** | Consecutivo (`max+1`) |
+| fecha | date | not null, default `current_date` | |
+| proveedor_id | bigint | null, FK → `proveedores(id)` | |
+| proveedor | text | null | Nombre copiado |
+| estado | text | not null, default `'Borrador'`, check `('Borrador','Enviada','Recibida Parcial','Recibida','Anulada')` | |
+| fecha_esperada | date | null | |
+| observaciones | text | null | |
+| total | numeric | not null, default 0 | Σ líneas |
+| gasto_id | bigint | null, FK → `gastos(id)` set null | Último gasto generado por recepción |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+## ordenes_compra_detalle
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| orden_compra_id | bigint | not null, FK cascade | |
+| producto_id | bigint | null, FK → `productos(id)` set null | Debe ser un producto con `controla_inventario` para poder recibirse |
+| producto | text | not null | Copiado |
+| cantidad | numeric | not null, check `> 0` | |
+| precio_unitario / valor_total | numeric | not null, default 0 | |
+| cantidad_recibida | numeric | not null, default 0 | Acumulada por las recepciones |
+| creado_en | timestamptz | not null, default `now()` | |
+
+---
+
 ## prospectos
 
 Clientes por contactar.
@@ -627,6 +661,10 @@ Ajuste puntual por conteo físico: deja la existencia de la ubicación = cantida
 ### `nativo.salida_manual_inventario(p_producto_id, p_ubicacion_id, p_cantidad, p_motivo, p_usuario, p_referencia) → void`
 
 Salida directa (bajas, muestras, obsequios): valida stock en la ubicación **y** que la salida no deje el stock total por debajo de lo reservado para ventas pendientes de despacho.
+
+### `nativo.recibir_orden_compra(p_orden_id, p_lineas jsonb, p_numero_factura, p_fecha, p_usuario, p_crear_gasto default true) → nativo.ordenes_compra`
+
+Recepción (total o parcial) de una orden de compra, atómica: valida estado Enviada/Recibida Parcial y pendientes por línea; por línea llama `ingresar_inventario` (stock + costo promedio + kardex con referencia `OC #N`); acumula `cantidad_recibida`; recalcula el estado de la orden; y si `p_crear_gasto`, genera el Gasto en Financiero (tipo `Costo`, categoría `Compra Inventario`, con proveedor y factura) por lo recibido en esta recepción + sus `gastos_detalle`. **Cada recepción parcial genera su propio gasto** (la cuenta por pagar real de esa factura).
 
 ### `nativo.registrar_devolucion_perdida(p_devolucion_detalle_id bigint, p_valor_perdido numeric, p_cuenta_id bigint default null, p_fecha date default current_date, p_comentario text default null, p_usuario text default null) → nativo.ventas`
 
