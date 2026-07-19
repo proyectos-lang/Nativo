@@ -88,8 +88,20 @@ export function UsuariosCliente({ usuarios, sesionId }: { usuarios: Usuario[]; s
                   <TableCell className="font-medium">{u.nombre}</TableCell>
                   <TableCell>{u.usuario}</TableCell>
                   <TableCell><Badge variant={u.rol === "admin" ? "default" : "secondary"}>{u.rol === "admin" ? "Administrador" : "Usuario"}</Badge></TableCell>
-                  <TableCell className="max-w-64 text-xs text-muted-foreground">
-                    {u.rol === "admin" ? "Todos" : MODULOS.filter(m => u.permisos?.[m.clave]).map(m => m.nombre).join(", ") || "Ninguno"}
+                  <TableCell className="max-w-56 text-xs text-muted-foreground">
+                    {u.rol === "admin" ? (
+                      "Todos"
+                    ) : (() => {
+                      const activos = MODULOS.filter(m => u.permisos?.[m.clave]);
+                      if (!activos.length) return "Ninguno";
+                      if (activos.length === MODULOS.length) return "Todos";
+                      const nombres = activos.map(m => m.nombre);
+                      return (
+                        <span title={nombres.join(", ")} className="block truncate">
+                          {activos.length} de {MODULOS.length}: {nombres.join(", ")}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell><Badge variant={u.activo ? "outline" : "destructive"}>{u.activo ? "Activo" : "Inactivo"}</Badge></TableCell>
                   <TableCell className="whitespace-nowrap">
@@ -136,15 +148,31 @@ export function UsuariosCliente({ usuarios, sesionId }: { usuarios: Usuario[]; s
 
               {form.rol !== "admin" && (
                 <div className="grid gap-2 rounded-md border p-3">
-                  <p className="text-sm font-semibold">Permisos por módulo</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Permisos por módulo</p>
+                    <div className="flex gap-1.5">
+                      <Button
+                        type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                        onClick={() => setForm({ ...form, permisos: Object.fromEntries(MODULOS.map(m => [m.clave, true])) as typeof form.permisos })}
+                      >
+                        Todos
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                        onClick={() => setForm({ ...form, permisos: Object.fromEntries(MODULOS.map(m => [m.clave, false])) as typeof form.permisos })}
+                      >
+                        Ninguno
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
                     {MODULOS.map(m => (
-                      <label key={m.clave} className="flex items-center gap-2 text-sm">
+                      <label key={m.clave} className="flex min-w-0 items-center gap-2 text-sm" title={m.nombre}>
                         <Switch
                           checked={form.permisos[m.clave]}
                           onCheckedChange={v => setForm({ ...form, permisos: { ...form.permisos, [m.clave]: v } })}
                         />
-                        {m.nombre}
+                        <span className="truncate">{m.nombre}</span>
                       </label>
                     ))}
                   </div>
