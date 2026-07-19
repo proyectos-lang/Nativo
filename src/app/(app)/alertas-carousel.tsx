@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { Clock, Truck, DollarSign, Contact, TrendingUp, Landmark, Sparkles, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, Truck, DollarSign, Contact, TrendingUp, Landmark, Sparkles, RotateCcw, Boxes, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Insight } from "./insights";
 
 const ICONOS: Record<Insight["icono"], typeof Clock> = {
@@ -15,6 +15,7 @@ const ICONOS: Record<Insight["icono"], typeof Clock> = {
   banco: Landmark,
   chispa: Sparkles,
   devolucion: RotateCcw,
+  inventario: Boxes,
 };
 
 const ESTILOS_TARJETA: Record<Insight["severidad"], string> = {

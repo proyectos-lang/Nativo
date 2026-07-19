@@ -3,7 +3,7 @@ import { formatoPesos, formatoFecha, type Venta, type Prospecto, type CuentaBanc
 export type Insight = {
   id: string;
   severidad: "danger" | "warning" | "info" | "success";
-  icono: "reloj" | "camion" | "dinero" | "usuario" | "tendencia" | "banco" | "chispa" | "devolucion";
+  icono: "reloj" | "camion" | "dinero" | "usuario" | "tendencia" | "banco" | "chispa" | "devolucion" | "inventario";
   titulo: string;
   descripcion: string;
   href?: string;
@@ -22,6 +22,17 @@ type ParametrosInsights = {
   cuentasActivas: CuentaBancaria[];
   esFinanciero: boolean;
   devolucionesPendientes: { id: number; estado: string; creado_en: string }[];
+  inventario: {
+    totalInventariados: number;
+    agotados: number;
+    bajoMinimo: number;
+    proximosVencer: number;
+    pendientesSurtir: number;
+    pendienteMasAntiguaDias: number;
+    frecuenciaConteo: string | null;
+    diasSinConteo: number | null;
+    conteoVencido: boolean;
+  } | null;
 };
 
 const ORDEN_SEVERIDAD: Record<Insight["severidad"], number> = { danger: 0, warning: 1, info: 2, success: 3 };
@@ -124,6 +135,62 @@ export function construirInsights(p: ParametrosInsights): Insight[] {
       descripcion: `Hay prendas devueltas pendientes o en reproceso; la más antigua lleva ${dias} día${dias === 1 ? "" : "s"} sin resolverse.`,
       href: "/devoluciones",
     });
+  }
+
+  if (p.inventario && p.inventario.totalInventariados > 0) {
+    const inv = p.inventario;
+    if (inv.agotados > 0) {
+      insights.push({
+        id: "inv-agotados",
+        severidad: "danger",
+        icono: "inventario",
+        titulo: `${inv.agotados} referencia${inv.agotados > 1 ? "s" : ""} agotada${inv.agotados > 1 ? "s" : ""}`,
+        descripcion: "Hay productos del inventario en cero. Revisa si necesitas generar órdenes de compra.",
+        href: "/inventario",
+      });
+    }
+    if (inv.bajoMinimo > 0) {
+      insights.push({
+        id: "inv-bajo-minimo",
+        severidad: "warning",
+        icono: "inventario",
+        titulo: `${inv.bajoMinimo} referencia${inv.bajoMinimo > 1 ? "s" : ""} en o bajo el stock mínimo`,
+        descripcion: "Se recomienda realizar compra antes de que se agoten.",
+        href: "/inventario",
+      });
+    }
+    if (inv.pendientesSurtir > 0) {
+      insights.push({
+        id: "inv-pendientes-surtir",
+        severidad: inv.pendienteMasAntiguaDias >= p.diasAlerta ? "danger" : "warning",
+        icono: "inventario",
+        titulo: `${inv.pendientesSurtir} pedido${inv.pendientesSurtir > 1 ? "s" : ""} pendiente${inv.pendientesSurtir > 1 ? "s" : ""} por surtir`,
+        descripcion: `Ventas sin inventario esperando mercancía; el más antiguo lleva ${inv.pendienteMasAntiguaDias} día${inv.pendienteMasAntiguaDias === 1 ? "" : "s"}.`,
+        href: "/inventario",
+      });
+    }
+    if (inv.proximosVencer > 0) {
+      insights.push({
+        id: "inv-por-vencer",
+        severidad: "warning",
+        icono: "inventario",
+        titulo: `${inv.proximosVencer} producto${inv.proximosVencer > 1 ? "s" : ""} vence${inv.proximosVencer > 1 ? "n" : ""} en menos de 30 días`,
+        descripcion: "Revisa el reporte de próximos a vencer para rotarlos a tiempo.",
+        href: "/inventario",
+      });
+    }
+    if (inv.conteoVencido && inv.frecuenciaConteo) {
+      insights.push({
+        id: "inv-conteo-vencido",
+        severidad: "info",
+        icono: "inventario",
+        titulo: "Toca hacer conteo físico de inventario",
+        descripcion: inv.diasSinConteo == null
+          ? `La frecuencia configurada es ${inv.frecuenciaConteo.toLowerCase()} y aún no se ha cerrado ningún arqueo.`
+          : `El último arqueo cerrado fue hace ${inv.diasSinConteo} días (frecuencia: ${inv.frecuenciaConteo.toLowerCase()}).`,
+        href: "/inventario",
+      });
+    }
   }
 
   if (p.esFinanciero) {

@@ -158,6 +158,28 @@ export async function cambiarPinAutorizacion(pinActual: string, pinNuevo: string
   revalidatePath("/configuracion");
 }
 
+export async function cambiarFrecuenciaConteo(frecuencia: string) {
+  const sesion = await requierePermiso("configuracion");
+  if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar la frecuencia de conteo.");
+  const valida = ["", "Mensual", "Trimestral", "Semestral", "Anual"].includes(frecuencia);
+  if (!valida) throw new Error("Frecuencia inválida.");
+
+  const { data, error: errGet } = await db().from("configuracion_sistema").select("id, frecuencia_conteo").limit(1).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const { error } = await db().from("configuracion_sistema").update({ frecuencia_conteo: frecuencia || null }).eq("id", data.id);
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "configuracion", accion: "editar",
+    entidad_tipo: "configuracion_sistema", entidad_id: data.id,
+    descripcion: `Frecuencia de conteo de inventario: ${frecuencia || "sin recordatorio"}`,
+    datos_anteriores: { frecuencia_conteo: data.frecuencia_conteo },
+    datos_nuevos: { frecuencia_conteo: frecuencia || null },
+  });
+  revalidatePath("/configuracion");
+  revalidatePath("/");
+}
+
 export async function cambiarClaveContadora(claveActual: string, claveNueva: string) {
   const sesion = await requierePermiso("configuracion");
   if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar la clave de la contadora.");

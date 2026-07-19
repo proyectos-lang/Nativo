@@ -224,6 +224,74 @@ export async function catalogoVentaInventario() {
   }));
 }
 
+/** Movimientos de inventario de los últimos N meses (solo campos de análisis) — para gráficos y reportes de rotación. */
+export async function movimientosInventarioResumen(meses = 12) {
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - meses);
+  const { data, error } = await db()
+    .from("inventario_movimientos")
+    .select("tipo, producto_id, producto, cantidad, costo_unitario, fecha, usuario, motivo, referencia")
+    .gte("fecha", desde.toISOString())
+    .order("fecha");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Todas las reservas (histórico) — para el reporte de ventas sin inventario. */
+export async function reservasInventarioTodas() {
+  const { data, error } = await db().from("inventario_reservas").select("*").order("creado_en", { ascending: false }).limit(1000);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Resumen liviano de alertas de inventario para los insights del dashboard principal. */
+export async function alertasInventario() {
+  const [{ data: prods }, { data: exis }, { data: resv }, { data: conf }, { data: arq }] = await Promise.all([
+    db().from("productos").select("id, stock_minimo, stock_maximo, fecha_vencimiento").eq("controla_inventario", true).eq("estado", "Activo"),
+    db().from("inventario_existencias").select("producto_id, cantidad"),
+    db().from("inventario_reservas").select("cantidad_pendiente, creado_en").eq("estado", "Activa").gt("cantidad_pendiente", 0),
+    db().from("configuracion_sistema").select("frecuencia_conteo").limit(1).maybeSingle(),
+    db().from("arqueos").select("fecha_cierre").eq("estado", "Cerrado").order("fecha_cierre", { ascending: false }).limit(1),
+  ]);
+
+  const fisico: Record<number, number> = {};
+  for (const e of exis || []) fisico[e.producto_id] = (fisico[e.producto_id] || 0) + Number(e.cantidad);
+
+  let agotados = 0, bajoMinimo = 0;
+  const hoy = new Date();
+  const limiteVencer = new Date(hoy); limiteVencer.setDate(limiteVencer.getDate() + 30);
+  let proximosVencer = 0;
+  for (const p of prods || []) {
+    const stock = fisico[p.id] || 0;
+    if (stock <= 0) agotados++;
+    else if (stock <= Number(p.stock_minimo)) bajoMinimo++;
+    if (p.fecha_vencimiento && p.fecha_vencimiento <= limiteVencer.toISOString().slice(0, 10) && stock > 0) proximosVencer++;
+  }
+
+  const pendientes = resv || [];
+  const masAntigua = pendientes.length
+    ? Math.floor((Date.now() - new Date(pendientes.reduce((min, r) => (r.creado_en < min ? r.creado_en : min), pendientes[0].creado_en)).getTime()) / 86400000)
+    : 0;
+
+  const frecuencia = (conf?.frecuencia_conteo as string) || null;
+  const diasFrecuencia: Record<string, number> = { Mensual: 30, Trimestral: 90, Semestral: 180, Anual: 365 };
+  const ultimoCierre = arq?.[0]?.fecha_cierre as string | undefined;
+  const diasSinConteo = ultimoCierre ? Math.floor((Date.now() - new Date(ultimoCierre).getTime()) / 86400000) : null;
+  const conteoVencido = !!frecuencia && (diasSinConteo == null || diasSinConteo > (diasFrecuencia[frecuencia] || 9999));
+
+  return {
+    totalInventariados: (prods || []).length,
+    agotados,
+    bajoMinimo,
+    proximosVencer,
+    pendientesSurtir: pendientes.length,
+    pendienteMasAntiguaDias: masAntigua,
+    frecuenciaConteo: frecuencia,
+    diasSinConteo,
+    conteoVencido,
+  };
+}
+
 export async function arqueosTodos() {
   const { data, error } = await db().from("arqueos").select("*").order("numero", { ascending: false });
   if (error) throw new Error(error.message);

@@ -14,10 +14,11 @@ export default async function PaginaConfiguracion() {
   const sesion = await requiereSesion();
   if (sesion.rol !== "admin" && !sesion.permisos?.configuracion) redirect("/");
 
-  const [{ data: usuarios, error: e1 }, { data: maestras, error: e2 }, { data: productos, error: e3 }] = await Promise.all([
+  const [{ data: usuarios, error: e1 }, { data: maestras, error: e2 }, { data: productos, error: e3 }, { data: config }] = await Promise.all([
     db().from("usuarios").select("id, nombre, usuario, correo, rol, permisos, activo").order("nombre"),
     db().from("listas_maestras").select("*").order("tipo").order("valor"),
     db().from("productos").select("*").order("nombre"),
+    db().from("configuracion_sistema").select("frecuencia_conteo").limit(1).maybeSingle(),
   ]);
   if (e1) throw new Error(e1.message);
   if (e2) throw new Error(e2.message);
@@ -44,7 +45,7 @@ export default async function PaginaConfiguracion() {
         </TabsContent>
         {sesion.rol === "admin" && (
           <TabsContent value="seguridad">
-            <SeguridadCliente />
+            <SeguridadCliente frecuenciaConteo={(config?.frecuencia_conteo as string) || ""} />
           </TabsContent>
         )}
       </Tabs>

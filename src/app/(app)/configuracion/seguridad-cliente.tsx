@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { cambiarPinAutorizacion, cambiarClaveContadora } from "./acciones";
+import { cambiarPinAutorizacion, cambiarClaveContadora, cambiarFrecuenciaConteo } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, Calculator } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ShieldAlert, Calculator, ClipboardCheck } from "lucide-react";
 
-export function SeguridadCliente() {
+export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: string }) {
   const [pendiente, startTransition] = useTransition();
   const [pinActual, setPinActual] = useState("");
   const [pinNuevo, setPinNuevo] = useState("");
@@ -19,6 +20,18 @@ export function SeguridadCliente() {
   const [claveActual, setClaveActual] = useState("");
   const [claveNueva, setClaveNueva] = useState("");
   const [claveConfirmar, setClaveConfirmar] = useState("");
+
+  const [pendienteFrecuencia, startTransitionFrecuencia] = useTransition();
+  const [frecuencia, setFrecuencia] = useState(frecuenciaConteo || "ninguna");
+
+  const guardarFrecuencia = () => {
+    startTransitionFrecuencia(async () => {
+      try {
+        await cambiarFrecuenciaConteo(frecuencia === "ninguna" ? "" : frecuencia);
+        toast.success("Frecuencia de conteo actualizada");
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
 
   const cambiar = () => {
     if (pinNuevo !== pinConfirmar) return toast.error("El nuevo PIN y su confirmación no coinciden.");
@@ -74,6 +87,33 @@ export function SeguridadCliente() {
           <div className="grid gap-1.5"><Label>Confirmar nueva clave</Label><Input type="password" value={claveConfirmar} onChange={e => setClaveConfirmar(e.target.value)} /></div>
           <Button onClick={cambiarContadora} disabled={pendienteContadora || !claveActual || !claveNueva || !claveConfirmar}>
             {pendienteContadora ? "Guardando..." : "Cambiar Clave"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ClipboardCheck className="size-5 text-primary" /> Conteo Físico de Inventario</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Con qué frecuencia debe recordarse hacer un arqueo del inventario. El recordatorio aparece en el dashboard cuando se vence.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label>Frecuencia</Label>
+            <Select value={frecuencia} onValueChange={v => v && setFrecuencia(v)}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ninguna">Sin recordatorio</SelectItem>
+                <SelectItem value="Mensual">Mensual</SelectItem>
+                <SelectItem value="Trimestral">Trimestral</SelectItem>
+                <SelectItem value="Semestral">Semestral</SelectItem>
+                <SelectItem value="Anual">Anual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={guardarFrecuencia} disabled={pendienteFrecuencia}>
+            {pendienteFrecuencia ? "Guardando..." : "Guardar Frecuencia"}
           </Button>
         </CardContent>
       </Card>
