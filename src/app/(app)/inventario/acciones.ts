@@ -2,9 +2,10 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
+import { verificarPin } from "@/lib/pin";
 import { registrarBitacora } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
-import type { Producto } from "@/lib/tipos";
+import { formatoPesos, type Producto } from "@/lib/tipos";
 
 function revalidarInventario() {
   revalidatePath("/inventario");
@@ -402,4 +403,136 @@ export async function importarInventarioInicial(filas: FilaImportacion[]): Promi
 
   revalidarInventario();
   return { creados, actualizados, ingresados, errores };
+}
+
+// ------------------------------------------------------------
+// ARQUEOS (conteos físicos con cuadre autorizado por gerencia)
+// ------------------------------------------------------------
+
+export async function abrirArqueo(datos: {
+  categoria?: string;
+  ubicacion_id?: number;
+  observaciones?: string;
+}) {
+  const sesion = await requierePermiso("inventario");
+
+  const { data: maxData, error: errMax } = await db().from("arqueos").select("numero").order("numero", { ascending: false }).limit(1);
+  if (errMax) throw new Error(errMax.message);
+  const numero = ((maxData?.[0]?.numero as number) || 0) + 1;
+
+  // Alcance del conteo: productos con control de inventario (filtrados por categoría)
+  let qProds = db().from("productos").select("id, nombre, sku, categoria, costo_promedio").eq("controla_inventario", true).eq("estado", "Activo");
+  if (datos.categoria?.trim()) qProds = qProds.eq("categoria", datos.categoria.trim());
+  const [{ data: prods, error: errProds }, { data: ubicaciones, error: errUb }, { data: existencias, error: errEx }] = await Promise.all([
+    qProds,
+    db().from("inventario_ubicaciones").select("id, nombre").eq("activa", true),
+    db().from("inventario_existencias").select("*"),
+  ]);
+  if (errProds) throw new Error(errProds.message);
+  if (errUb) throw new Error(errUb.message);
+  if (errEx) throw new Error(errEx.message);
+  if (!prods?.length) throw new Error("No hay productos con control de inventario en ese alcance.");
+
+  const ubicacionesConteo = (ubicaciones || []).filter(u => !datos.ubicacion_id || u.id === datos.ubicacion_id);
+  if (!ubicacionesConteo.length) throw new Error("Ubicación no encontrada.");
+
+  const { data: arqueo, error: errArq } = await db().from("arqueos").insert({
+    numero,
+    categoria: datos.categoria?.trim() || null,
+    ubicacion_id: datos.ubicacion_id || null,
+    observaciones: datos.observaciones?.trim() || null,
+    usuario_abre: sesion.usuario,
+  }).select("id, numero").single();
+  if (errArq) throw new Error(errArq.message);
+
+  // Snapshot: una fila por producto × ubicación con la cantidad del sistema
+  const filas = prods.flatMap(p => ubicacionesConteo.map(u => ({
+    arqueo_id: arqueo.id,
+    producto_id: p.id,
+    producto: `${p.sku ? p.sku + " — " : ""}${p.nombre}`,
+    ubicacion_id: u.id,
+    ubicacion: u.nombre,
+    cantidad_sistema: Number(existencias?.find(e => e.producto_id === p.id && e.ubicacion_id === u.id)?.cantidad) || 0,
+    costo_unitario: Number(p.costo_promedio) || 0,
+  })));
+  const { error: errDet } = await db().from("arqueos_detalle").insert(filas);
+  if (errDet) {
+    await db().from("arqueos").delete().eq("id", arqueo.id);
+    throw new Error(errDet.message);
+  }
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "inventario", accion: "crear",
+    entidad_tipo: "arqueos", entidad_id: arqueo.id,
+    descripcion: `Arqueo #${numero} abierto (${filas.length} referencias × ubicación)${datos.categoria ? ` — categoría ${datos.categoria}` : ""}`,
+    datos_nuevos: { ...datos, numero, filas: filas.length },
+  });
+  revalidarInventario();
+  return { id: arqueo.id as number, numero: arqueo.numero as number };
+}
+
+export async function registrarConteo(arqueoId: number, filas: { detalle_id: number; cantidad_fisica: number }[]) {
+  const sesion = await requierePermiso("inventario");
+  const { data: arqueo, error: errGet } = await db().from("arqueos").select("estado, numero").eq("id", arqueoId).single();
+  if (errGet) throw new Error(errGet.message);
+  if (arqueo.estado !== "Abierto") throw new Error(`El arqueo #${arqueo.numero} ya está ${arqueo.estado}.`);
+
+  const validas = (filas || []).filter(f => f.cantidad_fisica != null && Number(f.cantidad_fisica) >= 0);
+  if (!validas.length) throw new Error("No hay conteos para guardar.");
+
+  for (const f of validas) {
+    const { data: det } = await db().from("arqueos_detalle").select("cantidad_sistema").eq("id", f.detalle_id).eq("arqueo_id", arqueoId).single();
+    if (!det) continue;
+    const fisica = Number(f.cantidad_fisica);
+    await db().from("arqueos_detalle").update({
+      cantidad_fisica: fisica,
+      diferencia: fisica - Number(det.cantidad_sistema),
+      contado_en: new Date().toISOString(),
+      usuario: sesion.usuario,
+    }).eq("id", f.detalle_id);
+  }
+
+  revalidarInventario();
+}
+
+export async function cerrarArqueo(arqueoId: number, pin: string) {
+  const sesion = await requierePermiso("inventario");
+  await verificarPin(pin); // Autorización explícita de gerencia
+
+  const { data, error } = await db().rpc("cerrar_arqueo", {
+    p_arqueo_id: arqueoId,
+    p_usuario: sesion.usuario,
+  });
+  if (error) throw new Error(error.message);
+  const resultado = Array.isArray(data) ? data[0] : data;
+  const ajustados = Number(resultado?.ajustados) || 0;
+  const valor = Number(resultado?.valor_diferencia) || 0;
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "inventario", accion: "cerrar_arqueo",
+    entidad_tipo: "arqueos", entidad_id: arqueoId,
+    descripcion: `Arqueo cerrado y cuadrado: ${ajustados} ajuste${ajustados === 1 ? "" : "s"}, diferencia valorizada ${formatoPesos(valor)}`,
+    datos_nuevos: { ajustados, valor_diferencia: valor },
+  });
+  revalidarInventario();
+  return { ajustados, valor_diferencia: valor };
+}
+
+export async function anularArqueo(arqueoId: number, pin: string) {
+  const sesion = await requierePermiso("inventario");
+  await verificarPin(pin);
+  const { data: arqueo, error: errGet } = await db().from("arqueos").select("estado, numero").eq("id", arqueoId).single();
+  if (errGet) throw new Error(errGet.message);
+  if (arqueo.estado !== "Abierto") throw new Error(`El arqueo #${arqueo.numero} ya está ${arqueo.estado}.`);
+
+  const { error } = await db().from("arqueos").update({ estado: "Anulado", fecha_cierre: new Date().toISOString(), usuario_cierra: sesion.usuario }).eq("id", arqueoId);
+  if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "inventario", accion: "cambiar_estado",
+    entidad_tipo: "arqueos", entidad_id: arqueoId,
+    descripcion: `Arqueo #${arqueo.numero} anulado (sin aplicar ajustes)`,
+    datos_nuevos: { estado: "Anulado" },
+  });
+  revalidarInventario();
 }

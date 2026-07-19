@@ -405,6 +405,41 @@ Stock comprometido por ventas (se crea al registrar/editar una venta con product
 
 ---
 
+## arqueos
+
+Sesión de conteo físico de inventario (total, por categoría o por ubicación — conteos cíclicos). Estados: `Abierto` → `Cerrado` (cuadre aplicado con PIN de gerencia) / `Anulado`. Un arqueo cerrado es inmutable; nunca se borra información.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| numero | integer | not null, **unique** | Consecutivo |
+| fecha_inicio / fecha_cierre | timestamptz | inicio not null | |
+| estado | text | not null, default `'Abierto'`, check `('Abierto','Cerrado','Anulado')` | |
+| categoria | text | null | Alcance del conteo (null = todas) |
+| ubicacion_id | bigint | null, FK → `inventario_ubicaciones(id)` | Alcance (null = todas) |
+| observaciones / usuario_abre / usuario_cierra | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+## arqueos_detalle
+
+Una fila por producto + ubicación incluida en el arqueo. `cantidad_sistema` es el snapshot al abrir; `diferencia = física − sistema` se valoriza con `costo_unitario` (costo promedio al abrir).
+
+| Columna | Tipo | Nulos/Default |
+|---|---|---|
+| id | bigint | PK identity |
+| arqueo_id | bigint | not null, FK cascade |
+| producto_id | bigint | null, FK set null (+ `producto` texto copiado) |
+| ubicacion_id | bigint | null (+ `ubicacion` texto copiado) |
+| cantidad_sistema | numeric | not null, default 0 |
+| cantidad_fisica | numeric | null (null = aún no contado) |
+| diferencia | numeric | null |
+| costo_unitario | numeric | not null, default 0 |
+| contado_en / usuario | — | null |
+
+Restricción: `unique (arqueo_id, producto_id, ubicacion_id)`. El kardex (`inventario_movimientos`) tiene `arqueo_id` para rastrear los ajustes de cada cuadre.
+
+---
+
 ## prospectos
 
 Clientes por contactar.
@@ -436,6 +471,7 @@ Fila única con ajustes globales del sistema.
 | id | bigint | PK identity | |
 | clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. PIN requerido para editar/eliminar ventas (Configuración → Seguridad la cambia) |
 | clave_contadora | text | not null, default `'CAMBIAR-5678'` | ⚠️ **TEXTO PLANO**. Clave requerida para editar gastos/ingresos en Financiero (Configuración → Seguridad la cambia, solo admin) |
+| frecuencia_conteo | text | null, check `('Mensual','Trimestral','Semestral','Anual')` | Frecuencia deseada de conteos físicos de inventario (recordatorio en el dashboard) |
 | creado_en | timestamptz | not null, default `now()` | |
 
 ---
@@ -673,6 +709,10 @@ Descuento físico al entregar (llamado por `actualizarEntrega` cuando el estado 
 ### `nativo.surtir_pendientes(p_producto_id, p_usuario) → void`
 
 Surtido automático FIFO: asigna el stock libre de un producto a las reservas con `cantidad_pendiente` más antiguas. Si la venta ya está Entregada, auto-despacha lo surtido de inmediato. Lo llama `ingresar_inventario` al final de cada ingreso (compras, ingresos manuales, devoluciones).
+
+### `nativo.cerrar_arqueo(p_arqueo_id, p_usuario) → (ajustados integer, valor_diferencia numeric)`
+
+Cuadre masivo atómico de un conteo físico: por cada detalle contado con diferencia ≠ 0 aplica el **delta** a la existencia (tolera movimientos posteriores al conteo) e inserta el kardex tipo `ajuste` con `arqueo_id`. Si un delta negativo dejaría una existencia bajo cero, todo el cierre se revierte (nunca cuadra a ciegas). El **PIN de gerencia** (`verificarPin`) se valida en la server action `cerrarArqueo` antes de invocar el RPC.
 
 ### `nativo.recibir_orden_compra(p_orden_id, p_lineas jsonb, p_numero_factura, p_fecha, p_usuario, p_crear_gasto default true) → nativo.ordenes_compra`
 

@@ -224,6 +224,23 @@ export async function catalogoVentaInventario() {
   }));
 }
 
+export async function arqueosTodos() {
+  const { data, error } = await db().from("arqueos").select("*").order("numero", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function arqueosDetallePorArqueo(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("arqueos_detalle").select("*").order("producto");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const d of data || []) {
+    if (!out[d.arqueo_id]) out[d.arqueo_id] = [];
+    out[d.arqueo_id].push(d);
+  }
+  return out;
+}
+
 export async function ordenesCompra() {
   const { data, error } = await db().from("ordenes_compra").select("*").order("numero", { ascending: false });
   if (error) throw new Error(error.message);

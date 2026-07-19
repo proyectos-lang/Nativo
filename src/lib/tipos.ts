@@ -163,6 +163,35 @@ export type OrdenCompraDetalle = {
   creado_en: string;
 };
 
+export type Arqueo = {
+  id: number;
+  numero: number;
+  fecha_inicio: string;
+  fecha_cierre: string | null;
+  estado: "Abierto" | "Cerrado" | "Anulado";
+  categoria: string | null;
+  ubicacion_id: number | null;
+  observaciones: string | null;
+  usuario_abre: string | null;
+  usuario_cierra: string | null;
+  creado_en: string;
+};
+
+export type ArqueoDetalle = {
+  id: number;
+  arqueo_id: number;
+  producto_id: number | null;
+  producto: string;
+  ubicacion_id: number | null;
+  ubicacion: string | null;
+  cantidad_sistema: number;
+  cantidad_fisica: number | null;
+  diferencia: number | null;
+  costo_unitario: number;
+  contado_en: string | null;
+  usuario: string | null;
+};
+
 export const NOMBRE_TIPO_MOVIMIENTO_INVENTARIO: Record<string, string> = {
   inventario_inicial: "Inventario Inicial",
   entrada: "Entrada",
