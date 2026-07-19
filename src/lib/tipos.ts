@@ -10,6 +10,7 @@ export type Permisos = {
   configuracion: boolean;
   financiero: boolean;
   devoluciones: boolean;
+  inventario: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -46,6 +47,94 @@ export type Proveedor = {
   direccion: string | null;
   ciudad: string | null;
   departamento: string | null;
+};
+
+export type Producto = {
+  id: number;
+  nombre: string;
+  sku: string | null;
+  codigo_barras: string | null;
+  categoria: string | null;
+  subcategoria: string | null;
+  sexo: string | null;
+  talla: string | null;
+  color: string | null;
+  manga: string | null;
+  unidad_medida: string;
+  precio_compra: number;
+  precio_venta_antes_iva: number;
+  iva_porcentaje: number;
+  precio_venta: number;
+  costo_promedio: number;
+  es_servicio: boolean;
+  controla_inventario: boolean;
+  estado: "Activo" | "Descontinuado";
+  fecha_vencimiento: string | null;
+  stock_minimo: number;
+  stock_maximo: number | null;
+  creado_en: string;
+};
+
+export type InventarioUbicacion = {
+  id: number;
+  nombre: string;
+  activa: boolean;
+  creado_en: string;
+};
+
+export type InventarioExistencia = {
+  id: number;
+  producto_id: number;
+  ubicacion_id: number;
+  cantidad: number;
+  actualizado_en: string;
+};
+
+export type InventarioMovimiento = {
+  id: number;
+  fecha: string;
+  tipo: "inventario_inicial" | "entrada" | "devolucion" | "salida" | "venta" | "traslado_salida" | "traslado_entrada" | "ajuste";
+  producto_id: number | null;
+  producto: string;
+  ubicacion_id: number | null;
+  ubicacion: string | null;
+  cantidad: number;
+  costo_unitario: number | null;
+  saldo_despues: number;
+  referencia: string | null;
+  venta_id: number | null;
+  proveedor_id: number | null;
+  numero_factura: string | null;
+  lote: string | null;
+  motivo: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type InventarioReserva = {
+  id: number;
+  venta_id: number;
+  ticket: number;
+  producto_id: number;
+  producto: string;
+  cantidad: number;
+  cantidad_pendiente: number;
+  estado: "Activa" | "Despachada" | "Cancelada";
+  fecha_surtido: string | null;
+  fecha_despacho: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+export const NOMBRE_TIPO_MOVIMIENTO_INVENTARIO: Record<string, string> = {
+  inventario_inicial: "Inventario Inicial",
+  entrada: "Entrada",
+  devolucion: "Devolución",
+  salida: "Salida",
+  venta: "Venta",
+  traslado_salida: "Traslado (salida)",
+  traslado_entrada: "Traslado (entrada)",
+  ajuste: "Ajuste",
 };
 
 export type Venta = {
@@ -158,6 +247,7 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "prospectos", nombre: "Prospectos" },
   { clave: "clientes", nombre: "Clientes" },
   { clave: "proveedores", nombre: "Proveedores" },
+  { clave: "inventario", nombre: "Inventario" },
   { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
@@ -173,6 +263,7 @@ export const MODULO_URL: Record<Modulo, string> = {
   prospectos: "/prospectos",
   clientes: "/clientes",
   proveedores: "/proveedores",
+  inventario: "/inventario",
   financiero: "/financiero",
   configuracion: "/configuracion",
 };

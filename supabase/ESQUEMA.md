@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero` y `devoluciones` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones` e `inventario` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -72,13 +72,35 @@ Clon de `clientes` para la base de datos de proveedores (usada en Financiero →
 
 ## productos
 
-Catálogo simple de nombres de producto (se alimenta automáticamente al registrar/editar ventas con productos nuevos).
+Catálogo de referencias/variantes del inventario (una fila = una referencia; talla/color/manga hacen parte de la identidad; el **SKU** es la clave real). Sigue alimentándose automáticamente al registrar ventas con productos nuevos en texto libre — esos productos quedan con `controla_inventario = false` (sin stock) hasta "enrolarse" desde el módulo Inventario.
 
-| Columna | Tipo | Nulos/Default |
-|---|---|---|
-| id | bigint | PK identity |
-| nombre | text | not null, **unique** |
-| creado_en | timestamptz | not null, default `now()` |
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| nombre | text | not null, **unique** | Las variantes necesitan nombres distintos (convención: "Camiseta Polo H — M — Blanca") |
+| sku | text | null, **unique** (índice parcial) | Código interno de la referencia |
+| codigo_barras | text | null | |
+| categoria | text | null | Lista maestra tipo `categoria_producto` |
+| subcategoria | text | null | |
+| sexo | text | null | Lista maestra `sexo` |
+| talla | text | null | Lista maestra `talla` |
+| color | text | null | Lista maestra `color` |
+| manga | text | null | Lista maestra `tipo_manga` |
+| unidad_medida | text | not null, default `'Unidad'` | Lista maestra `unidad_medida` |
+| precio_compra | numeric | not null, default 0 | Último precio de compra (lo actualiza `ingresar_inventario`) |
+| precio_venta_antes_iva | numeric | not null, default 0 | |
+| iva_porcentaje | numeric | not null, default 0 | |
+| precio_venta | numeric | not null, default 0 | **Calculado server-side:** `antes_iva × (1 + iva/100)` |
+| costo_promedio | numeric | not null, default 0 | Promedio ponderado, recalculado en cada ingreso |
+| es_servicio | boolean | not null, default `false` | Se vende como producto pero **nunca** mueve inventario |
+| controla_inventario | boolean | not null, default `false` | Solo los enrolados participan en existencias/kardex/reservas |
+| estado | text | not null, default `'Activo'`, check `('Activo','Descontinuado')` | |
+| fecha_vencimiento | date | null | Opcional — reporte de próximos a vencer |
+| stock_minimo | numeric | not null, default 0 | Editable por referencia (alertas) |
+| stock_maximo | numeric | null | null = sin máximo |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Constraint: `chk_servicio_sin_inventario` — un servicio no puede controlar inventario. Índices: `idx_productos_sku` (parcial), `idx_productos_categoria`, `idx_productos_estado`.
 
 ---
 
@@ -95,7 +117,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -269,6 +291,83 @@ Historial de cambios de estado por prenda devuelta (una prenda puede reprocesars
 | usuario | text | null | |
 
 Índice: `idx_devoluciones_historial_detalle (devolucion_detalle_id)`.
+
+---
+
+## inventario_ubicaciones
+
+Ubicaciones físicas del inventario (semillas: Bodega, Exhibición; ampliable).
+
+| Columna | Tipo | Nulos/Default |
+|---|---|---|
+| id | bigint | PK identity |
+| nombre | text | not null, **unique** |
+| activa | boolean | not null, default `true` |
+| creado_en | timestamptz | not null, default `now()` |
+
+---
+
+## inventario_existencias
+
+Stock físico actual: una fila por producto + ubicación. **Nunca negativa** (check `cantidad >= 0`) — decisión de negocio: sin inventario negativo; los faltantes de "venta sin inventario" viven como `cantidad_pendiente` en `inventario_reservas`.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| producto_id | bigint | not null, FK → `productos(id)` **on delete cascade** | |
+| ubicacion_id | bigint | not null, FK → `inventario_ubicaciones(id)` | |
+| cantidad | numeric | not null, default 0, check `>= 0` | |
+| actualizado_en | timestamptz | not null, default `now()` | |
+
+Restricción: `unique (producto_id, ubicacion_id)`. Índice: `idx_existencias_producto`. Solo se modifica vía los RPCs de inventario (nunca updates directos desde la app).
+
+---
+
+## inventario_movimientos (kardex)
+
+Libro de inventario: todo movimiento queda registrado y **nunca se borra**. FKs blandas (`on delete set null`) + texto copiado (mismo criterio que `devoluciones_detalle`), para que el historial sobreviva a ediciones/eliminaciones.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| fecha | timestamptz | not null, default `now()` | |
+| tipo | text | not null, check `('inventario_inicial','entrada','devolucion','salida','venta','traslado_salida','traslado_entrada','ajuste')` | |
+| producto_id | bigint | null, FK → `productos(id)` set null | |
+| producto | text | not null | "SKU — Nombre" copiado |
+| ubicacion_id / ubicacion | bigint / text | null | FK blanda + nombre copiado |
+| cantidad | numeric | not null | **Siempre con signo** (+entra / −sale); en `ajuste` es la diferencia |
+| costo_unitario | numeric | null | Costo del movimiento (histórico — los reportes de rentabilidad usan este, no el costo actual) |
+| saldo_despues | numeric | not null | Stock TOTAL del producto (todas las ubicaciones) tras el movimiento |
+| referencia | text | null | 'Ticket #123', 'OC #4', 'Arqueo #2', factura, etc. |
+| venta_id / proveedor_id | bigint | null, FK set null | |
+| numero_factura / lote / motivo / usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `(producto_id, fecha)`, `tipo`, `fecha`, `venta_id`. Las consultas de la app usan límite/paginación (el kardex crece indefinidamente).
+
+---
+
+## inventario_reservas
+
+Stock comprometido por ventas (se crea al registrar/editar una venta con productos inventariados; se convierte en salida física al despachar — Fase 4). **No depende de `ventas_detalle.id`** (esos ids cambian en cada edición de venta). `cantidad_pendiente` = parte sin respaldo físico ("pendiente por surtir" de una venta sin inventario), surtida automáticamente FIFO al ingresar mercancía.
+
+**Disponible(producto) = Σ existencias físicas − Σ (cantidad − cantidad_pendiente) de reservas Activas.**
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| venta_id | bigint | not null, FK → `ventas(id)` **on delete cascade** | |
+| ticket | integer | not null | Copiado para reportes |
+| producto_id | bigint | not null, FK → `productos(id)` | |
+| producto | text | not null | Copiado |
+| cantidad | numeric | not null, check `> 0` | |
+| cantidad_pendiente | numeric | not null, default 0, check `0 ≤ x ≤ cantidad` | Sin respaldo físico |
+| estado | text | not null, default `'Activa'`, check `('Activa','Despachada','Cancelada')` | |
+| fecha_surtido / fecha_despacho | timestamptz | null | |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `venta_id`, `(producto_id, estado)`, e índice parcial FIFO `(producto_id, creado_en) where estado='Activa' and cantidad_pendiente > 0`.
 
 ---
 
@@ -512,6 +611,22 @@ En una sola transacción: lee el `estado_entrega` actual, actualiza la cabecera 
 Espejo exacto de `pagar_gasto`: en una sola transacción inserta `pagos_ingresos`, actualiza el ingreso (acumula `cobrado`, recalcula `saldo`, fija `estado` — `Cobrado` si saldo ≤ 0, si no `Abonado`) e inserta el movimiento bancario de **ingreso** (origen `pago_ingreso`). Valida monto > 0 y cuenta obligatoria.
 
 No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como statements directos en la server action (igual que `actualizarVenta`), protegidos por `verificarPinContadora` y registrando el cambio en `bitacora`.
+
+### `nativo.ingresar_inventario(p_producto_id, p_ubicacion_id, p_cantidad, p_costo_unitario default null, p_tipo default 'entrada', p_referencia, p_proveedor_id, p_numero_factura, p_lote, p_motivo, p_usuario, p_venta_id, p_fecha) → nativo.productos`
+
+Entrada de inventario atómica (tipos: `entrada`, `inventario_inicial`, `devolucion`). Lock del producto (`for update` — serializa por producto), rechaza servicios y no-enrolados, suma a la existencia de la ubicación y recalcula el **costo promedio ponderado**: `round((stock_total×costo_actual + cantidad×costo)/(stock_total+cantidad), 4)`. Con `p_costo_unitario` null la mercancía entra al costo promedio actual sin alterarlo (caso devoluciones). Actualiza `precio_compra` solo en entradas/inicial con costo explícito. Inserta el kardex con `saldo_despues`.
+
+### `nativo.trasladar_inventario(p_producto_id, p_origen_id, p_destino_id, p_cantidad, p_motivo, p_usuario) → void`
+
+Traslado entre ubicaciones: valida stock en origen, resta/suma existencias e inserta DOS filas de kardex (`traslado_salida` negativa / `traslado_entrada` positiva). El stock total y el costo promedio no cambian.
+
+### `nativo.ajustar_inventario(p_producto_id, p_ubicacion_id, p_cantidad_fisica, p_motivo, p_usuario, p_referencia) → numeric`
+
+Ajuste puntual por conteo físico: deja la existencia de la ubicación = cantidad física, registra la **diferencia** (con signo) en el kardex y la retorna. Error si no hay diferencia. No cambia el costo promedio.
+
+### `nativo.salida_manual_inventario(p_producto_id, p_ubicacion_id, p_cantidad, p_motivo, p_usuario, p_referencia) → void`
+
+Salida directa (bajas, muestras, obsequios): valida stock en la ubicación **y** que la salida no deje el stock total por debajo de lo reservado para ventas pendientes de despacho.
 
 ### `nativo.registrar_devolucion_perdida(p_devolucion_detalle_id bigint, p_valor_perdido numeric, p_cuenta_id bigint default null, p_fecha date default current_date, p_comentario text default null, p_usuario text default null) → nativo.ventas`
 

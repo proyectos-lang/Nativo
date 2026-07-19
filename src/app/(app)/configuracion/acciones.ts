@@ -123,6 +123,10 @@ export async function crearProducto(nombre: string) {
 export async function eliminarProducto(id: number) {
   const sesion = await requierePermiso("configuracion");
   const { data: anterior } = await db().from("productos").select("*").eq("id", id).single();
+  const { data: tieneKardex } = await db().from("inventario_movimientos").select("id").eq("producto_id", id).limit(1);
+  if (tieneKardex?.length) {
+    throw new Error("Este producto tiene movimientos de inventario: no se puede eliminar. Descontinúalo desde el módulo Inventario.");
+  }
   const { error } = await db().from("productos").delete().eq("id", id);
   if (error) throw new Error(error.message);
   await registrarBitacora({

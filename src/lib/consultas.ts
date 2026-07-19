@@ -160,6 +160,45 @@ export async function historialPorVenta(): Promise<Record<number, unknown[]>> {
   return out;
 }
 
+// ------------------------------------------------------------
+// INVENTARIO
+// ------------------------------------------------------------
+
+/** Catálogo completo de productos (todas las columnas del inventario). */
+export async function productosCatalogo() {
+  const { data, error } = await db().from("productos").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function ubicacionesInventario() {
+  const { data, error } = await db().from("inventario_ubicaciones").select("*").order("id");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function existenciasInventario() {
+  const { data, error } = await db().from("inventario_existencias").select("*");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function reservasInventarioActivas() {
+  const { data, error } = await db().from("inventario_reservas").select("*").eq("estado", "Activa").order("creado_en");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Kardex con límite (la tabla crece indefinidamente — nunca traerla completa). */
+export async function movimientosInventario(limite = 500) {
+  const { data, error } = await db()
+    .from("inventario_movimientos").select("*")
+    .order("fecha", { ascending: false }).order("id", { ascending: false })
+    .limit(limite);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function devolucionesTodas() {
   const { data, error } = await db().from("devoluciones").select("*").order("creado_en", { ascending: false });
   if (error) throw new Error(error.message);
