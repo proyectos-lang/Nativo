@@ -127,6 +127,15 @@ export type InventarioReserva = {
   creado_en: string;
 };
 
+/** Info liviana del catálogo para el formulario de ventas (match por nombre). */
+export type InfoInventarioVenta = {
+  nombre: string;
+  sku: string | null;
+  es_servicio: boolean;
+  controla_inventario: boolean;
+  disponible: number;
+};
+
 export type OrdenCompra = {
   id: number;
   numero: number;

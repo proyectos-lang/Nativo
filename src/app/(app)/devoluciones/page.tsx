@@ -1,17 +1,17 @@
 import { requiereSesion } from "@/lib/sesion";
 import {
   ventasConCliente, detallesPorVenta, devolucionesTodas, devolucionesDetallePorDevolucion,
-  devolucionesHistorialPorDetalle, listasMaestras, cuentasConSaldo,
+  devolucionesHistorialPorDetalle, listasMaestras, cuentasConSaldo, ubicacionesInventario,
 } from "@/lib/consultas";
 import { DevolucionesCliente } from "./devoluciones-cliente";
-import type { Venta, VentaDetalle, Devolucion, DevolucionDetalle, DevolucionHistorial, CuentaBancaria } from "@/lib/tipos";
+import type { Venta, VentaDetalle, Devolucion, DevolucionDetalle, DevolucionHistorial, CuentaBancaria, InventarioUbicacion } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaginaDevoluciones() {
   await requiereSesion();
 
-  const [ventas, detallesVenta, devoluciones, detalles, historial, maestros, cuentas] = await Promise.all([
+  const [ventas, detallesVenta, devoluciones, detalles, historial, maestros, cuentas, ubicaciones] = await Promise.all([
     ventasConCliente(),
     detallesPorVenta(),
     devolucionesTodas(),
@@ -19,6 +19,7 @@ export default async function PaginaDevoluciones() {
     devolucionesHistorialPorDetalle(),
     listasMaestras(),
     cuentasConSaldo(),
+    ubicacionesInventario(),
   ]);
 
   return (
@@ -30,6 +31,7 @@ export default async function PaginaDevoluciones() {
       historial={historial as Record<number, DevolucionHistorial[]>}
       causales={maestros["causal_devolucion"] || []}
       cuentas={(cuentas as CuentaBancaria[]).filter(c => c.activa)}
+      ubicaciones={(ubicaciones as InventarioUbicacion[]).filter(u => u.activa)}
     />
   );
 }

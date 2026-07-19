@@ -19,7 +19,7 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, 
 import { Combo } from "@/components/combo";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { RotateCcw, PlusCircle, Wrench, CheckCircle2, XCircle, ListFilter } from "lucide-react";
-import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type Devolucion, type DevolucionDetalle, type DevolucionHistorial, type CuentaBancaria } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Venta, type VentaDetalle, type Devolucion, type DevolucionDetalle, type DevolucionHistorial, type CuentaBancaria, type InventarioUbicacion } from "@/lib/tipos";
 
 type Props = {
   ventas: Venta[];
@@ -29,6 +29,7 @@ type Props = {
   historial: Record<number, DevolucionHistorial[]>;
   causales: string[];
   cuentas: CuentaBancaria[];
+  ubicaciones: InventarioUbicacion[];
 };
 
 type SeleccionLinea = { incluir: boolean; cantidad: number; causal: string; observacion: string; recuperable: boolean };
@@ -55,7 +56,7 @@ const BADGE_ESTADO: Record<string, "outline" | "secondary" | "default" | "destru
 
 const ESTADOS_DEVOLUCION = ["Pendiente", "En Reproceso", "Recuperada", "Perdida"];
 
-export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detalles, historial, causales, cuentas }: Props) {
+export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detalles, historial, causales, cuentas, ubicaciones }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -147,7 +148,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
 
   // ---- Marcar recuperada ----
   const [dialogRecuperada, setDialogRecuperada] = useState<DevolucionDetalle | null>(null);
-  const [formRecuperada, setFormRecuperada] = useState({ costo: 0, tipoGasto: "Costo" as "Gasto" | "Costo", pagarAhora: false, cuentaId: 0, comentario: "" });
+  const [formRecuperada, setFormRecuperada] = useState({ costo: 0, tipoGasto: "Costo" as "Gasto" | "Costo", pagarAhora: false, cuentaId: 0, comentario: "", reingresar: false, ubicacionId: 0 });
 
   // ---- Marcar perdida ----
   const [dialogPerdida, setDialogPerdida] = useState<DevolucionDetalle | null>(null);
@@ -397,7 +398,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                         <Button size="sm" variant="outline" onClick={() => { setDialogReproceso(det); setComentarioReproceso(""); }}>
                           <Wrench className="size-4" /> Reintentar Reproceso
                         </Button>
-                        <Button size="sm" onClick={() => { setDialogRecuperada(det); setFormRecuperada({ costo: 0, tipoGasto: "Costo", pagarAhora: false, cuentaId: 0, comentario: "" }); }}>
+                        <Button size="sm" onClick={() => { setDialogRecuperada(det); setFormRecuperada({ costo: 0, tipoGasto: "Costo", pagarAhora: false, cuentaId: 0, comentario: "", reingresar: false, ubicacionId: 0 }); }}>
                           <CheckCircle2 className="size-4" /> Marcar Recuperada
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => { setDialogPerdida(det); setPedirCuentaPerdida(false); setCuentaPerdida(0); setComentarioPerdida(""); }}>
@@ -478,11 +479,27 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                 )}
               </>
             )}
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={formRecuperada.reingresar} onCheckedChange={v => setFormRecuperada({ ...formRecuperada, reingresar: v })} />
+              Reingresar la prenda al inventario
+            </label>
+            {formRecuperada.reingresar && (
+              <div className="grid gap-1.5">
+                <Label>Ubicación donde reingresa *</Label>
+                <Select value={formRecuperada.ubicacionId ? String(formRecuperada.ubicacionId) : ""} onValueChange={v => v && setFormRecuperada({ ...formRecuperada, ubicacionId: Number(v) })}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Seleccione ubicación..." /></SelectTrigger>
+                  <SelectContent>
+                    {ubicaciones.map(u => <SelectItem key={u.id} value={String(u.id)}>{u.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Requiere que el producto exista en el catálogo de Inventario (mismo nombre).</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogRecuperada(null)}>Cancelar</Button>
             <Button
-              disabled={pendiente || (formRecuperada.pagarAhora && !formRecuperada.cuentaId)}
+              disabled={pendiente || (formRecuperada.pagarAhora && !formRecuperada.cuentaId) || (formRecuperada.reingresar && !formRecuperada.ubicacionId)}
               onClick={() => dialogRecuperada && correr(
                 () => resolverRecuperada({
                   detalle_id: dialogRecuperada.id,
@@ -491,6 +508,8 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                   tipo_gasto: formRecuperada.tipoGasto,
                   pagarAhora: formRecuperada.pagarAhora,
                   cuenta_id: formRecuperada.cuentaId || undefined,
+                  reingresar_inventario: formRecuperada.reingresar,
+                  ubicacion_id: formRecuperada.ubicacionId || undefined,
                 }),
                 "Prenda marcada como recuperada",
                 () => setDialogRecuperada(null),

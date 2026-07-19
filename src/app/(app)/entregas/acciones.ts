@@ -17,6 +17,17 @@ export async function actualizarEntrega(datos: {
   const sesion = await requierePermiso("entregas");
   if (!datos.estado_nuevo?.trim()) throw new Error("Selecciona un estado.");
 
+  // Al marcar "Entregado", primero se despacha el inventario reservado
+  // (descuento físico + kardex). Si el despacho falla, la entrega no se
+  // marca — el RPC es idempotente y se puede reintentar.
+  if (datos.estado_nuevo.trim().toLowerCase() === "entregado") {
+    const { error: errDespacho } = await db().rpc("despachar_venta", {
+      p_venta_id: datos.venta_id,
+      p_usuario: sesion.usuario,
+    });
+    if (errDespacho) throw new Error("No se pudo despachar el inventario: " + errDespacho.message);
+  }
+
   const { data, error } = await db().rpc("actualizar_entrega", {
     p_venta_id: datos.venta_id,
     p_estado_nuevo: datos.estado_nuevo,
@@ -38,6 +49,7 @@ export async function actualizarEntrega(datos: {
 
   revalidatePath("/entregas");
   revalidatePath("/seguimiento");
+  revalidatePath("/inventario");
   revalidatePath("/");
   return data;
 }

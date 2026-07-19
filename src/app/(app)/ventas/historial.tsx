@@ -16,7 +16,8 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, 
 import { Combo } from "@/components/combo";
 import { SubidaImagen } from "@/components/subida-imagen";
 import { FileSpreadsheet, Pencil, Plus, Trash2, ShieldAlert } from "lucide-react";
-import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type Pago, type Cliente } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, cumplimientoEntrega, type Venta, type VentaDetalle, type Pago, type Cliente, type InfoInventarioVenta } from "@/lib/tipos";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Props = {
   ventas: Venta[];
@@ -25,11 +26,12 @@ type Props = {
   maestros: Record<string, string[]>;
   productos: string[];
   clientes: Cliente[];
+  inventario: InfoInventarioVenta[];
 };
 
 type AccionPin = "editar" | "eliminar" | null;
 
-export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes }: Props) {
+export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes, inventario }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [desde, setDesde] = useState("");
@@ -117,9 +119,12 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
     setEdicionAbierta(true);
   };
 
-  const setLineaEd = (i: number, campo: keyof LineaVenta, valor: string | number | null) => {
+  const setLineaEd = (i: number, campo: keyof LineaVenta, valor: string | number | boolean | null) => {
     setLineasEd(prev => prev.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
   };
+
+  const infoInventario = (nombreProducto: string) =>
+    inventario.find(x => x.nombre === nombreProducto.trim());
 
   const abrirEditarCliente = () => {
     if (!clienteEdSel) return;
@@ -447,7 +452,31 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                   </Button>
                 )}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="grid gap-1.5 lg:col-span-2"><Label>Producto *</Label><Combo opciones={productos} value={l.producto} onChange={v => setLineaEd(i, "producto", v)} /></div>
+                  <div className="grid gap-1.5 lg:col-span-2">
+                    <Label>Producto *</Label>
+                    <Combo opciones={productos} value={l.producto} onChange={v => setLineaEd(i, "producto", v)} />
+                    {(() => {
+                      const info = infoInventario(l.producto);
+                      if (!info) return null;
+                      if (info.es_servicio) return <Badge variant="secondary" className="w-fit">Servicio — no mueve inventario</Badge>;
+                      if (!info.controla_inventario) return null;
+                      const cantidad = Number(l.cantidad) || 0;
+                      const faltante = cantidad > info.disponible;
+                      return (
+                        <div className="grid gap-1.5">
+                          <Badge variant={info.disponible <= 0 ? "destructive" : faltante ? "outline" : "default"} className="w-fit">
+                            Disponible: {info.disponible}{info.sku ? ` · ${info.sku}` : ""}
+                          </Badge>
+                          {faltante && (
+                            <label className="flex items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
+                              <Checkbox checked={!!l.sin_inventario} onCheckedChange={v => setLineaEd(i, "sin_inventario", !!v)} />
+                              Venta sin inventario (la parte faltante queda pendiente por surtir)
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="grid gap-1.5"><Label>Cantidad</Label><Input type="number" min={1} value={l.cantidad} onChange={e => setLineaEd(i, "cantidad", Number(e.target.value))} /></div>
                   <div className="grid gap-1.5"><Label>Valor Unitario</Label><Input type="number" min={0} value={l.valor_unitario || ""} onChange={e => setLineaEd(i, "valor_unitario", Number(e.target.value))} placeholder="0" /></div>
                   <div className="grid gap-1.5"><Label>Talla</Label><Combo opciones={maestros["talla"] || []} value={l.talla || ""} onChange={v => setLineaEd(i, "talla", v)} placeholder="N/A" /></div>

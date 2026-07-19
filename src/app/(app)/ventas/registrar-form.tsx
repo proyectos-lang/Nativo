@@ -19,18 +19,20 @@ import { SubidaImagen } from "@/components/subida-imagen";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatoPesos, type Cliente, type CuentaBancaria } from "@/lib/tipos";
+import { Checkbox } from "@/components/ui/checkbox";
+import { formatoPesos, type Cliente, type CuentaBancaria, type InfoInventarioVenta } from "@/lib/tipos";
 
 type Props = {
   maestros: Record<string, string[]>;
   clientes: Cliente[];
   productos: string[];
   cuentas: CuentaBancaria[];
+  inventario: InfoInventarioVenta[];
 };
 
 const LINEA_VACIA: LineaVenta = { producto: "", cantidad: 1, valor_unitario: 0 };
 
-export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, productos, cuentas }: Props) {
+export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, productos, cuentas, inventario }: Props) {
   const [pendiente, startTransition] = useTransition();
   const [clientes, setClientes] = useState(clientesIniciales);
 
@@ -68,9 +70,12 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   );
   const total = totalProductos + (Number(costoEnvio) || 0);
 
-  const setLinea = (i: number, campo: keyof LineaVenta, valor: string | number | null) => {
+  const setLinea = (i: number, campo: keyof LineaVenta, valor: string | number | boolean | null) => {
     setLineas(prev => prev.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)));
   };
+
+  const infoInventario = (nombreProducto: string) =>
+    inventario.find(x => x.nombre === nombreProducto.trim());
 
   const guardarNuevoCliente = () => {
     startTransition(async () => {
@@ -214,6 +219,27 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                 <div className="grid gap-1.5 lg:col-span-2">
                   <Label>Producto *</Label>
                   <Combo opciones={productos} value={l.producto} onChange={v => setLinea(i, "producto", v)} />
+                  {(() => {
+                    const info = infoInventario(l.producto);
+                    if (!info) return null;
+                    if (info.es_servicio) return <Badge variant="secondary" className="w-fit">Servicio — no mueve inventario</Badge>;
+                    if (!info.controla_inventario) return null;
+                    const cantidad = Number(l.cantidad) || 0;
+                    const faltante = cantidad > info.disponible;
+                    return (
+                      <div className="grid gap-1.5">
+                        <Badge variant={info.disponible <= 0 ? "destructive" : faltante ? "outline" : "default"} className="w-fit">
+                          Disponible: {info.disponible}{info.sku ? ` · ${info.sku}` : ""}
+                        </Badge>
+                        {faltante && (
+                          <label className="flex items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
+                            <Checkbox checked={!!l.sin_inventario} onCheckedChange={v => setLinea(i, "sin_inventario", !!v)} />
+                            Venta sin inventario ({cantidad - Math.max(info.disponible, 0)} quedará{cantidad - Math.max(info.disponible, 0) === 1 ? "" : "n"} pendiente por surtir)
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Cantidad</Label>

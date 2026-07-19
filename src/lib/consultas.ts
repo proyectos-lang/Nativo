@@ -199,6 +199,31 @@ export async function movimientosInventario(limite = 500) {
   return data || [];
 }
 
+/** Info liviana del catálogo para el formulario de ventas: disponible = físico − reservado. */
+export async function catalogoVentaInventario() {
+  const [{ data: prods, error: e1 }, { data: exis, error: e2 }, { data: resv, error: e3 }] = await Promise.all([
+    db().from("productos").select("id, nombre, sku, es_servicio, controla_inventario").eq("estado", "Activo"),
+    db().from("inventario_existencias").select("producto_id, cantidad"),
+    db().from("inventario_reservas").select("producto_id, cantidad, cantidad_pendiente").eq("estado", "Activa"),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+  if (e3) throw new Error(e3.message);
+
+  const fisico: Record<number, number> = {};
+  for (const e of exis || []) fisico[e.producto_id] = (fisico[e.producto_id] || 0) + Number(e.cantidad);
+  const reservado: Record<number, number> = {};
+  for (const r of resv || []) reservado[r.producto_id] = (reservado[r.producto_id] || 0) + (Number(r.cantidad) - Number(r.cantidad_pendiente));
+
+  return (prods || []).map(p => ({
+    nombre: p.nombre as string,
+    sku: (p.sku as string) || null,
+    es_servicio: !!p.es_servicio,
+    controla_inventario: !!p.controla_inventario,
+    disponible: (fisico[p.id] || 0) - (reservado[p.id] || 0),
+  }));
+}
+
 export async function ordenesCompra() {
   const { data, error } = await db().from("ordenes_compra").select("*").order("numero", { ascending: false });
   if (error) throw new Error(error.message);

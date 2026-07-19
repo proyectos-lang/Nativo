@@ -662,6 +662,18 @@ Ajuste puntual por conteo físico: deja la existencia de la ubicación = cantida
 
 Salida directa (bajas, muestras, obsequios): valida stock en la ubicación **y** que la salida no deje el stock total por debajo de lo reservado para ventas pendientes de despacho.
 
+### `nativo.reservar_venta(p_venta_id, p_lineas jsonb, p_usuario) → void`
+
+Reserva inventario para una venta (llamado por `registrarVenta`/`actualizarVenta` con las líneas que tienen match en el catálogo). Idempotente: cancela las reservas Activas anteriores y crea las nuevas (compatible con el delete+reinsert de líneas al editar). Bloquea si la venta ya tiene reservas Despachadas. Si `cantidad > disponible` y la línea no viene con `permitir_faltante` ("Venta sin inventario") lanza error; con el flag, la parte faltante queda como `cantidad_pendiente` (pendiente por surtir).
+
+### `nativo.despachar_venta(p_venta_id, p_usuario) → void`
+
+Descuento físico al entregar (llamado por `actualizarEntrega` cuando el estado nuevo es "Entregado", ANTES de cambiar el estado): por cada reserva Activa saca lo respaldado tomando primero de Bodega, inserta kardex tipo `venta` al costo promedio del momento y marca la reserva `Despachada` (o la reduce a solo lo pendiente si la venta tenía faltantes). Idempotente.
+
+### `nativo.surtir_pendientes(p_producto_id, p_usuario) → void`
+
+Surtido automático FIFO: asigna el stock libre de un producto a las reservas con `cantidad_pendiente` más antiguas. Si la venta ya está Entregada, auto-despacha lo surtido de inmediato. Lo llama `ingresar_inventario` al final de cada ingreso (compras, ingresos manuales, devoluciones).
+
 ### `nativo.recibir_orden_compra(p_orden_id, p_lineas jsonb, p_numero_factura, p_fecha, p_usuario, p_crear_gasto default true) → nativo.ordenes_compra`
 
 Recepción (total o parcial) de una orden de compra, atómica: valida estado Enviada/Recibida Parcial y pendientes por línea; por línea llama `ingresar_inventario` (stock + costo promedio + kardex con referencia `OC #N`); acumula `cantidad_recibida`; recalcula el estado de la orden; y si `p_crear_gasto`, genera el Gasto en Financiero (tipo `Costo`, categoría `Compra Inventario`, con proveedor y factura) por lo recibido en esta recepción + sus `gastos_detalle`. **Cada recepción parcial genera su propio gasto** (la cuenta por pagar real de esa factura).

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExistenciasTab } from "./existencias-tab";
 import { ProductosTab } from "./productos-tab";
 import { OperacionesTab } from "./operaciones-tab";
+import { PendientesTab } from "./pendientes-tab";
 import { KardexTab } from "./kardex-tab";
 import type { Producto, InventarioUbicacion, InventarioExistencia, InventarioReserva, InventarioMovimiento, Proveedor } from "@/lib/tipos";
 
@@ -35,6 +36,7 @@ export default async function PaginaInventario() {
           <TabsTrigger value="existencias">Existencias</TabsTrigger>
           <TabsTrigger value="productos">Productos</TabsTrigger>
           <TabsTrigger value="operaciones">Operaciones</TabsTrigger>
+          <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
           <TabsTrigger value="kardex">Kardex</TabsTrigger>
         </TabsList>
         <TabsContent value="existencias">
@@ -59,6 +61,9 @@ export default async function PaginaInventario() {
             proveedores={proveedores as Proveedor[]}
             maestros={maestros}
           />
+        </TabsContent>
+        <TabsContent value="pendientes">
+          <PendientesTab reservas={reservas as InventarioReserva[]} />
         </TabsContent>
         <TabsContent value="kardex">
           <KardexTab

@@ -20,6 +20,8 @@ export type LineaVenta = {
   guia_bordado?: string;
   imagen_estampado_url?: string | null;
   imagen_bordado_url?: string | null;
+  /** Venta sin inventario: permite vender aunque no haya stock disponible (queda pendiente por surtir). */
+  sin_inventario?: boolean;
 };
 
 export type NuevaVenta = {
@@ -42,10 +44,46 @@ export type NuevaVenta = {
   observaciones_pago?: string;
 };
 
-function filaDetalle(ventaId: number, l: LineaVenta) {
+type MatchInventario = { id: number; sku: string | null; controla_inventario: boolean; es_servicio: boolean };
+
+/** Empareja las líneas (texto libre) con el catálogo de productos por nombre exacto. */
+async function matchesInventario(lineas: LineaVenta[]): Promise<Map<string, MatchInventario>> {
+  const nombres = [...new Set(lineas.map(l => l.producto.trim()))];
+  if (!nombres.length) return new Map();
+  const { data } = await db()
+    .from("productos")
+    .select("id, nombre, sku, controla_inventario, es_servicio")
+    .in("nombre", nombres);
+  return new Map((data || []).map(p => [p.nombre as string, {
+    id: p.id as number, sku: (p.sku as string) || null,
+    controla_inventario: !!p.controla_inventario, es_servicio: !!p.es_servicio,
+  }]));
+}
+
+/** Crea/actualiza las reservas de inventario de la venta (solo líneas con match inventariado). */
+async function reservarInventarioVenta(ventaId: number, lineas: LineaVenta[], matches: Map<string, MatchInventario>, usuario: string | null) {
+  const lineasReserva = lineas
+    .map(l => {
+      const m = matches.get(l.producto.trim());
+      if (!m || !m.controla_inventario || m.es_servicio) return null;
+      return { producto_id: m.id, cantidad: Number(l.cantidad) || 0, permitir_faltante: !!l.sin_inventario };
+    })
+    .filter((x): x is { producto_id: number; cantidad: number; permitir_faltante: boolean } => x !== null);
+
+  // Se llama siempre (aunque no haya líneas inventariadas) para cancelar reservas viejas al editar
+  const { error } = await db().rpc("reservar_venta", {
+    p_venta_id: ventaId,
+    p_lineas: lineasReserva,
+    p_usuario: usuario,
+  });
+  if (error) throw new Error(error.message);
+}
+
+function filaDetalle(ventaId: number, l: LineaVenta, sku?: string | null) {
   return {
     venta_id: ventaId,
     producto: l.producto.trim(),
+    codigo_producto: sku || null,
     cantidad: Number(l.cantidad) || 1,
     valor_unitario: Number(l.valor_unitario) || 0,
     valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
@@ -100,12 +138,21 @@ export async function registrarVenta(venta: NuevaVenta) {
   }).select("id, ticket").single();
   if (errCab) throw new Error(errCab.message);
 
+  const matches = await matchesInventario(lineas);
   const { error: errDet } = await db().from("ventas_detalle").insert(
-    lineas.map(l => filaDetalle(cab.id, l))
+    lineas.map(l => filaDetalle(cab.id, l, matches.get(l.producto.trim())?.sku))
   );
   if (errDet) {
     await db().from("ventas").delete().eq("id", cab.id); // rollback manual de la cabecera
     throw new Error(errDet.message);
+  }
+
+  // Reserva de inventario (líneas con match en el catálogo); si falla, rollback completo
+  try {
+    await reservarInventarioVenta(cab.id, lineas, matches, sesion.usuario);
+  } catch (e) {
+    await db().from("ventas").delete().eq("id", cab.id);
+    throw e;
   }
 
   if (abono > 0) {
@@ -135,6 +182,7 @@ export async function registrarVenta(venta: NuevaVenta) {
   });
 
   revalidatePath("/ventas");
+  revalidatePath("/inventario");
   revalidatePath("/");
   return { ticket: cab.ticket as number };
 }
@@ -169,10 +217,15 @@ export async function actualizarVenta(datos: {
     const totalAPagar = total - Number(venta.retencion || 0);
     const saldo = totalAPagar - Number(venta.abono || 0);
 
+    // Reserva de inventario primero: si no hay stock (y no se marcó "venta sin
+    // inventario"), aborta ANTES de tocar las líneas
+    const matches = await matchesInventario(lineas);
+    await reservarInventarioVenta(datos.venta_id, lineas, matches, sesion.usuario);
+
     // Reemplaza el detalle completo
     const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
     if (errDel) throw new Error(errDel.message);
-    const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l));
+    const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l, matches.get(l.producto.trim())?.sku));
     const { error: errIns } = await db().from("ventas_detalle").insert(nuevasLineas);
     if (errIns) throw new Error(errIns.message);
 
@@ -207,6 +260,7 @@ export async function actualizarVenta(datos: {
 
     revalidatePath("/ventas");
     revalidatePath("/pagos");
+    revalidatePath("/inventario");
     revalidatePath("/");
     return { ticket: venta.ticket as number };
   } catch (e) {

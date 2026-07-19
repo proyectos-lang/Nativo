@@ -134,15 +134,18 @@ export async function resolverRecuperada(datos: {
   tipo_gasto?: "Gasto" | "Costo";
   pagarAhora?: boolean;
   cuenta_id?: number;
+  reingresar_inventario?: boolean;
+  ubicacion_id?: number;
 }) {
   const sesion = await requierePermiso("devoluciones");
   if (datos.pagarAhora && !datos.cuenta_id) throw new Error("Selecciona la cuenta desde donde se paga.");
+  if (datos.reingresar_inventario && !datos.ubicacion_id) throw new Error("Selecciona la ubicación donde reingresa la prenda.");
   const costo = Number(datos.costo_recuperacion) || 0;
   if (costo < 0) throw new Error("El costo de recuperación no puede ser negativo.");
 
   const { data: detalle, error: errGet } = await db()
     .from("devoluciones_detalle")
-    .select("id, estado, producto, devoluciones(ventas(ticket))")
+    .select("id, estado, producto, cantidad_devuelta, devoluciones(ventas(ticket))")
     .eq("id", datos.detalle_id).single();
   if (errGet) throw new Error(errGet.message);
   if (!detalle) throw new Error("Detalle de devolución no encontrado.");
@@ -187,6 +190,30 @@ export async function resolverRecuperada(datos: {
     ticketGasto = gasto.ticket;
   }
 
+  // Reingreso opcional al inventario (la prenda recuperada vuelve al stock).
+  // Se empareja con el catálogo por nombre exacto; entra al costo promedio
+  // actual sin alterarlo (p_costo_unitario null).
+  if (datos.reingresar_inventario && datos.ubicacion_id) {
+    const { data: prodMatch } = await db()
+      .from("productos")
+      .select("id, controla_inventario, es_servicio")
+      .eq("nombre", detalle.producto).maybeSingle();
+    if (!prodMatch || !prodMatch.controla_inventario || prodMatch.es_servicio) {
+      throw new Error(`"${detalle.producto}" no está en el catálogo de inventario; desactiva el reingreso o enrola el producto primero.`);
+    }
+    const { error: errIng } = await db().rpc("ingresar_inventario", {
+      p_producto_id: prodMatch.id,
+      p_ubicacion_id: datos.ubicacion_id,
+      p_cantidad: Number(detalle.cantidad_devuelta) || 1,
+      p_costo_unitario: null,
+      p_tipo: "devolucion",
+      p_referencia: `Devolución Ticket #${ticket}`,
+      p_motivo: "Prenda recuperada reingresa al stock",
+      p_usuario: sesion.usuario,
+    });
+    if (errIng) throw new Error("No se pudo reingresar al inventario: " + errIng.message);
+  }
+
   const estadoAnterior = detalle.estado;
   const { error: errUpd } = await db().from("devoluciones_detalle")
     .update({ estado: "Recuperada", costo_recuperacion: costo, gasto_id: gastoId })
@@ -201,12 +228,13 @@ export async function resolverRecuperada(datos: {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "devoluciones", accion: "resolver_recuperada",
     entidad_tipo: "devoluciones_detalle", entidad_id: datos.detalle_id,
-    descripcion: `Devolución Ticket #${ticket} — "${detalle.producto}" recuperada${ticketGasto ? ` (Gasto #${ticketGasto} — ${formatoPesos(costo)})` : ""}`,
+    descripcion: `Devolución Ticket #${ticket} — "${detalle.producto}" recuperada${ticketGasto ? ` (Gasto #${ticketGasto} — ${formatoPesos(costo)})` : ""}${datos.reingresar_inventario ? " (reingresada al inventario)" : ""}`,
     datos_nuevos: { ...datos, gasto_id: gastoId },
   });
 
   revalidarDevoluciones();
   revalidatePath("/financiero");
+  revalidatePath("/inventario");
 }
 
 export async function resolverPerdida(datos: {
