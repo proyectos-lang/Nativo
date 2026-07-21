@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario` y `compras` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario`, `compras` y `activos` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras, activos |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -118,7 +118,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`. Los valores se administran por línea en Configuración → Listas Maestras (editar, activar/inactivar, eliminar). Un valor **inactivo** desaparece de los selectores (`listasMaestras()` filtra `activo = true`) pero los registros históricos guardan el texto copiado y no cambian; renombrar un valor tampoco altera registros pasados.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -403,6 +403,36 @@ Stock comprometido por ventas (se crea al registrar/editar una venta con product
 | precio_unitario / valor_total | numeric | not null, default 0 | |
 | cantidad_recibida | numeric | not null, default 0 | Acumulada por las recepciones |
 | creado_en | timestamptz | not null, default `now()` | |
+
+---
+
+## activos
+
+Registro de **activos fijos de la empresa** (mobiliario, equipos de oficina/cómputo) — NO es mercancía para vender, es un módulo separado de `productos`/Inventario. A diferencia del kardex inmutable de Inventario, aquí sí se edita libremente para actualizar precio o información. La baja no borra: pasa a `estado = 'Vendido'` o `'Dado de Baja'` y el registro sigue consultable en historial (mismo espíritu que `clientes.activo`/`productos.estado`).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| codigo | text | null | Código/etiqueta física interna, opcional |
+| nombre | text | not null | |
+| categoria | text | null | Lista maestra `categoria_activo` |
+| descripcion | text | null | |
+| cantidad | numeric | not null, default 1, check `> 0` | |
+| costo_unitario | numeric | not null, default 0, check `>= 0` | |
+| valor_total | numeric | not null, default 0 | `cantidad × costo_unitario`, calculado y guardado por la server action (no es columna generada) |
+| proveedor_id / proveedor | bigint / text | proveedor_id null, FK → `proveedores(id)` set null | Mismo patrón que `gastos` (FK + texto copiado de respaldo) |
+| numero_factura | text | null | |
+| fecha_compra | date | not null, default `current_date` | |
+| ubicacion | text | null | Lista maestra `ubicacion_activo` |
+| estado | text | not null, default `'Activo'`, check `('Activo','Vendido','Dado de Baja')` | |
+| fecha_baja / motivo_baja / valor_baja / observaciones_baja | date / text / numeric / text | null | Se completan al dar de baja. `motivo_baja` viene de la lista maestra `motivo_baja_activo`; `valor_baja` es informativo (la venta de un activo **no** genera un Ingreso automático en Financiero) |
+| gasto_id | bigint | null, FK → `gastos(id)` set null | Si la compra generó un Gasto automático en Financiero |
+| usuario | text | null | |
+| creado_en / actualizado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_activos_estado`, `idx_activos_categoria`, `idx_activos_proveedor`. Permiso `activos` en `usuarios.permisos` (default `false`).
+
+Al registrar la compra de un activo con `costo_unitario > 0`, la acción `guardarActivo` puede generar automáticamente un Gasto (`tipo = 'Gasto'`, `categoria = 'Compra de Activo Fijo'`) + su línea en `gastos_detalle` (desactivable con un checkbox en el formulario) — lógica local a `activos/acciones.ts`, no reutiliza `crearGasto` de Financiero porque ese exige el permiso `financiero`.
 
 ---
 

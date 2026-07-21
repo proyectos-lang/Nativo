@@ -19,7 +19,7 @@ create table nativo.usuarios (
   correo text,
   contrasena text not null,
   rol text not null default 'usuario' check (rol in ('admin', 'usuario')),
-  permisos jsonb not null default '{"dashboard": true, "ventas": true, "pagos": true, "entregas": true, "seguimiento": true, "prospectos": true, "clientes": true, "proveedores": false, "configuracion": false, "financiero": false, "devoluciones": false, "inventario": false, "compras": false}'::jsonb,
+  permisos jsonb not null default '{"dashboard": true, "ventas": true, "pagos": true, "entregas": true, "seguimiento": true, "prospectos": true, "clientes": true, "proveedores": false, "configuracion": false, "financiero": false, "devoluciones": false, "inventario": false, "compras": false, "activos": false}'::jsonb,
   activo boolean not null default true,
   creado_en timestamptz not null default now()
 );
@@ -558,6 +558,43 @@ create table nativo.ordenes_compra_detalle (
   creado_en timestamptz not null default now()
 );
 create index idx_ocd_orden on nativo.ordenes_compra_detalle (orden_compra_id);
+
+-- ------------------------------------------------------------
+-- MÓDULO ACTIVOS FIJOS (mobiliario/equipos de la empresa — NO
+-- mercancía para vender. A diferencia del kardex inmutable de
+-- Inventario, este registro sí se edita libremente. La baja no
+-- borra: pasa a estado 'Vendido'/'Dado de Baja' y queda en
+-- historial. La compra puede generar un Gasto automático en
+-- Financiero, igual que recibir_orden_compra.)
+-- ------------------------------------------------------------
+create table nativo.activos (
+  id bigint generated always as identity primary key,
+  codigo text,
+  nombre text not null,
+  categoria text,
+  descripcion text,
+  cantidad numeric not null default 1 check (cantidad > 0),
+  costo_unitario numeric not null default 0 check (costo_unitario >= 0),
+  valor_total numeric not null default 0,
+  proveedor_id bigint references nativo.proveedores (id) on delete set null,
+  proveedor text,
+  numero_factura text,
+  fecha_compra date not null default current_date,
+  ubicacion text,
+  estado text not null default 'Activo'
+    check (estado in ('Activo', 'Vendido', 'Dado de Baja')),
+  fecha_baja date,
+  motivo_baja text,
+  valor_baja numeric,
+  observaciones_baja text,
+  gasto_id bigint references nativo.gastos (id) on delete set null,
+  usuario text,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+create index idx_activos_estado on nativo.activos (estado);
+create index idx_activos_categoria on nativo.activos (categoria);
+create index idx_activos_proveedor on nativo.activos (proveedor_id);
 
 -- ------------------------------------------------------------
 -- ARQUEOS DE INVENTARIO (conteos físicos con cuadre autorizado)
@@ -1649,6 +1686,33 @@ on conflict do nothing;
 
 insert into nativo.listas_maestras (tipo, valor) values
   ('categoria_gasto', 'Reproceso')
+on conflict do nothing;
+
+-- ------------------------------------------------------------
+-- Semillas: activos fijos (categorías, ubicaciones, motivos de
+-- baja) y categoría de gasto para la compra de activos
+-- ------------------------------------------------------------
+insert into nativo.listas_maestras (tipo, valor) values
+  ('categoria_activo', 'Mobiliario'),
+  ('categoria_activo', 'Equipos de Cómputo'),
+  ('categoria_activo', 'Equipos de Oficina'),
+  ('categoria_activo', 'Herramientas'),
+  ('categoria_activo', 'Electrodomésticos'),
+  ('categoria_activo', 'Vehículos'),
+  ('categoria_activo', 'Otros'),
+  ('ubicacion_activo', 'Oficina Principal'),
+  ('ubicacion_activo', 'Bodega'),
+  ('ubicacion_activo', 'Taller'),
+  ('ubicacion_activo', 'Local/Punto de Venta'),
+  ('motivo_baja_activo', 'Vendido'),
+  ('motivo_baja_activo', 'Dañado/Obsoleto'),
+  ('motivo_baja_activo', 'Donado'),
+  ('motivo_baja_activo', 'Perdido/Robado'),
+  ('motivo_baja_activo', 'Otro')
+on conflict do nothing;
+
+insert into nativo.listas_maestras (tipo, valor) values
+  ('categoria_gasto', 'Compra de Activo Fijo')
 on conflict do nothing;
 
 -- ------------------------------------------------------------

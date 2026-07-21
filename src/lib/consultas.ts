@@ -32,6 +32,12 @@ export async function proveedoresTodos() {
   return data || [];
 }
 
+export async function activosTodos() {
+  const { data, error } = await db().from("activos").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export async function productosTodos(): Promise<string[]> {
   const { data, error } = await db().from("productos").select("nombre").order("nombre");
   if (error) throw new Error(error.message);

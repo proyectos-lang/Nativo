@@ -12,6 +12,7 @@ export type Permisos = {
   devoluciones: boolean;
   inventario: boolean;
   compras: boolean;
+  activos: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -48,6 +49,31 @@ export type Proveedor = {
   direccion: string | null;
   ciudad: string | null;
   departamento: string | null;
+};
+
+export type Activo = {
+  id: number;
+  codigo: string | null;
+  nombre: string;
+  categoria: string | null;
+  descripcion: string | null;
+  cantidad: number;
+  costo_unitario: number;
+  valor_total: number;
+  proveedor_id: number | null;
+  proveedor: string | null;
+  numero_factura: string | null;
+  fecha_compra: string;
+  ubicacion: string | null;
+  estado: "Activo" | "Vendido" | "Dado de Baja";
+  fecha_baja: string | null;
+  motivo_baja: string | null;
+  valor_baja: number | null;
+  observaciones_baja: string | null;
+  gasto_id: number | null;
+  usuario: string | null;
+  creado_en: string;
+  actualizado_en: string;
 };
 
 export type Producto = {
@@ -315,6 +341,7 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "proveedores", nombre: "Proveedores" },
   { clave: "inventario", nombre: "Inventario" },
   { clave: "compras", nombre: "Compras" },
+  { clave: "activos", nombre: "Activos Fijos" },
   { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
@@ -332,6 +359,7 @@ export const MODULO_URL: Record<Modulo, string> = {
   proveedores: "/proveedores",
   inventario: "/inventario",
   compras: "/compras",
+  activos: "/activos",
   financiero: "/financiero",
   configuracion: "/configuracion",
 };

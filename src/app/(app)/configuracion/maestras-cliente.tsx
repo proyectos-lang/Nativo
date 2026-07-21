@@ -37,6 +37,9 @@ const NOMBRES_TIPO: Record<string, string> = {
   tipo_manga: "Tipos de Manga",
   motivo_ajuste: "Motivos de Ajuste de Inventario",
   motivo_traslado: "Motivos de Traslado de Inventario",
+  categoria_activo: "Categorías de Activos",
+  ubicacion_activo: "Ubicaciones de Activos",
+  motivo_baja_activo: "Motivos de Baja de Activos",
 };
 
 type ValorMaestro = { id: number; tipo: string; valor: string; activo: boolean };
