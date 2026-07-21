@@ -45,7 +45,7 @@ export function ProductosTab({ productos, maestros }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("inventario");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
   const [abierto, setAbierto] = useState(false);
   const [form, setForm] = useState<FormProducto>(FORM_VACIO);
 
@@ -116,13 +116,13 @@ export function ProductosTab({ productos, maestros }: Props) {
         <p className="text-sm text-muted-foreground">{productos.length} productos en el catálogo.</p>
         <div className="flex flex-wrap items-end gap-2">
           <Input className="w-56" placeholder="Buscar por SKU, nombre, código..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-          <Select value={filtroTipo} onValueChange={v => setFiltroTipo(v || "inventario")}>
+          <Select value={filtroTipo} onValueChange={v => setFiltroTipo(v || "todos")}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="inventario">Con inventario</SelectItem>
               <SelectItem value="servicios">Servicios</SelectItem>
               <SelectItem value="sin_enrolar">Sin enrolar (de Ventas)</SelectItem>
-              <SelectItem value="todos">Todos</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => abrir()}><PackagePlus className="size-4" /> Nuevo Producto</Button>

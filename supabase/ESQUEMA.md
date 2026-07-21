@@ -122,7 +122,7 @@ Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profes
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
-El catálogo de **productos** (tabla `productos`) es independiente de `listas_maestras` y se administra en Configuración → Productos.
+El catálogo de **productos** (tabla `productos`) es independiente de `listas_maestras` y se administra desde el módulo Inventario → Productos (la pantalla Configuración → Productos, redundante con esta, fue eliminada).
 
 ---
 

@@ -137,41 +137,6 @@ export async function eliminarValorMaestro(id: number) {
   revalidatePath("/financiero");
 }
 
-export async function crearProducto(nombre: string) {
-  const sesion = await requierePermiso("configuracion");
-  const limpio = nombre?.trim();
-  if (!limpio) throw new Error("El nombre del producto es obligatorio.");
-  const { data, error } = await db().from("productos").insert({ nombre: limpio }).select("id").single();
-  if (error) throw new Error(error.message.includes("duplicate") ? "Ese producto ya existe." : error.message);
-  await registrarBitacora({
-    usuario: sesion.usuario, modulo: "configuracion", accion: "crear",
-    entidad_tipo: "productos", entidad_id: data.id,
-    descripcion: `Producto creado: ${limpio}`,
-    datos_nuevos: { nombre: limpio },
-  });
-  revalidatePath("/configuracion");
-  revalidatePath("/ventas");
-}
-
-export async function eliminarProducto(id: number) {
-  const sesion = await requierePermiso("configuracion");
-  const { data: anterior } = await db().from("productos").select("*").eq("id", id).single();
-  const { data: tieneKardex } = await db().from("inventario_movimientos").select("id").eq("producto_id", id).limit(1);
-  if (tieneKardex?.length) {
-    throw new Error("Este producto tiene movimientos de inventario: no se puede eliminar. Descontinúalo desde el módulo Inventario.");
-  }
-  const { error } = await db().from("productos").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-  await registrarBitacora({
-    usuario: sesion.usuario, modulo: "configuracion", accion: "eliminar",
-    entidad_tipo: "productos", entidad_id: id,
-    descripcion: `Producto eliminado: ${anterior?.nombre ?? id}`,
-    datos_anteriores: anterior ?? null,
-  });
-  revalidatePath("/configuracion");
-  revalidatePath("/ventas");
-}
-
 export async function cambiarPinAutorizacion(pinActual: string, pinNuevo: string) {
   const sesion = await requierePermiso("configuracion");
   if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar el PIN.");
