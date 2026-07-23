@@ -126,6 +126,22 @@ export async function cambiarEstadoProducto(id: number, estado: "Activo" | "Desc
 // OPERACIONES (Fase 2): ingreso, traslado, ajuste, salida manual
 // ------------------------------------------------------------
 
+/**
+ * Asegura que el producto pueda participar en inventario antes de operarlo:
+ * un servicio se rechaza (no maneja stock), y un producto no enrolado se
+ * enrola automáticamente (controla_inventario = true) al primer movimiento.
+ * Así el catálogo de Productos y los selectores de operación quedan alineados.
+ */
+async function asegurarEnrolado(productoId: number) {
+  const { data: prod, error } = await db().from("productos").select("nombre, es_servicio, controla_inventario").eq("id", productoId).single();
+  if (error) throw new Error(error.message);
+  if (prod.es_servicio) throw new Error(`El producto "${prod.nombre}" es un servicio: no maneja inventario.`);
+  if (!prod.controla_inventario) {
+    const { error: e2 } = await db().from("productos").update({ controla_inventario: true }).eq("id", productoId);
+    if (e2) throw new Error(e2.message);
+  }
+}
+
 export async function ingresarMercancia(datos: {
   producto_id: number;
   ubicacion_id: number;
@@ -138,6 +154,7 @@ export async function ingresarMercancia(datos: {
   observaciones?: string;
 }) {
   const sesion = await requierePermiso("inventario");
+  await asegurarEnrolado(datos.producto_id);
   const { data, error } = await db().rpc("ingresar_inventario", {
     p_producto_id: datos.producto_id,
     p_ubicacion_id: datos.ubicacion_id,
@@ -170,6 +187,7 @@ export async function trasladarStock(datos: {
   motivo: string;
 }) {
   const sesion = await requierePermiso("inventario");
+  await asegurarEnrolado(datos.producto_id);
   const { error } = await db().rpc("trasladar_inventario", {
     p_producto_id: datos.producto_id,
     p_origen_id: datos.origen_id,
@@ -197,6 +215,7 @@ export async function ajustarStock(datos: {
 }) {
   const sesion = await requierePermiso("inventario");
   if (!datos.motivo?.trim()) throw new Error("El motivo del ajuste es obligatorio.");
+  await asegurarEnrolado(datos.producto_id);
   const { data, error } = await db().rpc("ajustar_inventario", {
     p_producto_id: datos.producto_id,
     p_ubicacion_id: datos.ubicacion_id,
@@ -224,6 +243,7 @@ export async function salidaManual(datos: {
 }) {
   const sesion = await requierePermiso("inventario");
   if (!datos.motivo?.trim()) throw new Error("El motivo de la salida es obligatorio.");
+  await asegurarEnrolado(datos.producto_id);
   const { error } = await db().rpc("salida_manual_inventario", {
     p_producto_id: datos.producto_id,
     p_ubicacion_id: datos.ubicacion_id,
@@ -535,4 +555,89 @@ export async function anularArqueo(arqueoId: number, pin: string) {
     datos_nuevos: { estado: "Anulado" },
   });
   revalidarInventario();
+}
+
+// ------------------------------------------------------------
+// BODEGAS / UBICACIONES (administrables). No se borran: se
+// inactivan (la tabla es referenciada por FK desde existencias,
+// movimientos y arqueos). Una ubicación inactiva desaparece de
+// los selectores sin afectar el historial (nombre copiado).
+// ------------------------------------------------------------
+
+export async function crearUbicacion(nombre: string) {
+  const sesion = await requierePermiso("inventario");
+  const limpio = nombre?.trim();
+  if (!limpio) throw new Error("El nombre de la bodega es obligatorio.");
+  const { data, error } = await db().from("inventario_ubicaciones").insert({ nombre: limpio }).select("id").single();
+  if (error) throw new Error(error.message.includes("duplicate") ? "Ya existe una bodega con ese nombre." : error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "inventario", accion: "crear",
+    entidad_tipo: "inventario_ubicaciones", entidad_id: data.id,
+    descripcion: `Bodega creada: ${limpio}`,
+    datos_nuevos: { nombre: limpio },
+  });
+  revalidarInventario();
+}
+
+export async function actualizarUbicacion(id: number, datos: { nombre?: string; activa?: boolean }) {
+  const sesion = await requierePermiso("inventario");
+  const { data: anterior, error: errGet } = await db().from("inventario_ubicaciones").select("*").eq("id", id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const cambios: { nombre?: string; activa?: boolean } = {};
+  if (datos.nombre !== undefined) {
+    const limpio = datos.nombre.trim();
+    if (!limpio) throw new Error("El nombre no puede quedar vacío.");
+    const { data: dup } = await db().from("inventario_ubicaciones").select("id").eq("nombre", limpio).neq("id", id).maybeSingle();
+    if (dup) throw new Error("Ya existe una bodega con ese nombre.");
+    cambios.nombre = limpio;
+  }
+  if (datos.activa !== undefined) cambios.activa = datos.activa;
+  if (!Object.keys(cambios).length) throw new Error("Nada que actualizar.");
+
+  const { error } = await db().from("inventario_ubicaciones").update(cambios).eq("id", id);
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "inventario", accion: "editar",
+    entidad_tipo: "inventario_ubicaciones", entidad_id: id,
+    descripcion: cambios.nombre !== undefined
+      ? `Bodega renombrada: "${anterior.nombre}" → "${cambios.nombre}"`
+      : `Bodega "${anterior.nombre}" ${cambios.activa ? "activada" : "inactivada"}`,
+    datos_anteriores: anterior, datos_nuevos: { ...anterior, ...cambios },
+  });
+  revalidarInventario();
+}
+
+// ------------------------------------------------------------
+// PROVEEDOR al vuelo (desde el Ingreso de mercancía). Duplicado
+// del de Financiero pero gateado por el permiso "inventario",
+// para que un usuario de inventario pueda crearlo sin permiso
+// financiero.
+// ------------------------------------------------------------
+
+export async function crearProveedor(datos: {
+  nombre: string; nit?: string; contacto?: string; correo?: string; ciudad?: string; departamento?: string; direccion?: string;
+}) {
+  const sesion = await requierePermiso("inventario");
+  if (!datos.nombre?.trim()) throw new Error("El nombre es obligatorio.");
+  const fila = {
+    nombre: datos.nombre.trim(),
+    nit: datos.nit?.trim() || null,
+    contacto: datos.contacto?.trim() || null,
+    correo: datos.correo?.trim() || null,
+    ciudad: datos.ciudad?.trim() || null,
+    departamento: datos.departamento?.trim() || null,
+    direccion: datos.direccion?.trim() || null,
+  };
+  const { data, error } = await db().from("proveedores").insert(fila).select().single();
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "proveedores", accion: "crear",
+    entidad_tipo: "proveedores", entidad_id: data.id,
+    descripcion: `Proveedor creado: ${fila.nombre}`,
+    datos_nuevos: fila,
+  });
+  revalidatePath("/inventario");
+  revalidatePath("/proveedores");
+  return data;
 }

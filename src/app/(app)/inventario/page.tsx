@@ -10,6 +10,7 @@ import { DashboardTab } from "./dashboard-tab";
 import { ExistenciasTab } from "./existencias-tab";
 import { ProductosTab } from "./productos-tab";
 import { OperacionesTab } from "./operaciones-tab";
+import { BodegasTab } from "./bodegas-tab";
 import { PendientesTab } from "./pendientes-tab";
 import { ArqueosTab } from "./arqueos-tab";
 import { KardexTab } from "./kardex-tab";
@@ -45,6 +46,7 @@ export default async function PaginaInventario() {
           <TabsTrigger value="existencias">Existencias</TabsTrigger>
           <TabsTrigger value="productos">Productos</TabsTrigger>
           <TabsTrigger value="operaciones">Operaciones</TabsTrigger>
+          <TabsTrigger value="bodegas">Bodegas</TabsTrigger>
           <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
           <TabsTrigger value="arqueos">Arqueos</TabsTrigger>
           <TabsTrigger value="kardex">Kardex</TabsTrigger>
@@ -79,6 +81,12 @@ export default async function PaginaInventario() {
             existencias={existencias as InventarioExistencia[]}
             proveedores={proveedores as Proveedor[]}
             maestros={maestros}
+          />
+        </TabsContent>
+        <TabsContent value="bodegas">
+          <BodegasTab
+            ubicaciones={ubicaciones as InventarioUbicacion[]}
+            existencias={existencias as InventarioExistencia[]}
           />
         </TabsContent>
         <TabsContent value="pendientes">

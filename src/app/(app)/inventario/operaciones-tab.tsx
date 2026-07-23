@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ingresarMercancia, trasladarStock, ajustarStock, salidaManual, importarInventarioInicial, type FilaImportacion } from "./acciones";
+import { ingresarMercancia, trasladarStock, ajustarStock, salidaManual, importarInventarioInicial, crearProveedor, type FilaImportacion } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { PackagePlus, ArrowLeftRight, ClipboardCheck, PackageMinus, FileUp, FileDown } from "lucide-react";
+import { PackagePlus, ArrowLeftRight, ClipboardCheck, PackageMinus, FileUp, FileDown, Truck } from "lucide-react";
 import type { Producto, InventarioUbicacion, InventarioExistencia, Proveedor } from "@/lib/tipos";
 
 type Props = {
@@ -53,7 +53,7 @@ function SelectorProducto({ productos, stockDe, valor, onCambio, busqueda, setBu
     >
       <ComboboxInput placeholder="Buscar por SKU o nombre..." className="w-full" showClear />
       <ComboboxContent>
-        <ComboboxEmpty>No se encontró ningún producto con control de inventario.</ComboboxEmpty>
+        <ComboboxEmpty>No se encontró el producto.</ComboboxEmpty>
         <ComboboxList>
           {(p: Producto) => (
             <ComboboxItem key={p.id} value={p}>
@@ -91,8 +91,10 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
+  // Todos los productos activos que no sean servicios: se pueden operar
+  // aunque aún no controlen inventario (el primer movimiento los enrola).
   const inventariables = useMemo(
-    () => productos.filter(p => p.controla_inventario && p.estado === "Activo"),
+    () => productos.filter(p => !p.es_servicio && p.estado === "Activo"),
     [productos]
   );
 
@@ -105,7 +107,14 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
   const [dialogIngreso, setDialogIngreso] = useState(false);
   const [prodIngreso, setProdIngreso] = useState<Producto | null>(null);
   const [busqIngreso, setBusqIngreso] = useState("");
-  const [formIngreso, setFormIngreso] = useState({ ubicacion_id: 0, cantidad: 0, costo_unitario: 0, fecha: HOY(), proveedor_id: 0, numero_factura: "", lote: "", observaciones: "" });
+  const [formIngreso, setFormIngreso] = useState({ ubicacion_id: 0, cantidad: 0, costo_unitario: 0, fecha: HOY(), numero_factura: "", lote: "", observaciones: "" });
+
+  // Proveedor (con creación al vuelo)
+  const [listaProv, setListaProv] = useState<Proveedor[]>(proveedores);
+  const [proveedorSel, setProveedorSel] = useState<Proveedor | null>(null);
+  const [busqProveedor, setBusqProveedor] = useState("");
+  const [dialogProveedor, setDialogProveedor] = useState(false);
+  const [nuevoProveedor, setNuevoProveedor] = useState({ nombre: "", nit: "", contacto: "", correo: "", ciudad: "" });
 
   const guardarIngreso = () => {
     if (!prodIngreso) return;
@@ -113,11 +122,25 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
       try {
         await ingresarMercancia({
           producto_id: prodIngreso.id, ...formIngreso,
-          proveedor_id: formIngreso.proveedor_id || undefined,
+          proveedor_id: proveedorSel?.id || undefined,
         });
         toast.success("Mercancía ingresada");
         setDialogIngreso(false);
         router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
+  const guardarNuevoProveedor = () => {
+    if (!nuevoProveedor.nombre.trim()) return;
+    startTransition(async () => {
+      try {
+        const p = await crearProveedor(nuevoProveedor) as Proveedor;
+        setListaProv(prev => [...prev, p]);
+        setProveedorSel(p);
+        setBusqProveedor(p.nombre);
+        setDialogProveedor(false);
+        toast.success("Proveedor creado");
       } catch (e) { toast.error((e as Error).message); }
     });
   };
@@ -316,8 +339,8 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
   };
 
   const cardsOperacion = [
-    { titulo: "Ingreso de Mercancía", descripcion: "Compras y entradas: aumenta el stock y recalcula el costo promedio.", icono: PackagePlus, onClick: () => { setProdIngreso(null); setBusqIngreso(""); setFormIngreso({ ubicacion_id: 0, cantidad: 0, costo_unitario: 0, fecha: HOY(), proveedor_id: 0, numero_factura: "", lote: "", observaciones: "" }); setDialogIngreso(true); } },
-    { titulo: "Traslado", descripcion: "Mueve stock entre Bodega y Exhibición, con historial.", icono: ArrowLeftRight, onClick: () => { setProdTraslado(null); setBusqTraslado(""); setFormTraslado({ origen_id: 0, destino_id: 0, cantidad: 0, motivo: "" }); setDialogTraslado(true); } },
+    { titulo: "Ingreso de Mercancía", descripcion: "Compras y entradas: aumenta el stock y recalcula el costo promedio.", icono: PackagePlus, onClick: () => { setProdIngreso(null); setBusqIngreso(""); setProveedorSel(null); setBusqProveedor(""); setFormIngreso({ ubicacion_id: 0, cantidad: 0, costo_unitario: 0, fecha: HOY(), numero_factura: "", lote: "", observaciones: "" }); setDialogIngreso(true); } },
+    { titulo: "Traslado", descripcion: "Mueve stock entre tus bodegas / ubicaciones, con historial.", icono: ArrowLeftRight, onClick: () => { setProdTraslado(null); setBusqTraslado(""); setFormTraslado({ origen_id: 0, destino_id: 0, cantidad: 0, motivo: "" }); setDialogTraslado(true); } },
     { titulo: "Ajuste", descripcion: "Conteo físico puntual: sistema vs físico, con motivo.", icono: ClipboardCheck, onClick: () => { setProdAjuste(null); setBusqAjuste(""); setFormAjuste({ ubicacion_id: 0, cantidad_fisica: 0, motivo: "", observacion: "" }); setDialogAjuste(true); } },
     { titulo: "Salida Manual", descripcion: "Bajas, muestras u obsequios que salen del inventario.", icono: PackageMinus, onClick: () => { setProdSalida(null); setBusqSalida(""); setFormSalida({ ubicacion_id: 0, cantidad: 0, motivo: "" }); setDialogSalida(true); } },
     { titulo: "Importar Excel", descripcion: "Carga masiva del inventario inicial con la plantilla.", icono: FileUp, onClick: () => { setFilasImportar([]); setErroresParseo([]); setResultadoImport(null); setDialogImportar(true); } },
@@ -354,13 +377,29 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
               <div className="grid gap-1.5"><Label>Cantidad *</Label><Input type="number" min={0} value={formIngreso.cantidad || ""} onChange={e => setFormIngreso({ ...formIngreso, cantidad: Number(e.target.value) })} placeholder="0" /></div>
               <div className="grid gap-1.5"><Label>Costo unitario *</Label><Input type="number" min={0} value={formIngreso.costo_unitario || ""} onChange={e => setFormIngreso({ ...formIngreso, costo_unitario: Number(e.target.value) })} placeholder="0" /></div>
               <div className="grid gap-1.5">
-                <Label>Proveedor</Label>
-                <Select value={formIngreso.proveedor_id ? String(formIngreso.proveedor_id) : ""} onValueChange={v => setFormIngreso({ ...formIngreso, proveedor_id: Number(v) || 0 })}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Opcional..." /></SelectTrigger>
-                  <SelectContent>
-                    {proveedores.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label>Proveedor</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => { setNuevoProveedor({ nombre: busqProveedor.trim(), nit: "", contacto: "", correo: "", ciudad: "" }); setDialogProveedor(true); }}>
+                    <Truck className="size-3.5" /> Nuevo
+                  </Button>
+                </div>
+                <Combobox
+                  items={listaProv}
+                  itemToStringLabel={(p: Proveedor | null) => p?.nombre ?? ""}
+                  value={proveedorSel}
+                  onValueChange={v => setProveedorSel((v as Proveedor) ?? null)}
+                  inputValue={busqProveedor}
+                  onInputValueChange={v => setBusqProveedor(v ?? "")}
+                  openOnInputClick
+                >
+                  <ComboboxInput placeholder="Opcional — buscar o crear..." className="w-full" showClear />
+                  <ComboboxContent>
+                    <ComboboxEmpty>No se encontró. Usa &quot;Nuevo&quot;.</ComboboxEmpty>
+                    <ComboboxList>
+                      {(p: Proveedor) => <ComboboxItem key={p.id} value={p}>{p.nombre}</ComboboxItem>}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </div>
               <div className="grid gap-1.5"><Label>Número de factura</Label><Input value={formIngreso.numero_factura} onChange={e => setFormIngreso({ ...formIngreso, numero_factura: e.target.value })} placeholder="Opcional" /></div>
               <div className="grid gap-1.5"><Label>Lote</Label><Input value={formIngreso.lote} onChange={e => setFormIngreso({ ...formIngreso, lote: e.target.value })} placeholder="Opcional" /></div>
@@ -535,6 +574,26 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
             <Button onClick={ejecutarImportacion} disabled={pendiente || !filasImportar.length}>
               {pendiente ? "Importando..." : `Importar ${filasImportar.length} fila(s)`}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG NUEVO PROVEEDOR (al vuelo desde Ingreso) */}
+      <Dialog open={dialogProveedor} onOpenChange={setDialogProveedor}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Nuevo Proveedor</DialogTitle></DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={nuevoProveedor.nombre} onChange={e => setNuevoProveedor({ ...nuevoProveedor, nombre: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>NIT / Identificación</Label><Input value={nuevoProveedor.nit} onChange={e => setNuevoProveedor({ ...nuevoProveedor, nit: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={nuevoProveedor.contacto} onChange={e => setNuevoProveedor({ ...nuevoProveedor, contacto: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Correo</Label><Input value={nuevoProveedor.correo} onChange={e => setNuevoProveedor({ ...nuevoProveedor, correo: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Ciudad</Label><Input value={nuevoProveedor.ciudad} onChange={e => setNuevoProveedor({ ...nuevoProveedor, ciudad: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogProveedor(false)}>Cancelar</Button>
+            <Button onClick={guardarNuevoProveedor} disabled={pendiente || !nuevoProveedor.nombre.trim()}>Crear</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
