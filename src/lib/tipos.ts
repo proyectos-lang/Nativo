@@ -65,6 +65,17 @@ export type Activo = {
   numero_factura: string | null;
   fecha_compra: string;
   ubicacion: string | null;
+  fecha_ingreso: string | null;
+  area: string | null;
+  marca: string | null;
+  color: string | null;
+  dimensiones: string | null;
+  modelo: string | null;
+  numero_serie: string | null;
+  estado_actual: string | null;
+  garantia_vida_util: string | null;
+  fecha_valuacion: string | null;
+  valor_actual_depreciacion: number | null;
   estado: "Activo" | "Vendido" | "Dado de Baja";
   fecha_baja: string | null;
   motivo_baja: string | null;
@@ -287,6 +298,9 @@ export type Pago = {
   fecha: string;
   abono: number;
   retencion: number;
+  retefuente: number;
+  reteiva: number;
+  reteica: number;
   comentario: string | null;
   usuario: string | null;
   cuenta_id: number | null;

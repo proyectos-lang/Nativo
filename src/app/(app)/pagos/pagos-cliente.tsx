@@ -21,10 +21,14 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
   const [sel, setSel] = useState<Venta | null>(null);
   const [abono, setAbono] = useState(0);
-  const [retencion, setRetencion] = useState(0);
+  const [retefuente, setRetefuente] = useState(0);
+  const [reteiva, setReteiva] = useState(0);
+  const [reteica, setReteica] = useState(0);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [comentario, setComentario] = useState("");
   const [cuentaId, setCuentaId] = useState(0);
+
+  const totalRetenciones = (Number(retefuente) || 0) + (Number(reteiva) || 0) + (Number(reteica) || 0);
 
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -44,7 +48,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
   );
 
   const abrir = (v: Venta) => {
-    setSel(v); setAbono(0); setRetencion(0);
+    setSel(v); setAbono(0); setRetefuente(0); setReteiva(0); setReteica(0);
     setFecha(new Date().toISOString().slice(0, 10)); setComentario(""); setCuentaId(0);
   };
 
@@ -52,7 +56,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
     if (!sel) return;
     startTransition(async () => {
       try {
-        await registrarPago({ venta_id: sel.id, abono, retencion, fecha, comentario, cuenta_id: cuentaId || null });
+        await registrarPago({ venta_id: sel.id, abono, retefuente, reteiva, reteica, fecha, comentario, cuenta_id: cuentaId || null });
         toast.success(`Pago aplicado al ticket #${sel.ticket}`);
         setSel(null);
         router.refresh();
@@ -62,7 +66,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
     });
   };
 
-  const nuevoSaldo = sel ? sel.saldo - abono - retencion : 0;
+  const nuevoSaldo = sel ? sel.saldo - abono - totalRetenciones : 0;
 
   return (
     <div className="mx-auto grid max-w-6xl gap-4">
@@ -175,10 +179,20 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5"><Label>Nuevo Abono ($)</Label><Input type="number" min={0} value={abono || ""} onChange={e => setAbono(Number(e.target.value))} placeholder="0" /></div>
-                <div className="grid gap-1.5"><Label>Retención ($)</Label><Input type="number" min={0} value={retencion || ""} onChange={e => setRetencion(Number(e.target.value))} placeholder="0" /></div>
                 <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
+              </div>
+              <div className="grid gap-2 rounded-md border p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Retenciones ($)</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-1.5"><Label>Retefuente</Label><Input type="number" min={0} value={retefuente || ""} onChange={e => setRetefuente(Number(e.target.value))} placeholder="0" /></div>
+                  <div className="grid gap-1.5"><Label>ReteIVA</Label><Input type="number" min={0} value={reteiva || ""} onChange={e => setReteiva(Number(e.target.value))} placeholder="0" /></div>
+                  <div className="grid gap-1.5"><Label>ReteICA</Label><Input type="number" min={0} value={reteica || ""} onChange={e => setReteica(Number(e.target.value))} placeholder="0" /></div>
+                </div>
+                {totalRetenciones > 0 && <p className="text-xs text-muted-foreground">Total retenciones: <span className="font-semibold">{formatoPesos(totalRetenciones)}</span> — reducen el saldo pero no entran a la cuenta bancaria.</p>}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5"><Label>Comentario / Medio de pago</Label><Input value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Ej. Transferencia Bancolombia #123" /></div>
-                <div className="grid gap-1.5 sm:col-span-2">
+                <div className="grid gap-1.5">
                   <Label>Cuenta destino del abono</Label>
                   <Select value={cuentaId ? String(cuentaId) : ""} onValueChange={v => setCuentaId(v ? Number(v) : 0)}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento bancario)" /></SelectTrigger>
@@ -196,7 +210,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSel(null)}>Cancelar</Button>
-            <Button onClick={procesar} disabled={pendiente || (abono <= 0 && retencion <= 0)}>
+            <Button onClick={procesar} disabled={pendiente || (abono <= 0 && totalRetenciones <= 0)}>
               {pendiente ? "Procesando..." : "Aplicar Pago"}
             </Button>
           </DialogFooter>

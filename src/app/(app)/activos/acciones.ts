@@ -24,6 +24,17 @@ export type DatosActivo = {
   numero_factura?: string;
   fecha_compra?: string;
   ubicacion?: string;
+  fecha_ingreso?: string;
+  area?: string;
+  marca?: string;
+  color?: string;
+  dimensiones?: string;
+  modelo?: string;
+  numero_serie?: string;
+  estado_actual?: string;
+  garantia_vida_util?: string;
+  fecha_valuacion?: string;
+  valor_actual_depreciacion?: number | null;
   generarGasto?: boolean; // solo aplica al crear
 };
 
@@ -83,6 +94,8 @@ export async function guardarActivo(datos: DatosActivo): Promise<Activo> {
   if (costo_unitario < 0) throw new Error("El costo unitario no puede ser negativo.");
   const valor_total = cantidad * costo_unitario;
 
+  const valorActual = datos.valor_actual_depreciacion != null && String(datos.valor_actual_depreciacion) !== ""
+    ? Number(datos.valor_actual_depreciacion) : null;
   const fila = {
     codigo: datos.codigo?.trim() || null,
     nombre,
@@ -96,6 +109,17 @@ export async function guardarActivo(datos: DatosActivo): Promise<Activo> {
     numero_factura: datos.numero_factura?.trim() || null,
     fecha_compra: datos.fecha_compra || new Date().toISOString().slice(0, 10),
     ubicacion: datos.ubicacion?.trim() || null,
+    fecha_ingreso: datos.fecha_ingreso || null,
+    area: datos.area?.trim() || null,
+    marca: datos.marca?.trim() || null,
+    color: datos.color?.trim() || null,
+    dimensiones: datos.dimensiones?.trim() || null,
+    modelo: datos.modelo?.trim() || null,
+    numero_serie: datos.numero_serie?.trim() || null,
+    estado_actual: datos.estado_actual?.trim() || null,
+    garantia_vida_util: datos.garantia_vida_util?.trim() || null,
+    fecha_valuacion: datos.fecha_valuacion || null,
+    valor_actual_depreciacion: valorActual != null && !isNaN(valorActual) ? valorActual : null,
   };
 
   if (datos.id) {

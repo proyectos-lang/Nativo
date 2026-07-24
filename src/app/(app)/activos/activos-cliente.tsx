@@ -24,6 +24,9 @@ type Form = {
   codigo: string; nombre: string; categoria: string; descripcion: string;
   cantidad: number; costo_unitario: number;
   numero_factura: string; fecha_compra: string; ubicacion: string;
+  fecha_ingreso: string; area: string; marca: string; color: string; dimensiones: string;
+  modelo: string; numero_serie: string; estado_actual: string; garantia_vida_util: string;
+  fecha_valuacion: string; valor_actual_depreciacion: string;
   generarGasto: boolean;
 };
 
@@ -32,14 +35,18 @@ function hoy() { return new Date().toISOString().slice(0, 10); }
 const VACIO: Form = {
   codigo: "", nombre: "", categoria: "", descripcion: "",
   cantidad: 1, costo_unitario: 0,
-  numero_factura: "", fecha_compra: hoy(), ubicacion: "", generarGasto: true,
+  numero_factura: "", fecha_compra: hoy(), ubicacion: "",
+  fecha_ingreso: hoy(), area: "", marca: "", color: "", dimensiones: "",
+  modelo: "", numero_serie: "", estado_actual: "", garantia_vida_util: "",
+  fecha_valuacion: "", valor_actual_depreciacion: "",
+  generarGasto: true,
 };
 
 type FormBaja = { motivo: string; fecha_baja: string; valor_baja: number; observaciones_baja: string };
 const BAJA_VACIA: FormBaja = { motivo: "", fecha_baja: hoy(), valor_baja: 0, observaciones_baja: "" };
 
-export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, motivosBaja }: {
-  activos: Activo[]; proveedores: Proveedor[]; categorias: string[]; ubicaciones: string[]; motivosBaja: string[];
+export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, areas, estadosActuales, motivosBaja }: {
+  activos: Activo[]; proveedores: Proveedor[]; categorias: string[]; ubicaciones: string[]; areas: string[]; estadosActuales: string[]; motivosBaja: string[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -65,7 +72,8 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
     return activos.filter(a => {
       if (filtroEstado !== "Todos" && a.estado !== filtroEstado) return false;
       if (!q) return true;
-      return a.nombre.toLowerCase().includes(q) || (a.codigo || "").toLowerCase().includes(q) || (a.categoria || "").toLowerCase().includes(q);
+      return a.nombre.toLowerCase().includes(q) || (a.codigo || "").toLowerCase().includes(q) || (a.categoria || "").toLowerCase().includes(q) ||
+        (a.marca || "").toLowerCase().includes(q) || (a.numero_serie || "").toLowerCase().includes(q) || (a.area || "").toLowerCase().includes(q);
     });
   }, [activos, busqueda, filtroEstado]);
 
@@ -75,6 +83,11 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
         id: a.id, codigo: a.codigo || "", nombre: a.nombre, categoria: a.categoria || "", descripcion: a.descripcion || "",
         cantidad: a.cantidad, costo_unitario: a.costo_unitario,
         numero_factura: a.numero_factura || "", fecha_compra: a.fecha_compra?.slice(0, 10) || hoy(), ubicacion: a.ubicacion || "",
+        fecha_ingreso: a.fecha_ingreso?.slice(0, 10) || "", area: a.area || "", marca: a.marca || "", color: a.color || "",
+        dimensiones: a.dimensiones || "", modelo: a.modelo || "", numero_serie: a.numero_serie || "",
+        estado_actual: a.estado_actual || "", garantia_vida_util: a.garantia_vida_util || "",
+        fecha_valuacion: a.fecha_valuacion?.slice(0, 10) || "",
+        valor_actual_depreciacion: a.valor_actual_depreciacion != null ? String(a.valor_actual_depreciacion) : "",
         generarGasto: true,
       });
       setProveedorSel(proveedores.find(p => p.id === a.proveedor_id) || null);
@@ -94,6 +107,7 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
       try {
         await guardarActivo({
           ...form,
+          valor_actual_depreciacion: form.valor_actual_depreciacion !== "" ? Number(form.valor_actual_depreciacion) : null,
           proveedor_id: proveedorSel?.id || null,
           proveedor: proveedorSel?.nombre || busquedaProveedor.trim() || undefined,
         });
@@ -143,7 +157,10 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
     });
   };
 
-  const campo = (k: "codigo" | "nombre" | "descripcion" | "numero_factura", label: string, className?: string) => (
+  const campo = (
+    k: "codigo" | "nombre" | "descripcion" | "numero_factura" | "marca" | "color" | "dimensiones" | "modelo" | "numero_serie" | "garantia_vida_util",
+    label: string, className?: string,
+  ) => (
     <div className={`grid gap-1.5 ${className || ""}`}>
       <Label>{label}</Label>
       <Input value={form[k]} onChange={e => setForm({ ...form, [k]: e.target.value })} />
@@ -197,28 +214,33 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
+                  <TableHead>Artículo</TableHead>
+                  <TableHead>Área</TableHead>
                   <TableHead>Categoría</TableHead>
                   <TableHead>Ubicación</TableHead>
                   <TableHead className="text-right">Cant.</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Valor compra</TableHead>
+                  <TableHead className="text-right">Valor actual</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(a => (
                   <TableRow key={a.id} className={a.estado === "Activo" ? "" : "opacity-70"}>
                     <TableCell className="font-medium">
                       {a.codigo ? <span className="text-muted-foreground">{a.codigo} — </span> : null}{a.nombre}
+                      {a.marca ? <span className="block text-xs text-muted-foreground">{[a.marca, a.modelo].filter(Boolean).join(" · ")}</span> : null}
                     </TableCell>
+                    <TableCell>{a.area || "-"}</TableCell>
                     <TableCell>{a.categoria || "-"}</TableCell>
                     <TableCell>{a.ubicacion || "-"}</TableCell>
                     <TableCell className="text-right">{a.cantidad}</TableCell>
                     <TableCell className="text-right">{formatoPesos(a.valor_total)}</TableCell>
+                    <TableCell className="text-right">{a.valor_actual_depreciacion != null ? formatoPesos(a.valor_actual_depreciacion) : "-"}</TableCell>
                     <TableCell>
                       <Badge variant={a.estado === "Activo" ? "default" : a.estado === "Vendido" ? "secondary" : "destructive"}>{a.estado}</Badge>
                     </TableCell>
@@ -248,11 +270,31 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>{form.id ? "Editar Activo" : "Nuevo Activo"}</DialogTitle></DialogHeader>
           <div className="grid gap-3">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Identificación</p>
             <div className="grid grid-cols-2 gap-3">
-              {campo("codigo", "Código (opcional)")}
-              {campo("nombre", "Nombre *")}
+              {campo("nombre", "Artículo *")}
+              {campo("marca", "Marca")}
             </div>
             <div className="grid grid-cols-2 gap-3">
+              {campo("modelo", "Modelo")}
+              {campo("numero_serie", "N° de serie / referencia")}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {campo("color", "Color")}
+              {campo("dimensiones", "Dimensiones")}
+              {campo("codigo", "Código / placa interna")}
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Descripción</Label>
+              <Textarea rows={2} value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} />
+            </div>
+
+            <p className="mt-1 text-xs font-semibold uppercase text-muted-foreground">Clasificación</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Área</Label>
+                <Combo opciones={areas} value={form.area} onChange={v => setForm({ ...form, area: v })} placeholder="Escriba o elija..." />
+              </div>
               <div className="grid gap-1.5">
                 <Label>Categoría</Label>
                 <Combo opciones={categorias} value={form.categoria} onChange={v => setForm({ ...form, categoria: v })} placeholder="Escriba o elija..." />
@@ -261,25 +303,13 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
                 <Label>Ubicación</Label>
                 <Combo opciones={ubicaciones} value={form.ubicacion} onChange={v => setForm({ ...form, ubicacion: v })} placeholder="Escriba o elija..." />
               </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Descripción</Label>
-              <Textarea rows={2} value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
-                <Label>Cantidad</Label>
-                <Input type="number" min={1} value={form.cantidad} onChange={e => setForm({ ...form, cantidad: Number(e.target.value) || 1 })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Costo unitario</Label>
-                <Input type="number" min={0} value={form.costo_unitario} onChange={e => setForm({ ...form, costo_unitario: Number(e.target.value) || 0 })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Valor total</Label>
-                <Input value={formatoPesos(valorTotalForm)} disabled />
+                <Label>Estado actual (condición)</Label>
+                <Combo opciones={estadosActuales} value={form.estado_actual} onChange={v => setForm({ ...form, estado_actual: v })} placeholder="Escriba o elija..." />
               </div>
             </div>
+
+            <p className="mt-1 text-xs font-semibold uppercase text-muted-foreground">Proveedor y compra</p>
             <div className="grid gap-1.5">
               <Label>Proveedor</Label>
               <Combobox
@@ -300,13 +330,45 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
                 </ComboboxContent>
               </Combobox>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {campo("numero_factura", "Número de factura")}
               <div className="grid gap-1.5">
-                <Label>Fecha de compra</Label>
+                <Label>Fecha de ingreso</Label>
+                <Input type="date" value={form.fecha_ingreso} onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Fecha de adquisición</Label>
                 <Input type="date" value={form.fecha_compra} onChange={e => setForm({ ...form, fecha_compra: e.target.value })} />
               </div>
             </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Cantidad</Label>
+                <Input type="number" min={1} value={form.cantidad} onChange={e => setForm({ ...form, cantidad: Number(e.target.value) || 1 })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Valor de compra (unit.)</Label>
+                <Input type="number" min={0} value={form.costo_unitario} onChange={e => setForm({ ...form, costo_unitario: Number(e.target.value) || 0 })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Valor total</Label>
+                <Input value={formatoPesos(valorTotalForm)} disabled />
+              </div>
+            </div>
+
+            <p className="mt-1 text-xs font-semibold uppercase text-muted-foreground">Garantía y depreciación</p>
+            <div className="grid grid-cols-3 gap-3">
+              {campo("garantia_vida_util", "Garantía / vida útil")}
+              <div className="grid gap-1.5">
+                <Label>Fecha de valoración</Label>
+                <Input type="date" value={form.fecha_valuacion} onChange={e => setForm({ ...form, fecha_valuacion: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Valor actual con depreciación</Label>
+                <Input type="number" min={0} value={form.valor_actual_depreciacion} onChange={e => setForm({ ...form, valor_actual_depreciacion: e.target.value })} placeholder="Opcional" />
+              </div>
+            </div>
+
             {!form.id && (
               <label className="flex items-center gap-2 rounded-md border p-3 text-sm">
                 <Switch checked={form.generarGasto} onCheckedChange={v => setForm({ ...form, generarGasto: v })} />

@@ -118,7 +118,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`. Los valores se administran por línea en Configuración → Listas Maestras (editar, activar/inactivar, eliminar). Un valor **inactivo** desaparece de los selectores (`listasMaestras()` filtra `activo = true`) pero los registros históricos guardan el texto copiado y no cambian; renombrar un valor tampoco altera registros pasados.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`, `area_activo`, `estado_activo`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -203,13 +203,16 @@ Trazabilidad de cada abono/retención aplicada a una venta (la migración creó 
 | id | bigint | PK identity | |
 | venta_id | bigint | not null, FK → `ventas(id)` **on delete cascade** | |
 | fecha | date | not null, default `current_date` | |
-| abono | numeric | not null, default 0 | |
-| retencion | numeric | not null, default 0 | |
+| abono | numeric | not null, default 0 | Efectivo recibido (lo que entra a la cuenta bancaria) |
+| retencion | numeric | not null, default 0 | **Total** de retenciones del pago (= retefuente + reteiva + reteica) |
+| retefuente | numeric | not null, default 0 | Retención en la fuente (monto) |
+| reteiva | numeric | not null, default 0 | Retención de IVA (monto) |
+| reteica | numeric | not null, default 0 | Retención de ICA (monto) |
 | comentario | text | null | Medio de pago, referencia, etc. |
 | usuario | text | null | Usuario de la app que registró el pago |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índice: `idx_pagos_venta (venta_id)`.
+Índice: `idx_pagos_venta (venta_id)`. Las retenciones reducen el saldo de la venta pero **no son efectivo**: al banco solo entra `abono`.
 
 ---
 
@@ -424,7 +427,15 @@ Registro de **activos fijos de la empresa** (mobiliario, equipos de oficina/cóm
 | numero_factura | text | null | |
 | fecha_compra | date | not null, default `current_date` | |
 | ubicacion | text | null | Lista maestra `ubicacion_activo` |
-| estado | text | not null, default `'Activo'`, check `('Activo','Vendido','Dado de Baja')` | |
+| fecha_ingreso | date | null | Fecha en que el activo ingresó al registro (distinta de `fecha_compra` y `creado_en`) |
+| area | text | null | Área/dependencia. Lista maestra `area_activo` |
+| marca / color / dimensiones / modelo | text | null | Datos físicos del artículo |
+| numero_serie | text | null | Número de serie / referencia de fábrica (distinto de `codigo`, que es la placa/etiqueta interna) |
+| estado_actual | text | null | **Condición física** (Nuevo/Bueno/Regular/Malo/Fuera de servicio). Lista maestra `estado_activo`. Distinto de `estado` (ciclo de vida) |
+| garantia_vida_util | text | null | Texto libre de garantía / vida útil |
+| fecha_valuacion | date | null | Fecha de la valoración manual de depreciación |
+| valor_actual_depreciacion | numeric | null | Valor actual depreciado, capturado **manualmente** por la contadora (no se calcula) |
+| estado | text | not null, default `'Activo'`, check `('Activo','Vendido','Dado de Baja')` | Ciclo de vida |
 | fecha_baja / motivo_baja / valor_baja / observaciones_baja | date / text / numeric / text | null | Se completan al dar de baja. `motivo_baja` viene de la lista maestra `motivo_baja_activo`; `valor_baja` es informativo (la venta de un activo **no** genera un Ingreso automático en Financiero) |
 | gasto_id | bigint | null, FK → `gastos(id)` set null | Si la compra generó un Gasto automático en Financiero |
 | usuario | text | null | |
@@ -691,9 +702,9 @@ Cada cobro de un ingreso (siempre entra a una cuenta). Clon de `pagos_gastos`.
 
 ## Funciones RPC (transaccionales)
 
-### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text, p_cuenta_id bigint default null) → nativo.ventas`
+### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text, p_cuenta_id bigint default null, p_retefuente numeric default 0, p_reteiva numeric default 0, p_reteica numeric default 0) → nativo.ventas`
 
-En una sola transacción: inserta la fila en `pagos` (con `cuenta_id`) y actualiza la cabecera `ventas` — acumula `abono` y `retencion`, recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Si viene `p_cuenta_id` y `p_abono > 0`, inserta el movimiento bancario de **ingreso** (origen `pago_venta`) por el monto del abono — la retención no es entrada de caja. Lanza excepción si la venta no existe.
+En una sola transacción: calcula `v_ret_total = p_retencion + p_retefuente + p_reteiva + p_reteica`, inserta la fila en `pagos` (con `cuenta_id` y el desglose retefuente/reteiva/reteica, y `retencion = v_ret_total`) y actualiza la cabecera `ventas` — acumula `abono` y `retencion` (por el total), recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Si viene `p_cuenta_id` y `p_abono > 0`, inserta el movimiento bancario de **ingreso** (origen `pago_venta`) por el monto del abono — **las retenciones no son entrada de caja**. Lanza excepción si la venta no existe. (Migración 019 reemplazó la firma anterior de 7 parámetros.)
 
 ### `nativo.pagar_gasto(p_gasto_id bigint, p_cuenta_id bigint, p_monto numeric, p_fecha date, p_comentario text, p_usuario text) → nativo.gastos`
 

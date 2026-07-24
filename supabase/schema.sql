@@ -169,7 +169,10 @@ create table nativo.pagos (
   venta_id bigint not null references nativo.ventas (id) on delete cascade,
   fecha date not null default current_date,
   abono numeric not null default 0,
-  retencion numeric not null default 0,
+  retencion numeric not null default 0,   -- TOTAL de retenciones del pago (= retefuente + reteiva + reteica)
+  retefuente numeric not null default 0,
+  reteiva numeric not null default 0,
+  reteica numeric not null default 0,
   comentario text,
   usuario text,
   creado_en timestamptz not null default now()
@@ -581,6 +584,19 @@ create table nativo.activos (
   numero_factura text,
   fecha_compra date not null default current_date,
   ubicacion text,
+  -- Ficha extendida (contadora). estado_actual = condición física
+  -- (lista maestra estado_activo), distinta de `estado` (ciclo de vida).
+  fecha_ingreso date,
+  area text,
+  marca text,
+  color text,
+  dimensiones text,
+  modelo text,
+  numero_serie text,
+  estado_actual text,
+  garantia_vida_util text,
+  fecha_valuacion date,
+  valor_actual_depreciacion numeric,
   estado text not null default 'Activo'
     check (estado in ('Activo', 'Vendido', 'Dado de Baja')),
   fecha_baja date,
@@ -639,6 +655,10 @@ alter table nativo.inventario_movimientos
 -- Inserta en pagos, recalcula la cabecera y, si viene cuenta,
 -- genera el movimiento bancario de ingreso por el abono.
 -- ------------------------------------------------------------
+-- registrar_pago: p_retencion se conserva como retención genérica; se
+-- suman las 3 retenciones colombianas (Retefuente/ReteIVA/ReteICA). El
+-- total reduce el saldo de la venta pero NO es efectivo (a la cuenta
+-- bancaria solo entra el abono). Ver migración 019.
 create or replace function nativo.registrar_pago(
   p_venta_id bigint,
   p_abono numeric,
@@ -646,7 +666,10 @@ create or replace function nativo.registrar_pago(
   p_fecha date,
   p_comentario text,
   p_usuario text,
-  p_cuenta_id bigint default null
+  p_cuenta_id bigint default null,
+  p_retefuente numeric default 0,
+  p_reteiva numeric default 0,
+  p_reteica numeric default 0
 ) returns nativo.ventas
 language plpgsql
 as $$
@@ -654,19 +677,23 @@ declare
   v nativo.ventas;
   v_pago_id bigint;
   v_ticket integer;
+  v_ret_total numeric;
 begin
-  insert into nativo.pagos (venta_id, fecha, abono, retencion, comentario, usuario, cuenta_id)
-  values (p_venta_id, coalesce(p_fecha, current_date), coalesce(p_abono, 0), coalesce(p_retencion, 0), p_comentario, p_usuario, p_cuenta_id)
+  v_ret_total := coalesce(p_retencion, 0) + coalesce(p_retefuente, 0) + coalesce(p_reteiva, 0) + coalesce(p_reteica, 0);
+
+  insert into nativo.pagos (venta_id, fecha, abono, retencion, retefuente, reteiva, reteica, comentario, usuario, cuenta_id)
+  values (p_venta_id, coalesce(p_fecha, current_date), coalesce(p_abono, 0), v_ret_total,
+          coalesce(p_retefuente, 0), coalesce(p_reteiva, 0), coalesce(p_reteica, 0), p_comentario, p_usuario, p_cuenta_id)
   returning id into v_pago_id;
 
   update nativo.ventas
   set abono = abono + coalesce(p_abono, 0),
-      retencion = retencion + coalesce(p_retencion, 0),
-      total_a_pagar = total_compra - (retencion + coalesce(p_retencion, 0)),
-      saldo = (total_compra - (retencion + coalesce(p_retencion, 0))) - (abono + coalesce(p_abono, 0)),
+      retencion = retencion + v_ret_total,
+      total_a_pagar = total_compra - (retencion + v_ret_total),
+      saldo = (total_compra - (retencion + v_ret_total)) - (abono + coalesce(p_abono, 0)),
       fecha_pago = coalesce(p_fecha, fecha_pago),
       estado_pago = case
-        when (total_compra - (retencion + coalesce(p_retencion, 0))) - (abono + coalesce(p_abono, 0)) <= 0 then 'Pagado Total'
+        when (total_compra - (retencion + v_ret_total)) - (abono + coalesce(p_abono, 0)) <= 0 then 'Pagado Total'
         else 'Abonado'
       end
   where id = p_venta_id
@@ -676,7 +703,7 @@ begin
     raise exception 'Venta % no encontrada', p_venta_id;
   end if;
 
-  -- Asiento bancario: solo el abono entra a caja (la retención no es efectivo)
+  -- Asiento bancario: solo el abono entra a caja (las retenciones no son efectivo)
   if p_cuenta_id is not null and coalesce(p_abono, 0) > 0 then
     select ticket into v_ticket from nativo.ventas where id = p_venta_id;
     insert into nativo.movimientos_bancarios (cuenta_id, fecha, tipo, origen, monto, concepto, pago_id, usuario)
@@ -1708,7 +1735,17 @@ insert into nativo.listas_maestras (tipo, valor) values
   ('motivo_baja_activo', 'Dañado/Obsoleto'),
   ('motivo_baja_activo', 'Donado'),
   ('motivo_baja_activo', 'Perdido/Robado'),
-  ('motivo_baja_activo', 'Otro')
+  ('motivo_baja_activo', 'Otro'),
+  ('area_activo', 'Administración'),
+  ('area_activo', 'Producción'),
+  ('area_activo', 'Ventas'),
+  ('area_activo', 'Diseño'),
+  ('area_activo', 'Bodega'),
+  ('estado_activo', 'Nuevo'),
+  ('estado_activo', 'Bueno'),
+  ('estado_activo', 'Regular'),
+  ('estado_activo', 'Malo'),
+  ('estado_activo', 'Fuera de servicio')
 on conflict do nothing;
 
 insert into nativo.listas_maestras (tipo, valor) values

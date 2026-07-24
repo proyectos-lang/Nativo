@@ -22,6 +22,8 @@ export default async function PaginaActivos() {
       proveedores={proveedores as Proveedor[]}
       categorias={maestras.categoria_activo || []}
       ubicaciones={maestras.ubicacion_activo || []}
+      areas={maestras.area_activo || []}
+      estadosActuales={maestras.estado_activo || []}
       motivosBaja={maestras.motivo_baja_activo || []}
     />
   );
