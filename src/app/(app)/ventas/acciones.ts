@@ -60,8 +60,30 @@ async function matchesInventario(lineas: LineaVenta[]): Promise<Map<string, Matc
   }]));
 }
 
-/** Crea/actualiza las reservas de inventario de la venta (solo líneas con match inventariado). */
-async function reservarInventarioVenta(ventaId: number, lineas: LineaVenta[], matches: Map<string, MatchInventario>, usuario: string | null) {
+/**
+ * Distingue un fallo de infraestructura (RPC/tabla ausente o caché de esquema
+ * desactualizada, típico si falta correr una migración) de un error de negocio
+ * (ej. stock insuficiente). Los primeros NO deben impedir registrar la venta.
+ */
+function esFalloDeInfraestructura(mensaje: string): boolean {
+  const m = (mensaje || "").toLowerCase();
+  return m.includes("could not find the function") ||
+    m.includes("schema cache") ||
+    m.includes("does not exist") ||
+    m.includes("no existe") ||
+    m.includes("could not choose the best candidate") ||
+    m.includes("pgrst202") ||
+    m.includes("pgrst203");
+}
+
+/**
+ * Crea/actualiza las reservas de inventario de la venta (solo líneas con match inventariado).
+ * Devuelve `{ error }` para fallos de negocio (bloquean la venta) o `{ aviso }` cuando el
+ * inventario no está disponible por infraestructura (la venta continúa sin reserva).
+ */
+async function reservarInventarioVenta(
+  ventaId: number, lineas: LineaVenta[], matches: Map<string, MatchInventario>, usuario: string | null,
+): Promise<{ error?: string; aviso?: string }> {
   const lineasReserva = lineas
     .map(l => {
       const m = matches.get(l.producto.trim());
@@ -76,7 +98,13 @@ async function reservarInventarioVenta(ventaId: number, lineas: LineaVenta[], ma
     p_lineas: lineasReserva,
     p_usuario: usuario,
   });
-  if (error) throw new Error(error.message);
+  if (!error) return {};
+
+  if (esFalloDeInfraestructura(error.message)) {
+    console.error("[ventas] reserva de inventario omitida (módulo de inventario no disponible):", error.message);
+    return { aviso: "La venta se registró, pero no se reservó inventario porque el módulo de inventario no está disponible." };
+  }
+  return { error: error.message };
 }
 
 function filaDetalle(ventaId: number, l: LineaVenta, sku?: string | null) {
@@ -95,17 +123,27 @@ function filaDetalle(ventaId: number, l: LineaVenta, sku?: string | null) {
   };
 }
 
-export async function registrarVenta(venta: NuevaVenta) {
+/**
+ * Resultado de registrar una venta. Se devuelve como VALOR (no se lanza) porque en
+ * producción Next.js enmascara los errores lanzados desde un Server Action y el
+ * usuario solo vería un mensaje genérico sin la causa real.
+ */
+export type ResultadoVenta =
+  | { ok: true; ticket: number; aviso?: string }
+  | { ok: false; error: string };
+
+async function registrarVentaInterno(venta: NuevaVenta): Promise<ResultadoVenta> {
   const sesion = await requierePermiso("ventas");
-  if (!venta.cliente_id) throw new Error("Selecciona un cliente.");
+  if (!venta.cliente_id) return { ok: false, error: "Selecciona un cliente." };
   const lineas = (venta.lineas || []).filter(l => l.producto?.trim());
-  if (!lineas.length) throw new Error("Agrega al menos un producto.");
+  if (!lineas.length) return { ok: false, error: "Agrega al menos un producto." };
+  let aviso: string | undefined;
 
   // Ticket siguiente de la secuencia normal (los tickets de 6 dígitos son históricos migrados)
   const { data: maxData, error: errMax } = await db()
     .from("ventas").select("ticket").lt("ticket", 100000)
     .order("ticket", { ascending: false }).limit(1);
-  if (errMax) throw new Error(errMax.message);
+  if (errMax) return { ok: false, error: errMax.message };
   const ticket = ((maxData?.[0]?.ticket as number) || 0) + 1;
 
   const costoEnvio = Number(venta.costo_envio) || 0;
@@ -136,7 +174,7 @@ export async function registrarVenta(venta: NuevaVenta) {
     estado_entrega: venta.estado_entrega || "En Proceso",
     fecha_entrega: venta.fecha_entrega || null,
   }).select("id, ticket").single();
-  if (errCab) throw new Error(errCab.message);
+  if (errCab) return { ok: false, error: errCab.message };
 
   const matches = await matchesInventario(lineas);
   const { error: errDet } = await db().from("ventas_detalle").insert(
@@ -144,16 +182,17 @@ export async function registrarVenta(venta: NuevaVenta) {
   );
   if (errDet) {
     await db().from("ventas").delete().eq("id", cab.id); // rollback manual de la cabecera
-    throw new Error(errDet.message);
+    return { ok: false, error: errDet.message };
   }
 
-  // Reserva de inventario (líneas con match en el catálogo); si falla, rollback completo
-  try {
-    await reservarInventarioVenta(cab.id, lineas, matches, sesion.usuario);
-  } catch (e) {
+  // Reserva de inventario: un error de negocio (ej. sin stock) revierte la venta;
+  // un fallo de infraestructura solo deja un aviso y la venta se registra igual.
+  const reserva = await reservarInventarioVenta(cab.id, lineas, matches, sesion.usuario);
+  if (reserva.error) {
     await db().from("ventas").delete().eq("id", cab.id);
-    throw e;
+    return { ok: false, error: reserva.error };
   }
+  if (reserva.aviso) aviso = reserva.aviso;
 
   if (abono > 0) {
     // RPC transaccional: crea el pago, recalcula la cabecera y (si hay cuenta) el movimiento bancario
@@ -166,7 +205,11 @@ export async function registrarVenta(venta: NuevaVenta) {
       p_usuario: sesion.usuario,
       p_cuenta_id: venta.cuenta_id || null,
     });
-    if (errPago) throw new Error("Venta creada pero falló el abono inicial: " + errPago.message);
+    // La venta ya existe: no se revierte. Se avisa para que el abono se registre desde Pagos.
+    if (errPago) {
+      console.error("[ventas] abono inicial falló:", errPago.message);
+      aviso = `La venta se registró, pero el abono inicial no se aplicó (${errPago.message}). Regístralo desde el módulo Pagos.`;
+    }
   }
 
   // Registrar productos nuevos en el catálogo
@@ -184,7 +227,19 @@ export async function registrarVenta(venta: NuevaVenta) {
   revalidatePath("/ventas");
   revalidatePath("/inventario");
   revalidatePath("/");
-  return { ticket: cab.ticket as number };
+  return { ok: true, ticket: cab.ticket as number, aviso };
+}
+
+export async function registrarVenta(venta: NuevaVenta): Promise<ResultadoVenta> {
+  try {
+    return await registrarVentaInterno(venta);
+  } catch (e) {
+    // Registrar la causa real en los logs del servidor: en producción Next.js
+    // enmascara el mensaje de cualquier error lanzado desde un Server Action.
+    const mensaje = e instanceof Error ? e.message : "Error inesperado al registrar la venta.";
+    console.error("[ventas] registrarVenta falló:", mensaje);
+    return { ok: false, error: mensaje };
+  }
 }
 
 export async function actualizarVenta(datos: {
@@ -220,7 +275,8 @@ export async function actualizarVenta(datos: {
     // Reserva de inventario primero: si no hay stock (y no se marcó "venta sin
     // inventario"), aborta ANTES de tocar las líneas
     const matches = await matchesInventario(lineas);
-    await reservarInventarioVenta(datos.venta_id, lineas, matches, sesion.usuario);
+    const reserva = await reservarInventarioVenta(datos.venta_id, lineas, matches, sesion.usuario);
+    if (reserva.error) throw new Error(reserva.error);
 
     // Reemplaza el detalle completo
     const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);

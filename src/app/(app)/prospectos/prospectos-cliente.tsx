@@ -78,7 +78,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Clientes por Contactar</CardTitle>
           <label className="flex items-center gap-2 text-sm">
@@ -87,16 +87,16 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
           </label>
         </CardHeader>
         <CardContent>
-          <div className="max-h-[600px] overflow-auto rounded-md border">
-            <Table>
+          <div className="barra-horizontal-visible max-h-[600px] overflow-x-scroll overflow-y-auto rounded-md border">
+            <Table className="min-w-[1150px]">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
+                  <TableHead className="whitespace-nowrap">Fecha</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Contacto</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Próx. Contacto</TableHead>
-                  <TableHead>Observaciones</TableHead>
+                  <TableHead className="whitespace-nowrap">Próx. Contacto</TableHead>
+                  <TableHead className="min-w-[26rem]">Observaciones</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -121,7 +121,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
                     </TableCell>
                     <TableCell><Badge variant={colorEstado(p.estado)}>{p.estado}</Badge></TableCell>
                     <TableCell>{formatoFecha(p.proximo_contacto)}</TableCell>
-                    <TableCell className="max-w-64 whitespace-pre-wrap text-xs">{p.observaciones || "-"}</TableCell>
+                    <TableCell className="min-w-[26rem] align-top whitespace-pre-wrap text-xs leading-relaxed">{p.observaciones || "-"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => abrirEdicion(p)}><Pencil className="size-4" /></Button>
                     </TableCell>

@@ -106,7 +106,9 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
           fecha_pago: fechaPago, estado_entrega: estadoEntrega, fecha_entrega: fechaEntrega,
           observaciones_pago: observaciones,
         });
+        if (!r.ok) { toast.error(r.error); return; }
         toast.success(`Venta #${r.ticket} registrada correctamente`);
+        if (r.aviso) toast.warning(r.aviso, { duration: 8000 });
         setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo("");
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
