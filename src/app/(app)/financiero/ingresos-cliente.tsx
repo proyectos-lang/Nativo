@@ -311,7 +311,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
           </div>
 
           <div className="grid gap-1.5"><Label>Concepto / Descripción</Label><Textarea rows={2} value={nuevo.concepto} onChange={e => setNuevo({ ...nuevo, concepto: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={nuevo.monto || ""} onChange={e => setNuevo({ ...nuevo, monto: Number(e.target.value) })} placeholder="0" /></div>
+          <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" step="any" min={0} value={nuevo.monto || ""} onChange={e => setNuevo({ ...nuevo, monto: Number(e.target.value) })} placeholder="0" /></div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
@@ -539,7 +539,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                 <div><p className="text-muted-foreground">Saldo</p><p className="font-bold text-destructive">{formatoPesos(selCobro.saldo)}</p></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5"><Label>Monto a cobrar *</Label><Input type="number" min={0} value={cobro.monto || ""} onChange={e => setCobro({ ...cobro, monto: Number(e.target.value) })} /></div>
+                <div className="grid gap-1.5"><Label>Monto a cobrar *</Label><Input type="number" step="any" min={0} value={cobro.monto || ""} onChange={e => setCobro({ ...cobro, monto: Number(e.target.value) })} /></div>
                 <div className="grid gap-1.5"><Label>Cuenta *</Label><SelectorCuenta valor={cobro.cuenta_id} onCambio={id => setCobro({ ...cobro, cuenta_id: id })} /></div>
                 <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={cobro.fecha} onChange={e => setCobro({ ...cobro, fecha: e.target.value })} /></div>
                 <div className="grid gap-1.5"><Label>Comentario</Label><Input value={cobro.comentario} onChange={e => setCobro({ ...cobro, comentario: e.target.value })} /></div>
@@ -628,7 +628,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
             </div>
 
             <div className="grid gap-1.5"><Label>Concepto / Descripción</Label><Textarea rows={2} value={genEd.concepto} onChange={e => setGenEd({ ...genEd, concepto: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={genEd.monto || ""} onChange={e => setGenEd({ ...genEd, monto: Number(e.target.value) })} /></div>
+            <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" step="any" min={0} value={genEd.monto || ""} onChange={e => setGenEd({ ...genEd, monto: Number(e.target.value) })} /></div>
             <div className="grid gap-1.5">
               <Label>Motivo del cambio (opcional)</Label>
               <Textarea rows={2} value={motivoEdicion} onChange={e => setMotivoEdicion(e.target.value)} placeholder="Ej. Corrección de monto por error de digitación" />

@@ -38,6 +38,76 @@ export async function activosTodos() {
   return data || [];
 }
 
+/** Usuarios activos (id + nombre) para selectores de asignación. */
+export async function usuariosActivos() {
+  const { data, error } = await db().from("usuarios").select("id, nombre").eq("activo", true).order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+// ------------------------------------------------------------
+// SOLICITUDES INTERNAS
+// ------------------------------------------------------------
+const ESTADOS_SOLICITUD_ACTIVOS = ["Pendiente", "En proceso", "Esperando información", "Esperando aprobación"];
+
+export async function solicitudesTodas() {
+  const { data, error } = await db().from("solicitudes").select("*").order("fecha_creacion", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function solicitudesHistorialPorSolicitud(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("solicitudes_historial").select("*").order("fecha");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const h of data || []) {
+    if (!out[h.solicitud_id]) out[h.solicitud_id] = [];
+    out[h.solicitud_id].push(h);
+  }
+  return out;
+}
+
+export async function solicitudesAdjuntosPorSolicitud(): Promise<Record<number, unknown[]>> {
+  const { data, error } = await db().from("solicitudes_adjuntos").select("*").order("creado_en");
+  if (error) throw new Error(error.message);
+  const out: Record<number, unknown[]> = {};
+  for (const a of data || []) {
+    if (!out[a.solicitud_id]) out[a.solicitud_id] = [];
+    out[a.solicitud_id].push(a);
+  }
+  return out;
+}
+
+/** Conteo liviano de solicitudes activas asignadas a un usuario (badge/insight). Best-effort: 0 si la tabla aún no existe. */
+export async function solicitudesPendientesDe(usuarioId: number): Promise<number> {
+  try {
+    const { count, error } = await db()
+      .from("solicitudes")
+      .select("id", { count: "exact", head: true })
+      .eq("responsable_id", usuarioId)
+      .in("estado", ESTADOS_SOLICITUD_ACTIVOS);
+    if (error) return 0;
+    return count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Resumen liviano de solicitudes activas del usuario (para insights del dashboard). Best-effort. */
+export async function solicitudesResumenDe(usuarioId: number) {
+  try {
+    const { data, error } = await db()
+      .from("solicitudes")
+      .select("id, titulo, estado, fecha_limite, responsable_id, solicitado_por_id")
+      .in("estado", ESTADOS_SOLICITUD_ACTIVOS)
+      .or(`responsable_id.eq.${usuarioId},solicitado_por_id.eq.${usuarioId}`);
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function productosTodos(): Promise<string[]> {
   const { data, error } = await db().from("productos").select("nombre").order("nombre");
   if (error) throw new Error(error.message);

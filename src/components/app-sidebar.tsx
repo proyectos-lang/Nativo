@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Truck, Hourglass,
-  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText, RotateCcw, Boxes, ClipboardList, Armchair,
+  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText, RotateCcw, Boxes, ClipboardList, Armchair, Inbox,
 } from "lucide-react";
 import { LogoNativo } from "@/components/logo-nativo";
 import type { Sesion, Modulo } from "@/lib/tipos";
@@ -27,11 +27,12 @@ const ITEMS: { clave: Modulo; titulo: string; url: string; icono: React.ElementT
   { clave: "inventario", titulo: "Inventario", url: "/inventario", icono: Boxes },
   { clave: "compras", titulo: "Compras", url: "/compras", icono: ClipboardList },
   { clave: "activos", titulo: "Activos Fijos", url: "/activos", icono: Armchair },
+  { clave: "solicitudes", titulo: "Solicitudes Internas", url: "/solicitudes", icono: Inbox },
   { clave: "financiero", titulo: "Financiero", url: "/financiero", icono: Landmark },
   { clave: "configuracion", titulo: "Configuración", url: "/configuracion", icono: Settings },
 ];
 
-export function AppSidebar({ sesion, accionSalir }: { sesion: Sesion; accionSalir: () => Promise<void> }) {
+export function AppSidebar({ sesion, accionSalir, pendientesSolicitudes = 0 }: { sesion: Sesion; accionSalir: () => Promise<void>; pendientesSolicitudes?: number }) {
   const ruta = usePathname();
   const visibles = ITEMS.filter(i => sesion.rol === "admin" || sesion.permisos?.[i.clave]);
 
@@ -59,6 +60,11 @@ export function AppSidebar({ sesion, accionSalir }: { sesion: Sesion; accionSali
                   >
                     <item.icono />
                     <span>{item.titulo}</span>
+                    {item.clave === "solicitudes" && pendientesSolicitudes > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
+                        {pendientesSolicitudes}
+                      </span>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

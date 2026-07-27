@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requierePermisoPagina } from "@/lib/sesion";
-import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos, cuentasConSaldo, devolucionesDetallePendientes, alertasInventario } from "@/lib/consultas";
+import { ventasConCliente, detallesPorVenta, historialPorVenta, prospectosTodos, cuentasConSaldo, devolucionesDetallePendientes, alertasInventario, solicitudesResumenDe } from "@/lib/consultas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,7 +32,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
 
   const esFinanciero = sesion.rol === "admin" || sesion.permisos.financiero;
 
-  const [ventas, detalles, historial, prospectos, cuentas, devolucionesPendientes, inventario] = await Promise.all([
+  const [ventas, detalles, historial, prospectos, cuentas, devolucionesPendientes, inventario, solicitudesResumen] = await Promise.all([
     ventasConCliente() as Promise<Venta[]>,
     detallesPorVenta() as Promise<Record<number, VentaDetalle[]>>,
     historialPorVenta() as Promise<Record<number, HistorialEntrega[]>>,
@@ -40,7 +40,13 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
     (esFinanciero ? cuentasConSaldo() : Promise.resolve([])) as Promise<CuentaBancaria[]>,
     devolucionesDetallePendientes(),
     alertasInventario(),
+    solicitudesResumenDe(sesion.id),
   ]);
+
+  const solicitudesInsight = {
+    asignadasActivas: solicitudesResumen.filter(s => s.responsable_id === sesion.id).length,
+    vencidas: solicitudesResumen.filter(s => s.responsable_id === sesion.id && s.fecha_limite && s.fecha_limite < hoyStr).length,
+  };
 
   const cuentasActivas = cuentas.filter(c => c.activa);
   const totalBancos = cuentasActivas.reduce((s, c) => s + (c.saldo_actual || 0), 0);
@@ -114,7 +120,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
   const insights = construirInsights({
     hoyStr, limiteProximosStr, ventas, noEntregadas, alertasDetalle, diasAlerta: DIAS_ALERTA,
     prospectos, variacion, totalVentasMes, cuentasActivas, esFinanciero, devolucionesPendientes,
-    inventario,
+    inventario, solicitudes: solicitudesInsight,
   });
 
   return (

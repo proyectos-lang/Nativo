@@ -13,6 +13,7 @@ export type Permisos = {
   inventario: boolean;
   compras: boolean;
   activos: boolean;
+  solicitudes: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -44,6 +45,7 @@ export type Proveedor = {
   id: number;
   nombre: string;
   nit: string | null;
+  tipo: string | null;
   contacto: string | null;
   correo: string | null;
   direccion: string | null;
@@ -85,6 +87,52 @@ export type Activo = {
   usuario: string | null;
   creado_en: string;
   actualizado_en: string;
+};
+
+export type EstadoSolicitud = "Pendiente" | "En proceso" | "Esperando información" | "Esperando aprobación" | "Finalizada" | "Cancelada";
+export type PrioridadSolicitud = "Baja" | "Media" | "Alta" | "Urgente";
+
+export type Solicitud = {
+  id: number;
+  numero: number;
+  fecha_creacion: string;
+  solicitado_por_id: number | null;
+  solicitado_por: string | null;
+  responsable_id: number | null;
+  responsable: string | null;
+  area: string | null;
+  titulo: string;
+  descripcion: string | null;
+  prioridad: PrioridadSolicitud;
+  fecha_limite: string | null;
+  estado: EstadoSolicitud;
+  fecha_finalizacion: string | null;
+  observaciones_finales: string | null;
+  usuario: string | null;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+export type SolicitudHistorial = {
+  id: number;
+  solicitud_id: number;
+  fecha: string;
+  tipo: "creacion" | "comentario" | "cambio_estado" | "reasignacion" | "finalizacion";
+  estado_anterior: string | null;
+  estado_nuevo: string | null;
+  comentario: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+export type SolicitudAdjunto = {
+  id: number;
+  solicitud_id: number;
+  url: string;
+  nombre: string | null;
+  tipo: string | null;
+  usuario: string | null;
+  creado_en: string;
 };
 
 export type Producto = {
@@ -356,6 +404,7 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "inventario", nombre: "Inventario" },
   { clave: "compras", nombre: "Compras" },
   { clave: "activos", nombre: "Activos Fijos" },
+  { clave: "solicitudes", nombre: "Solicitudes Internas" },
   { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
@@ -374,6 +423,7 @@ export const MODULO_URL: Record<Modulo, string> = {
   inventario: "/inventario",
   compras: "/compras",
   activos: "/activos",
+  solicitudes: "/solicitudes",
   financiero: "/financiero",
   configuracion: "/configuracion",
 };
@@ -537,7 +587,9 @@ export type Bitacora = {
 };
 
 export function formatoPesos(n: number | null | undefined): string {
-  return "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
+  // Muestra hasta 2 decimales solo cuando el valor los tiene; los enteros
+  // se ven sin decimales (no redondea para no ocultar centavos).
+  return "$" + (Number(n) || 0).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 /** Compara fecha programada vs. fecha real de entrega. null si falta alguna. */

@@ -13,6 +13,7 @@ export async function guardarProveedor(datos: Partial<Proveedor> & { nombre: str
   const fila = {
     nombre: datos.nombre.trim(),
     nit: datos.nit?.trim() || null,
+    tipo: datos.tipo?.trim() || null,
     contacto: datos.contacto?.trim() || null,
     correo: datos.correo?.trim() || null,
     direccion: datos.direccion?.trim() || null,

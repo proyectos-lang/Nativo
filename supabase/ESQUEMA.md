@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario`, `compras` y `activos` | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras, activos |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario`, `compras` y `activos` (`solicitudes` es `true` por defecto: todos crean solicitudes) | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras, activos, solicitudes |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -59,6 +59,7 @@ Clon de `clientes` para la base de datos de proveedores (usada en Financiero →
 | id | bigint | PK identity | |
 | nombre | text | not null | |
 | nit | text | null | NIT/identificación |
+| tipo | text | null | Tipo/categoría del proveedor (Telas, Diseñadores gráficos, etc.). Lista maestra `tipo_proveedor` |
 | contacto | text | null | Teléfono |
 | correo | text | null | |
 | direccion | text | null | |
@@ -118,7 +119,7 @@ Valores de los desplegables de la app, administrables desde Configuración.
 
 Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`. Los valores se administran por línea en Configuración → Listas Maestras (editar, activar/inactivar, eliminar). Un valor **inactivo** desaparece de los selectores (`listasMaestras()` filtra `activo = true`) pero los registros históricos guardan el texto copiado y no cambian; renombrar un valor tampoco altera registros pasados.
 
-Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`, `area_activo`, `estado_activo`.
+Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`, `area_activo`, `estado_activo`, `tipo_proveedor`, `area_solicitud`.
 
 `categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
 
@@ -444,6 +445,65 @@ Registro de **activos fijos de la empresa** (mobiliario, equipos de oficina/cóm
 Índices: `idx_activos_estado`, `idx_activos_categoria`, `idx_activos_proveedor`. Permiso `activos` en `usuarios.permisos` (default `false`).
 
 Al registrar la compra de un activo con `costo_unitario > 0`, la acción `guardarActivo` puede generar automáticamente un Gasto (`tipo = 'Gasto'`, `categoria = 'Compra de Activo Fijo'`) + su línea en `gastos_detalle` (desactivable con un checkbox en el formulario) — lógica local a `activos/acciones.ts`, no reutiliza `crearGasto` de Financiero porque ese exige el permiso `financiero`.
+
+---
+
+## solicitudes
+
+Módulo "Solicitudes Internas": tareas/peticiones entre miembros del equipo. Nunca se elimina una solicitud; solo cambia de estado (`Finalizada`/`Cancelada`) y queda en historial. Permiso `solicitudes` en `usuarios.permisos` es **`true` por defecto** (cualquier usuario crea solicitudes).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| numero | integer | not null | Consecutivo visible (max+1) |
+| fecha_creacion | timestamptz | not null, default `now()` | Fecha y hora automáticas |
+| solicitado_por_id / solicitado_por | bigint / text | FK → `usuarios(id)` set null | Quien crea (id + nombre copiado) = sesión |
+| responsable_id / responsable | bigint / text | FK → `usuarios(id)` set null | Persona asignada (una sola) |
+| area | text | null | Lista maestra `area_solicitud` (opcional) |
+| titulo | text | not null | |
+| descripcion | text | null | |
+| prioridad | text | not null, default `'Media'`, check `('Baja','Media','Alta','Urgente')` | |
+| fecha_limite | date | null | Opcional |
+| estado | text | not null, default `'Pendiente'`, check `('Pendiente','En proceso','Esperando información','Esperando aprobación','Finalizada','Cancelada')` | |
+| fecha_finalizacion | timestamptz | null | Automática al finalizar |
+| observaciones_finales | text | null | |
+| usuario | text | null | Autor (texto) |
+| creado_en / actualizado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_solicitudes_estado`, `idx_solicitudes_responsable`, `idx_solicitudes_solicitante`.
+
+## solicitudes_historial
+
+Conversación cronológica + cambios de estado (append-only, patrón `historial_entregas`). Un renglón por creación, comentario, cambio de estado, reasignación o finalización.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| solicitud_id | bigint | not null, FK → `solicitudes(id)` **on delete cascade** | |
+| fecha | timestamptz | not null, default `now()` | |
+| tipo | text | not null, default `'comentario'`, check `('creacion','comentario','cambio_estado','reasignacion','finalizacion')` | |
+| estado_anterior / estado_nuevo | text | null | En transiciones de estado |
+| comentario | text | null | Texto del avance/comentario |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_solicitudes_historial_solicitud`.
+
+## solicitudes_adjuntos
+
+Archivos adjuntos (imágenes, PDF, Excel, Word) subidos al bucket de Storage `guias`; se guarda la URL pública.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| solicitud_id | bigint | not null, FK → `solicitudes(id)` **on delete cascade** | |
+| url | text | not null | URL pública en Storage |
+| nombre | text | null | Nombre original del archivo |
+| tipo | text | null | MIME |
+| usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_solicitudes_adjuntos_solicitud`.
 
 ---
 

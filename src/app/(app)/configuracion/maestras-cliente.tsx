@@ -42,6 +42,8 @@ const NOMBRES_TIPO: Record<string, string> = {
   motivo_baja_activo: "Motivos de Baja de Activos",
   area_activo: "Áreas de Activos",
   estado_activo: "Estado / Condición de Activos",
+  tipo_proveedor: "Tipos de Proveedor",
+  area_solicitud: "Áreas de Solicitudes",
 };
 
 type ValorMaestro = { id: number; tipo: string; valor: string; activo: boolean };

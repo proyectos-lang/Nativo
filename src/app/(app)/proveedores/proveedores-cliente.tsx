@@ -10,12 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Combo } from "@/components/combo";
 import { Pencil, Truck } from "lucide-react";
 import type { Proveedor } from "@/lib/tipos";
 
 const VACIO: Partial<Proveedor> & { nombre: string } = { nombre: "" };
 
-export function ProveedoresCliente({ proveedores }: { proveedores: Proveedor[] }) {
+export function ProveedoresCliente({ proveedores, tipos }: { proveedores: Proveedor[]; tipos: string[] }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -28,6 +29,7 @@ export function ProveedoresCliente({ proveedores }: { proveedores: Proveedor[] }
     return proveedores.filter(p =>
       p.nombre.toLowerCase().includes(q) ||
       (p.nit || "").toLowerCase().includes(q) ||
+      (p.tipo || "").toLowerCase().includes(q) ||
       (p.ciudad || "").toLowerCase().includes(q)
     );
   }, [proveedores, busqueda]);
@@ -75,6 +77,7 @@ export function ProveedoresCliente({ proveedores }: { proveedores: Proveedor[] }
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>NIT</TableHead>
                   <TableHead>Contacto</TableHead>
                   <TableHead>Ciudad</TableHead>
@@ -84,11 +87,12 @@ export function ProveedoresCliente({ proveedores }: { proveedores: Proveedor[] }
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.nombre}</TableCell>
+                    <TableCell>{p.tipo || "-"}</TableCell>
                     <TableCell>{p.nit || "-"}</TableCell>
                     <TableCell>{p.contacto || "-"}</TableCell>
                     <TableCell>{p.ciudad || "-"}{p.departamento ? `, ${p.departamento}` : ""}</TableCell>
@@ -109,6 +113,10 @@ export function ProveedoresCliente({ proveedores }: { proveedores: Proveedor[] }
           <DialogHeader><DialogTitle>{form.id ? "Editar Proveedor" : "Nuevo Proveedor"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             {campo("nombre", "Nombre *")}
+            <div className="grid gap-1.5">
+              <Label>Tipo de proveedor</Label>
+              <Combo opciones={tipos} value={form.tipo || ""} onChange={v => setForm({ ...form, tipo: v })} placeholder="Escriba o elija..." />
+            </div>
             {campo("nit", "NIT / Identificación")}
             {campo("contacto", "Teléfono")}
             {campo("correo", "Correo")}

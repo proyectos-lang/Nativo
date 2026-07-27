@@ -261,7 +261,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
         </div>
         <div className="grid gap-1.5">
           <Label>Cantidad</Label>
-          <Input type="number" min={0} value={l.cantidad} onChange={e => onCambio(i, "cantidad", Number(e.target.value))} />
+          <Input type="number" step="any" min={0} value={l.cantidad} onChange={e => onCambio(i, "cantidad", Number(e.target.value))} />
         </div>
         <div className="grid gap-1.5">
           <Label>Unidad de Medida</Label>
@@ -269,7 +269,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
         </div>
         <div className="grid gap-1.5">
           <Label>Precio Unitario</Label>
-          <Input type="number" min={0} value={l.precio_unitario || ""} onChange={e => onCambio(i, "precio_unitario", Number(e.target.value))} placeholder="0" />
+          <Input type="number" step="any" min={0} value={l.precio_unitario || ""} onChange={e => onCambio(i, "precio_unitario", Number(e.target.value))} placeholder="0" />
         </div>
         <div className="grid gap-1.5">
           <Label>Total Línea</Label>
@@ -589,7 +589,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                 <div><p className="text-muted-foreground">Saldo</p><p className="font-bold text-destructive">{formatoPesos(selPago.saldo)}</p></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5"><Label>Monto a pagar *</Label><Input type="number" min={0} value={pago.monto || ""} onChange={e => setPago({ ...pago, monto: Number(e.target.value) })} /></div>
+                <div className="grid gap-1.5"><Label>Monto a pagar *</Label><Input type="number" step="any" min={0} value={pago.monto || ""} onChange={e => setPago({ ...pago, monto: Number(e.target.value) })} /></div>
                 <div className="grid gap-1.5"><Label>Cuenta *</Label><SelectorCuenta valor={pago.cuenta_id} onCambio={id => setPago({ ...pago, cuenta_id: id })} /></div>
                 <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={pago.fecha} onChange={e => setPago({ ...pago, fecha: e.target.value })} /></div>
                 <div className="grid gap-1.5"><Label>Comentario</Label><Input value={pago.comentario} onChange={e => setPago({ ...pago, comentario: e.target.value })} /></div>

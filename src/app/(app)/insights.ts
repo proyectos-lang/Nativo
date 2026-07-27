@@ -33,6 +33,7 @@ type ParametrosInsights = {
     diasSinConteo: number | null;
     conteoVencido: boolean;
   } | null;
+  solicitudes: { asignadasActivas: number; vencidas: number } | null;
 };
 
 const ORDEN_SEVERIDAD: Record<Insight["severidad"], number> = { danger: 0, warning: 1, info: 2, success: 3 };
@@ -203,6 +204,28 @@ export function construirInsights(p: ParametrosInsights): Insight[] {
         titulo: `${enRojo.length} cuenta${enRojo.length > 1 ? "s" : ""} en números rojos`,
         descripcion: `${enRojo.map(c => c.nombre).join(", ")} ${enRojo.length > 1 ? "tienen" : "tiene"} saldo negativo.`,
         href: "/financiero",
+      });
+    }
+  }
+
+  if (p.solicitudes) {
+    if (p.solicitudes.vencidas > 0) {
+      insights.push({
+        id: "solicitudes-vencidas",
+        severidad: "danger",
+        icono: "chispa",
+        titulo: `${p.solicitudes.vencidas} solicitud${p.solicitudes.vencidas > 1 ? "es" : ""} vencida${p.solicitudes.vencidas > 1 ? "s" : ""}`,
+        descripcion: "Tienes solicitudes asignadas cuya fecha límite ya pasó.",
+        href: "/solicitudes",
+      });
+    } else if (p.solicitudes.asignadasActivas > 0) {
+      insights.push({
+        id: "solicitudes-pendientes",
+        severidad: "info",
+        icono: "chispa",
+        titulo: `${p.solicitudes.asignadasActivas} solicitud${p.solicitudes.asignadasActivas > 1 ? "es" : ""} por atender`,
+        descripcion: "Tienes solicitudes internas asignadas pendientes de resolver.",
+        href: "/solicitudes",
       });
     }
   }
