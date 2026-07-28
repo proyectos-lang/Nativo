@@ -295,7 +295,7 @@ export function ReportesTab({ productos, existencias, reservas, ubicaciones, mov
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[560px] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

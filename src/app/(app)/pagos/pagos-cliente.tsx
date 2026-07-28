@@ -98,7 +98,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[600px] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[600px] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -154,7 +154,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
               {(pagos[sel.id]?.length ?? 0) > 0 && (
                 <div>
                   <p className="mb-1 text-sm font-semibold">Historial de pagos</p>
-                  <div className="max-h-36 tabla-scroll overflow-auto rounded-md border">
+                  <div className="max-h-36 tabla-scroll rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>

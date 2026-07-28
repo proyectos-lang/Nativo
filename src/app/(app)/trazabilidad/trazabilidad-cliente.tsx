@@ -103,7 +103,7 @@ export function TrazabilidadCliente({ eventos }: Props) {
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[650px] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[650px] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

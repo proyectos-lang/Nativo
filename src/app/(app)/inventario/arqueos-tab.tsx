@@ -149,7 +149,7 @@ export function ArqueosTab({ arqueos, detalles, ubicaciones, categorias }: Props
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[500px] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[500px] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -259,7 +259,7 @@ export function ArqueosTab({ arqueos, detalles, ubicaciones, categorias }: Props
                 </div>
               )}
               <Input placeholder="Buscar producto..." value={busquedaConteo} onChange={e => setBusquedaConteo(e.target.value)} />
-              <div className="max-h-[45vh] tabla-scroll overflow-auto rounded-md border">
+              <div className="max-h-[45vh] tabla-scroll rounded-md border">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-background">
                     <TableRow>

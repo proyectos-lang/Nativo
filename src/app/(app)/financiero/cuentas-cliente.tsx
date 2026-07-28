@@ -213,7 +213,7 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
               </span>
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[60vh] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

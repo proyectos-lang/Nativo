@@ -433,7 +433,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
           </div>
         </CardHeader>
         <CardContent>
-          <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
+          <div className="max-h-[560px] tabla-scroll rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

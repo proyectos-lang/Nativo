@@ -229,7 +229,7 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
                 <p className="ml-auto text-sm text-muted-foreground">{lista.length} de {solicitudes.length}</p>
               </div>
 
-              <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
+              <div className="max-h-[560px] tabla-scroll rounded-md border">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-background">
                     <TableRow>

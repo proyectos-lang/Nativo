@@ -211,12 +211,15 @@ thead {
   }
 }
 
-/* Contenedor de tablas de datos: barras de desplazamiento marcadas y, sobre todo,
-   ANCLADAS al pie del área visible. Sin la última regla, el wrapper interno de
-   shadcn (div[data-slot="table-container"], overflow-x-auto) dibuja la barra
-   horizontal al final de TODAS las filas y solo se alcanza bajando hasta el fondo. */
+/* Contenedor de tablas de datos: barra horizontal SIEMPRE visible y anclada al
+   pie del área visible. `scroll` (no `auto`) es lo que la dibuja aunque el
+   contenido quepa, para que todas las tablas se comporten igual. Sin la última
+   regla, el wrapper interno de shadcn (div[data-slot="table-container"],
+   overflow-x-auto) dibujaría la barra al final de TODAS las filas y solo se
+   alcanzaría bajando hasta el fondo. */
 .tabla-scroll {
-  overflow: auto;
+  overflow-x: scroll;
+  overflow-y: auto;
   scrollbar-width: auto; /* Firefox */
   scrollbar-color: oklch(0.51 0.12 160 / 55%) oklch(0.51 0.12 160 / 12%);
 }
