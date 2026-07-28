@@ -85,7 +85,9 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   };
 
   // Filtros
-  const [filtroEstado, setFiltroEstado] = useState("pendientes");
+  // "todos" por defecto: si se filtrara por pendientes, la tabla aparece vacía
+  // cuando ya está todo cobrado y parece un error.
+  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [filtroCuenta, setFiltroCuenta] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
 
@@ -366,12 +368,12 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
           </div>
           <div className="flex flex-wrap gap-2">
             <Input className="w-44" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-            <Select value={filtroEstado} onValueChange={v => setFiltroEstado(v || "pendientes")}>
+            <Select value={filtroEstado} onValueChange={v => setFiltroEstado(v || "todos")}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="pendientes">Pendientes</SelectItem>
                 <SelectItem value="cobrados">Cobrados</SelectItem>
-                <SelectItem value="todos">Todos</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroCuenta} onValueChange={v => setFiltroCuenta(v || "todas")}>
@@ -400,7 +402,11 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    {ingresos.length === 0
+                      ? "Aún no hay ingresos registrados."
+                      : `Ningún ingreso coincide con los filtros (hay ${ingresos.length} en total).`}
+                  </TableCell></TableRow>
                 )}
                 {lista.map(i => (
                   <TableRow key={i.id} className="cursor-pointer" onClick={() => abrirDetalle(i)}>

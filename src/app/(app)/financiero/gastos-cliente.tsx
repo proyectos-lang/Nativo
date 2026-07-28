@@ -96,7 +96,9 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
   };
 
   // Filtros
-  const [filtroEstado, setFiltroEstado] = useState("pendientes");
+  // "todos" por defecto: si se filtrara por pendientes, la tabla aparece vacía
+  // cuando ya está todo pagado y parece un error.
+  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroCuenta, setFiltroCuenta] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
@@ -413,12 +415,12 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                 <SelectItem value="Costo">Costos</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filtroEstado} onValueChange={v => setFiltroEstado(v || "pendientes")}>
+            <Select value={filtroEstado} onValueChange={v => setFiltroEstado(v || "todos")}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="pendientes">Pendientes</SelectItem>
                 <SelectItem value="pagados">Pagados</SelectItem>
-                <SelectItem value="todos">Todos</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filtroCuenta} onValueChange={v => setFiltroCuenta(v || "todas")}>
@@ -447,7 +449,11 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    {gastos.length === 0
+                      ? "Aún no hay gastos registrados."
+                      : `Ningún gasto coincide con los filtros (hay ${gastos.length} en total).`}
+                  </TableCell></TableRow>
                 )}
                 {lista.map(g => (
                   <TableRow key={g.id} className="cursor-pointer" onClick={() => abrirDetalle(g)}>
