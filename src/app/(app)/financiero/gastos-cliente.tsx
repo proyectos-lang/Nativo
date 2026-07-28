@@ -98,6 +98,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
   const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroCuenta, setFiltroCuenta] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
 
   // Detalle (solo lectura)
@@ -122,12 +123,29 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
   const [busquedaProveedorEd, setBusquedaProveedorEd] = useState("");
   const [motivoEdicion, setMotivoEdicion] = useState("");
 
+  // Cuentas bancarias desde donde se pagó cada gasto (según sus abonos registrados)
+  const nombreCuenta = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cuentas) m.set(c.id, c.nombre);
+    return m;
+  }, [cuentas]);
+
+  const cuentasDeGasto = useMemo(() => {
+    const m = new Map<number, { ids: number[]; nombres: string }>();
+    for (const g of gastos) {
+      const ids = [...new Set((pagosGastos[g.id] || []).map(p => p.cuenta_id).filter(Boolean) as number[])];
+      m.set(g.id, { ids, nombres: ids.map(id => nombreCuenta.get(id) || "—").join(", ") });
+    }
+    return m;
+  }, [gastos, pagosGastos, nombreCuenta]);
+
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
     return gastos.filter(g => {
       if (filtroEstado === "pendientes" && g.saldo <= 0) return false;
       if (filtroEstado === "pagados" && g.saldo > 0) return false;
       if (filtroTipo !== "todos" && g.tipo !== filtroTipo) return false;
+      if (filtroCuenta !== "todas" && !(cuentasDeGasto.get(g.id)?.ids || []).includes(Number(filtroCuenta))) return false;
       if (!q) return true;
       const arts = (gastosDetalle[g.id] || []).map(d => d.articulo).join(" ");
       return arts.toLowerCase().includes(q) ||
@@ -136,7 +154,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
         (g.categoria || "").toLowerCase().includes(q) ||
         String(g.ticket) === q;
     });
-  }, [gastos, gastosDetalle, filtroEstado, filtroTipo, busqueda]);
+  }, [gastos, gastosDetalle, filtroEstado, filtroTipo, filtroCuenta, cuentasDeGasto, busqueda]);
 
   const totalPendiente = useMemo(() => gastos.reduce((s, g) => s + (g.saldo > 0 ? Number(g.saldo) : 0), 0), [gastos]);
 
@@ -379,7 +397,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
       </Card>
 
       {/* LISTA */}
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row flex-wrap items-end justify-between gap-2">
           <div>
             <CardTitle>Gastos y Costos</CardTitle>
@@ -403,10 +421,17 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                 <SelectItem value="todos">Todos</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroCuenta} onValueChange={v => setFiltroCuenta(v || "todas")}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="Cuenta" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las cuentas</SelectItem>
+                {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="max-h-[560px] overflow-auto rounded-md border">
+          <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -414,6 +439,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                   <TableHead>Fecha</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Detalle</TableHead>
+                  <TableHead>Cuenta</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -421,7 +447,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(g => (
                   <TableRow key={g.id} className="cursor-pointer" onClick={() => abrirDetalle(g)}>
@@ -434,6 +460,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                       </span>
                       <span className="block text-xs text-muted-foreground">{[g.categoria, g.proveedor].filter(Boolean).join(" · ")}</span>
                     </TableCell>
+                    <TableCell className="max-w-40 truncate text-sm">{cuentasDeGasto.get(g.id)?.nombres || "—"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(g.monto)}</TableCell>
                     <TableCell className={`text-right font-bold ${g.saldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(g.saldo)}</TableCell>
                     <TableCell><Badge variant={g.estado === "Pagado" ? "default" : g.estado === "Abonado" ? "secondary" : "outline"}>{g.estado}</Badge></TableCell>

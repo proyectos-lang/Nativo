@@ -42,7 +42,7 @@ export function PendientesTab({ reservas }: Props) {
           <p className="text-sm text-muted-foreground">Ventas sin inventario esperando mercancía. Se surten automáticamente (más antiguas primero) con cada ingreso.</p>
         </CardHeader>
         <CardContent>
-          <div className="max-h-80 overflow-auto rounded-md border">
+          <div className="max-h-80 tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -80,7 +80,7 @@ export function PendientesTab({ reservas }: Props) {
           <p className="text-sm text-muted-foreground">Stock comprometido en pedidos aún no entregados (se descuenta físicamente al marcar Entregado).</p>
         </CardHeader>
         <CardContent>
-          <div className="max-h-80 overflow-auto rounded-md border">
+          <div className="max-h-80 tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

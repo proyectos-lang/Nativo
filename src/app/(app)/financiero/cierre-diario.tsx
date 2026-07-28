@@ -162,7 +162,7 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Ventas registradas</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <div className="tabla-scroll"><Table>
                 <TableHeader><TableRow><TableHead>Ticket</TableHead><TableHead>Cliente</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {datos.ventasDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin ventas este día.</TableCell></TableRow>}
@@ -174,14 +174,14 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Pagos recibidos</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <div className="tabla-scroll"><Table>
                 <TableHeader><TableRow><TableHead>Ticket</TableHead><TableHead>Cuenta</TableHead><TableHead className="text-right">Abono</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {datos.pagosDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin pagos este día.</TableCell></TableRow>}
@@ -193,14 +193,14 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Pagos de gastos y costos</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <div className="tabla-scroll"><Table>
                 <TableHeader><TableRow><TableHead>Concepto</TableHead><TableHead>Cuenta</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {datos.pagosGastosDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin pagos de gastos este día.</TableCell></TableRow>}
@@ -212,14 +212,14 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Cobros de ingresos</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <div className="tabla-scroll"><Table>
                 <TableHeader><TableRow><TableHead>Concepto</TableHead><TableHead>Cuenta</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {datos.cobrosIngresosDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin cobros de ingresos este día.</TableCell></TableRow>}
@@ -231,14 +231,14 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Otros movimientos (manuales y transferencias)</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <div className="tabla-scroll"><Table>
                 <TableHeader><TableRow><TableHead>Concepto</TableHead><TableHead>Cuenta</TableHead><TableHead className="text-right">Monto</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {datos.manualesDia.length === 0 && <TableRow><TableCell colSpan={3} className="py-4 text-center text-muted-foreground">Sin movimientos este día.</TableCell></TableRow>}
@@ -252,7 +252,7 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             </CardContent>
           </Card>
         </div>
@@ -261,7 +261,7 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Consolidación bancaria al cierre del {formatoFecha(fecha)}</CardTitle></CardHeader>
           <CardContent>
-            <Table>
+            <div className="tabla-scroll"><Table>
               <TableHeader>
                 <TableRow><TableHead>Cuenta</TableHead><TableHead>Banco</TableHead><TableHead className="text-right">Saldo al cierre</TableHead></TableRow>
               </TableHeader>
@@ -278,7 +278,7 @@ export function CierreDiario({ cuentas, movimientos, gastos, ventas, pagosVentas
                   <TableCell className={`text-right text-lg font-bold ${datos.totalCierre >= 0 ? "text-primary" : "text-destructive"}`}>{formatoPesos(datos.totalCierre)}</TableCell>
                 </TableRow>
               </TableBody>
-            </Table>
+            </Table></div>
           </CardContent>
         </Card>
       </div>

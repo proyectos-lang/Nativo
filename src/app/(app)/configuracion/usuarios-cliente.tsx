@@ -70,7 +70,7 @@ export function UsuariosCliente({ usuarios, sesionId }: { usuarios: Usuario[]; s
         <div className="flex justify-end">
           <Button onClick={() => abrir()}><UserPlus className="size-4" /> Nuevo Usuario</Button>
         </div>
-        <div className="rounded-md border">
+        <div className="tabla-scroll rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

@@ -214,7 +214,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
           </div>
         </div>
 
-        <div className="max-h-[560px] overflow-auto rounded-md border">
+        <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

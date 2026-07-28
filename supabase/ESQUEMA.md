@@ -641,6 +641,7 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | pago_gasto_id | bigint | null, FK → `pagos_gastos(id)` on delete set null | Cuando origen = pago_gasto |
 | pago_ingreso_id | bigint | null, FK → `pagos_ingresos(id)` on delete set null | Cuando origen = pago_ingreso |
 | movimiento_relacionado_id | bigint | null, FK → `movimientos_bancarios(id)` | Enlaza los 2 asientos de una transferencia |
+| venta_id | bigint | null, FK → `ventas(id)` set null | Venta asociada cuando el movimiento no pasa por `pagos` (reembolsos por devolución). Permite mostrar el cliente en el extracto. Índice `idx_movimientos_venta` |
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 

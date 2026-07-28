@@ -452,8 +452,11 @@ export type MovimientoBancario = {
   pago_gasto_id: number | null;
   pago_ingreso_id: number | null;
   movimiento_relacionado_id: number | null;
+  venta_id: number | null;
   usuario: string | null;
   creado_en: string;
+  /** Calculado en consultas: cliente o proveedor al que se le causó el movimiento. */
+  tercero?: string | null;
 };
 
 export const NOMBRE_ORIGEN_MOVIMIENTO: Record<string, string> = {

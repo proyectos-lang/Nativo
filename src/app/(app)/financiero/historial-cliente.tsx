@@ -21,6 +21,7 @@ type FilaHistorial = {
   origen: string;
   monto: number;
   concepto: string | null;
+  tercero: string | null;
 };
 
 const NOMBRES_ORIGEN_EXTENDIDO: Record<string, string> = { ...NOMBRE_ORIGEN_MOVIMIENTO, saldo_inicial: "Saldo Inicial" };
@@ -46,9 +47,11 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       origen: "saldo_inicial",
       monto: Math.abs(Number(c.saldo_inicial)),
       concepto: "Saldo inicial de la cuenta",
+      tercero: null,
     }));
     const filasMovimientos: FilaHistorial[] = movimientos.map(m => ({
       id: String(m.id), cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
+      tercero: m.tercero ?? null,
     }));
     return [...filasSaldoInicial, ...filasMovimientos].sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [cuentas, movimientos]);
@@ -111,13 +114,14 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[600px] overflow-auto rounded-md border">
+          <div className="max-h-[600px] tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cuenta</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Cliente / Proveedor</TableHead>
                   <TableHead>Concepto</TableHead>
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Egreso</TableHead>
@@ -125,13 +129,14 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
               </TableHeader>
               <TableBody>
                 {filtrados.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
                 )}
                 {filtrados.map(m => (
                   <TableRow key={m.id}>
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
                     <TableCell>{nombreCuenta.get(m.cuenta_id) || "-"}</TableCell>
                     <TableCell><Badge variant="secondary">{NOMBRES_ORIGEN_EXTENDIDO[m.origen] || m.origen}</Badge></TableCell>
+                    <TableCell className="max-w-48 truncate text-sm font-medium">{m.tercero || "-"}</TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>

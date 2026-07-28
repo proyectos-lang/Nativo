@@ -522,7 +522,7 @@ export function OperacionesTab({ productos, ubicaciones, existencias, proveedore
             {filasImportar.length > 0 && (
               <>
                 <p className="text-sm"><Badge variant="default">{filasImportar.length}</Badge> fila(s) válidas listas para importar.</p>
-                <div className="max-h-64 overflow-auto rounded-md border">
+                <div className="max-h-64 tabla-scroll overflow-auto rounded-md border">
                   <Table>
                     <TableHeader className="sticky top-0 z-10 bg-background">
                       <TableRow>

@@ -86,6 +86,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
 
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState("pendientes");
+  const [filtroCuenta, setFiltroCuenta] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
 
   // Detalle (solo lectura)
@@ -113,11 +114,28 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   const [selFacturacion, setSelFacturacion] = useState<Ingreso | null>(null);
   const [facturacion, setFacturacion] = useState({ estado_facturacion: "No Aplica", numero_factura: "" });
 
+  // Cuentas bancarias donde se recibió cada ingreso (según sus cobros registrados)
+  const nombreCuenta = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cuentas) m.set(c.id, c.nombre);
+    return m;
+  }, [cuentas]);
+
+  const cuentasDeIngreso = useMemo(() => {
+    const m = new Map<number, { ids: number[]; nombres: string }>();
+    for (const i of ingresos) {
+      const ids = [...new Set((pagosIngresos[i.id] || []).map(p => p.cuenta_id).filter(Boolean) as number[])];
+      m.set(i.id, { ids, nombres: ids.map(id => nombreCuenta.get(id) || "—").join(", ") });
+    }
+    return m;
+  }, [ingresos, pagosIngresos, nombreCuenta]);
+
   const lista = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
     return ingresos.filter(i => {
       if (filtroEstado === "pendientes" && i.saldo <= 0) return false;
       if (filtroEstado === "cobrados" && i.saldo > 0) return false;
+      if (filtroCuenta !== "todas" && !(cuentasDeIngreso.get(i.id)?.ids || []).includes(Number(filtroCuenta))) return false;
       if (!q) return true;
       return (i.concepto || "").toLowerCase().includes(q) ||
         (i.categoria || "").toLowerCase().includes(q) ||
@@ -125,7 +143,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
         (i.numero_factura || "").toLowerCase().includes(q) ||
         String(i.ticket) === q;
     });
-  }, [ingresos, filtroEstado, busqueda]);
+  }, [ingresos, filtroEstado, filtroCuenta, cuentasDeIngreso, busqueda]);
 
   const totalPendiente = useMemo(() => ingresos.reduce((s, i) => s + (i.saldo > 0 ? Number(i.saldo) : 0), 0), [ingresos]);
 
@@ -340,7 +358,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
       </Card>
 
       {/* LISTA */}
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row flex-wrap items-end justify-between gap-2">
           <div>
             <CardTitle>Ingresos</CardTitle>
@@ -356,10 +374,17 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                 <SelectItem value="todos">Todos</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filtroCuenta} onValueChange={v => setFiltroCuenta(v || "todas")}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="Cuenta" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las cuentas</SelectItem>
+                {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="max-h-[560px] overflow-auto rounded-md border">
+          <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -367,6 +392,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Detalle</TableHead>
+                  <TableHead>Cuenta</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -374,7 +400,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(i => (
                   <TableRow key={i.id} className="cursor-pointer" onClick={() => abrirDetalle(i)}>
@@ -385,6 +411,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                       <span className="block truncate font-medium">{i.concepto || i.categoria || "-"}</span>
                       <span className="block text-xs text-muted-foreground">{[i.categoria, i.tipo_ingreso].filter(Boolean).join(" · ")}</span>
                     </TableCell>
+                    <TableCell className="max-w-40 truncate text-sm">{cuentasDeIngreso.get(i.id)?.nombres || "—"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(i.monto)}</TableCell>
                     <TableCell className={`text-right font-bold ${i.saldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(i.saldo)}</TableCell>
                     <TableCell>

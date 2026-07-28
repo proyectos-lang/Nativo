@@ -385,11 +385,15 @@ create table nativo.movimientos_bancarios (
   pago_gasto_id bigint references nativo.pagos_gastos (id) on delete set null,
   pago_ingreso_id bigint references nativo.pagos_ingresos (id) on delete set null,
   movimiento_relacionado_id bigint references nativo.movimientos_bancarios (id),
+  -- Venta asociada cuando el movimiento no pasa por `pagos` (reembolsos por
+  -- devolución); permite mostrar el cliente en el extracto de la cuenta.
+  venta_id bigint references nativo.ventas (id) on delete set null,
   usuario text,
   creado_en timestamptz not null default now()
 );
 create index idx_movimientos_cuenta on nativo.movimientos_bancarios (cuenta_id);
 create index idx_movimientos_fecha on nativo.movimientos_bancarios (fecha);
+create index idx_movimientos_venta on nativo.movimientos_bancarios (venta_id);
 
 -- Cuenta destino del abono en pagos de ventas
 alter table nativo.pagos add column cuenta_id bigint references nativo.cuentas_bancarias (id);
@@ -973,9 +977,9 @@ begin
     returning * into v;
 
     select ticket into v_ticket from nativo.ventas where id = v_venta_id;
-    insert into nativo.movimientos_bancarios (cuenta_id, fecha, tipo, origen, monto, concepto, usuario)
+    insert into nativo.movimientos_bancarios (cuenta_id, fecha, tipo, origen, monto, concepto, usuario, venta_id)
     values (p_cuenta_id, coalesce(p_fecha, current_date), 'egreso', 'devolucion_venta', v_reembolso,
-            'Reembolso por devolución - ticket #' || v_ticket, p_usuario);
+            'Reembolso por devolución - ticket #' || v_ticket, p_usuario, v_venta_id);
   else
     update nativo.ventas
     set total_compra = v_nuevo_total, total_a_pagar = v_nuevo_total_a_pagar, saldo = v_nuevo_saldo,

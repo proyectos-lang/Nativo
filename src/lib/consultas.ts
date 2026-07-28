@@ -194,12 +194,56 @@ export async function cuentasConSaldo() {
   return (cuentas || []).map(c => ({ ...c, saldo_actual: Number(c.saldo_inicial) + (delta[c.id] || 0) }));
 }
 
+/** Resuelve el cliente/proveedor al que se le causó un movimiento bancario. */
+type MovimientoAnidado = Record<string, unknown> & {
+  pagos?: { ventas?: { ticket?: number; clientes?: { nombre?: string } | null } | null } | null;
+  pagos_gastos?: { gastos?: { proveedor?: string | null; proveedores?: { nombre?: string } | null } | null } | null;
+  pagos_ingresos?: { ingresos?: { cliente?: string | null; clientes?: { nombre?: string } | null } | null } | null;
+  ventas?: { ticket?: number; clientes?: { nombre?: string } | null } | null;
+};
+
+function aplanarTercero(m: MovimientoAnidado) {
+  const { pagos, pagos_gastos, pagos_ingresos, ventas, ...plano } = m;
+  let tercero: string | null = null;
+
+  if (pagos?.ventas) {
+    tercero = pagos.ventas.clientes?.nombre || (pagos.ventas.ticket ? `Ticket #${pagos.ventas.ticket}` : null);
+  } else if (pagos_gastos?.gastos) {
+    tercero = pagos_gastos.gastos.proveedores?.nombre || pagos_gastos.gastos.proveedor || null;
+  } else if (pagos_ingresos?.ingresos) {
+    tercero = pagos_ingresos.ingresos.clientes?.nombre || pagos_ingresos.ingresos.cliente || null;
+  } else if (ventas) {
+    const nombre = ventas.clientes?.nombre;
+    tercero = nombre ? `${nombre}${ventas.ticket ? ` (Ticket #${ventas.ticket})` : ""}` : (ventas.ticket ? `Ticket #${ventas.ticket}` : null);
+  }
+  return { ...plano, tercero };
+}
+
+/**
+ * Movimientos bancarios con el tercero (cliente/proveedor) resuelto por su origen.
+ * Si el embed falla —p. ej. porque falta correr la migración 022— se degrada al
+ * listado plano en vez de tumbar todo el módulo Financiero.
+ */
 export async function movimientosBancarios() {
-  const { data, error } = await db()
-    .from("movimientos_bancarios").select("*")
-    .order("fecha", { ascending: false }).order("id", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+  try {
+    const { data, error } = await db()
+      .from("movimientos_bancarios")
+      .select(`*,
+        pagos:pago_id(ventas(ticket, clientes(nombre))),
+        pagos_gastos:pago_gasto_id(gastos(proveedor, proveedores(nombre))),
+        pagos_ingresos:pago_ingreso_id(ingresos(cliente, clientes(nombre))),
+        ventas:venta_id(ticket, clientes(nombre))`)
+      .order("fecha", { ascending: false }).order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(m => aplanarTercero(m as MovimientoAnidado));
+  } catch (e) {
+    console.error("[financiero] movimientos sin tercero (¿falta la migración 022?):", (e as Error).message);
+    const { data, error } = await db()
+      .from("movimientos_bancarios").select("*")
+      .order("fecha", { ascending: false }).order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(m => ({ ...m, tercero: null }));
+  }
 }
 
 export async function gastosTodos() {

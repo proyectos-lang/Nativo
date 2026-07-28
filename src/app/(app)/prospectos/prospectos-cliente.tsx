@@ -87,7 +87,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
           </label>
         </CardHeader>
         <CardContent>
-          <div className="barra-horizontal-visible max-h-[600px] overflow-x-scroll overflow-y-auto rounded-md border">
+          <div className="tabla-scroll max-h-[600px] rounded-md border">
             <Table className="min-w-[1150px]">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

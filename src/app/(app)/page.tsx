@@ -297,7 +297,7 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="max-h-80 overflow-auto rounded-md border">
+            <div className="max-h-80 tabla-scroll overflow-auto rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>

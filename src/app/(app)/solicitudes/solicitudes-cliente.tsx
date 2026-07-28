@@ -229,7 +229,7 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
                 <p className="ml-auto text-sm text-muted-foreground">{lista.length} de {solicitudes.length}</p>
               </div>
 
-              <div className="max-h-[560px] overflow-auto rounded-md border">
+              <div className="max-h-[560px] tabla-scroll overflow-auto rounded-md border">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-background">
                     <TableRow>
@@ -509,7 +509,7 @@ function Indicadores({ solicitudes, historial, usuarios }: {
       <Card>
         <CardContent className="pt-2">
           <p className="mb-2 text-sm font-semibold">Por colaborador</p>
-          <div className="rounded-md border">
+          <div className="tabla-scroll rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>

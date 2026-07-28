@@ -146,7 +146,7 @@ export function MaestrasCliente({ valores }: { valores: ValorMaestro[] }) {
           <p className="mb-2 text-sm text-muted-foreground">
             {NOMBRES_TIPO[tipoSel]}: {totalActivos} activo{totalActivos === 1 ? "" : "s"} de {(grupos[tipoSel] || []).length}. Un valor inactivo desaparece de los selectores sin afectar registros históricos.
           </p>
-          <div className="max-h-[480px] overflow-auto rounded-md border">
+          <div className="max-h-[480px] tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>

@@ -77,7 +77,7 @@ export function BodegasTab({ ubicaciones, existencias }: {
             </div>
           </div>
 
-          <div className="rounded-md border">
+          <div className="tabla-scroll rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>

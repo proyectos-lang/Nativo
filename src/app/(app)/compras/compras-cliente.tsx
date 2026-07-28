@@ -253,7 +253,7 @@ export function ComprasCliente({ ordenes, detalles, proveedores, productos, ubic
 
       <Card>
         <CardContent className="pt-2">
-          <div className="max-h-[600px] overflow-auto rounded-md border">
+          <div className="max-h-[600px] tabla-scroll overflow-auto rounded-md border">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -299,7 +299,7 @@ export function ComprasCliente({ ordenes, detalles, proveedores, productos, ubic
                 <div><p className="text-muted-foreground">Estado</p><Badge variant={BADGE_ESTADO[ordenSel.estado] || "outline"}>{ordenSel.estado}</Badge></div>
                 {ordenSel.observaciones && <div className="col-span-3"><p className="text-muted-foreground">Observaciones</p><p>{ordenSel.observaciones}</p></div>}
               </div>
-              <div className="rounded-md border">
+              <div className="tabla-scroll rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
