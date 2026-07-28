@@ -415,7 +415,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                     <TableCell className="max-w-40 truncate">{i.cliente || "-"}</TableCell>
                     <TableCell className="max-w-56">
                       <span className="block truncate font-medium">{i.concepto || i.categoria || "-"}</span>
-                      <span className="block text-xs text-muted-foreground">{[i.categoria, i.tipo_ingreso].filter(Boolean).join(" · ")}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{[i.categoria, i.tipo_ingreso].filter(Boolean).join(" · ")}</span>
                     </TableCell>
                     <TableCell className="max-w-40 truncate text-sm">{cuentasDeIngreso.get(i.id)?.nombres || "—"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(i.monto)}</TableCell>

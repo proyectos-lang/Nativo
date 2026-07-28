@@ -171,7 +171,7 @@ export function ExistenciasTab({ productos, ubicaciones, existencias, reservas }
                     <TableCell className="font-mono text-xs">{f.producto.sku || "-"}</TableCell>
                     <TableCell className="max-w-56">
                       <span className="block truncate font-medium">{f.producto.nombre}</span>
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block truncate text-xs text-muted-foreground">
                         {[f.producto.categoria, f.producto.talla && `Talla ${f.producto.talla}`, f.producto.color].filter(Boolean).join(" · ")}
                       </span>
                     </TableCell>

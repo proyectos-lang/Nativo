@@ -255,7 +255,7 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
                         <TableCell>{s.responsable || "-"}</TableCell>
                         <TableCell className="max-w-64">
                           <span className="block truncate font-medium">{s.titulo}</span>
-                          {s.area && <span className="block text-xs text-muted-foreground">{s.area}</span>}
+                          {s.area && <span className="block truncate text-xs text-muted-foreground">{s.area}</span>}
                         </TableCell>
                         <TableCell><span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${clasePrioridad(s.prioridad)}`}>{s.prioridad}</span></TableCell>
                         <TableCell><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${claseEstado(s.estado)}`}>{s.estado}</span></TableCell>

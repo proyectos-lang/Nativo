@@ -464,7 +464,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                       <span className="block truncate font-medium">
                         {(gastosDetalle[g.id] || []).map(d => d.articulo).join(", ") || g.descripcion || g.categoria || "-"}
                       </span>
-                      <span className="block text-xs text-muted-foreground">{[g.categoria, g.proveedor].filter(Boolean).join(" · ")}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{[g.categoria, g.proveedor].filter(Boolean).join(" · ")}</span>
                     </TableCell>
                     <TableCell className="max-w-40 truncate text-sm">{cuentasDeGasto.get(g.id)?.nombres || "—"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(g.monto)}</TableCell>
