@@ -221,13 +221,14 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
                   <TableHead className="text-right">Cant.</TableHead>
                   <TableHead className="text-right">Valor compra</TableHead>
                   <TableHead className="text-right">Valor actual</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(a => (
                   <TableRow key={a.id} className={a.estado === "Activo" ? "" : "opacity-70"}>
@@ -241,6 +242,7 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
                     <TableCell className="text-right">{a.cantidad}</TableCell>
                     <TableCell className="text-right">{formatoPesos(a.valor_total)}</TableCell>
                     <TableCell className="text-right">{a.valor_actual_depreciacion != null ? formatoPesos(a.valor_actual_depreciacion) : "-"}</TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{a.numero_factura || "-"}</TableCell>
                     <TableCell>
                       <Badge variant={a.estado === "Activo" ? "default" : a.estado === "Vendido" ? "secondary" : "destructive"}>{a.estado}</Badge>
                     </TableCell>

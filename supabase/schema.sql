@@ -110,6 +110,9 @@ create table nativo.ventas (
   vendedora text,
   profesional text,
   motivo_compra text,
+  -- Orden de compra / pedido que envía el CLIENTE (no confundir con el módulo
+  -- ordenes_compra, que son las órdenes de Nativo a sus proveedores).
+  orden_compra_cliente text,
   total_compra numeric not null default 0,
   retencion numeric not null default 0,
   total_a_pagar numeric not null default 0,
@@ -132,6 +135,7 @@ create table nativo.ventas (
 );
 create index idx_ventas_ticket on nativo.ventas (ticket);
 create index idx_ventas_cliente on nativo.ventas (cliente_id);
+create index idx_ventas_orden_compra on nativo.ventas (orden_compra_cliente);
 create index idx_ventas_estado_pago on nativo.ventas (estado_pago);
 create index idx_ventas_estado_entrega on nativo.ventas (estado_entrega);
 create index idx_ventas_fecha on nativo.ventas (fecha);

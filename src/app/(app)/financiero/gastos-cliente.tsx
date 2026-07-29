@@ -154,6 +154,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
         (g.descripcion || "").toLowerCase().includes(q) ||
         (g.proveedor || "").toLowerCase().includes(q) ||
         (g.categoria || "").toLowerCase().includes(q) ||
+        (g.numero_factura || "").toLowerCase().includes(q) ||
         String(g.ticket) === q;
     });
   }, [gastos, gastosDetalle, filtroEstado, filtroTipo, filtroCuenta, cuentasDeGasto, busqueda]);
@@ -442,6 +443,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                   <TableHead>Tipo</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead>Cuenta</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -449,7 +451,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                     {gastos.length === 0
                       ? "Aún no hay gastos registrados."
                       : `Ningún gasto coincide con los filtros (hay ${gastos.length} en total).`}
@@ -467,6 +469,7 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                       <span className="block truncate text-xs text-muted-foreground">{[g.categoria, g.proveedor].filter(Boolean).join(" · ")}</span>
                     </TableCell>
                     <TableCell className="max-w-40 truncate text-sm">{cuentasDeGasto.get(g.id)?.nombres || "—"}</TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{g.numero_factura || "-"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(g.monto)}</TableCell>
                     <TableCell className={`text-right font-bold ${g.saldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(g.saldo)}</TableCell>
                     <TableCell><Badge variant={g.estado === "Pagado" ? "default" : g.estado === "Abonado" ? "secondary" : "outline"}>{g.estado}</Badge></TableCell>

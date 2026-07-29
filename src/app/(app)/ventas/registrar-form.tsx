@@ -41,6 +41,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   const [vendedora, setVendedora] = useState("");
   const [profesional, setProfesional] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [ordenCompra, setOrdenCompra] = useState("");
 
   // Cliente
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null);
@@ -100,6 +101,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         const r = await registrarVenta({
           cliente_id: clienteSel.id,
           canal_venta: canal, campana, vendedora, profesional, motivo_compra: motivo,
+          orden_compra_cliente: ordenCompra,
           lineas, abono, cuenta_id: cuentaId || null, costo_envio: costoEnvio,
           estado_pago: estadoPago, medio_pago: medioPago, tipo_pago: tipoPago,
           fecha_pago: fechaPago, estado_entrega: estadoEntrega, fecha_entrega: fechaEntrega,
@@ -108,7 +110,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         if (!r.ok) { toast.error(r.error); return; }
         toast.success(`Venta #${r.ticket} registrada correctamente`);
         if (r.aviso) toast.warning(r.aviso, { duration: 8000 });
-        setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo("");
+        setCanal(""); setCampana(""); setVendedora(""); setProfesional(""); setMotivo(""); setOrdenCompra("");
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
         setAbono(0); setCostoEnvio(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
@@ -290,6 +292,10 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
           <div className="grid gap-1.5"><Label>Vendedora</Label><Combo opciones={maestros["vendedora"] || []} value={vendedora} onChange={setVendedora} /></div>
           <div className="grid gap-1.5"><Label>Profesional / Asesor</Label><Combo opciones={maestros["profesional"] || []} value={profesional} onChange={setProfesional} /></div>
           <div className="grid gap-1.5"><Label>Motivo de Compra</Label><Combo opciones={maestros["motivo_compra"] || []} value={motivo} onChange={setMotivo} /></div>
+          <div className="grid gap-1.5">
+            <Label>Orden de compra / pedido del cliente</Label>
+            <Input value={ordenCompra} onChange={e => setOrdenCompra(e.target.value)} placeholder="Opcional — ej. OC-4521" />
+          </div>
         </CardContent>
       </Card>
 

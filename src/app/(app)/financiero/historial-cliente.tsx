@@ -22,6 +22,7 @@ type FilaHistorial = {
   monto: number;
   concepto: string | null;
   tercero: string | null;
+  factura: string | null;
 };
 
 const NOMBRES_ORIGEN_EXTENDIDO: Record<string, string> = { ...NOMBRE_ORIGEN_MOVIMIENTO, saldo_inicial: "Saldo Inicial" };
@@ -48,10 +49,12 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       monto: Math.abs(Number(c.saldo_inicial)),
       concepto: "Saldo inicial de la cuenta",
       tercero: null,
+      factura: null,
     }));
     const filasMovimientos: FilaHistorial[] = movimientos.map(m => ({
       id: String(m.id), cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
       tercero: m.tercero ?? null,
+      factura: m.factura ?? null,
     }));
     return [...filasSaldoInicial, ...filasMovimientos].sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [cuentas, movimientos]);
@@ -122,6 +125,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                   <TableHead>Cuenta</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Cliente / Proveedor</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead>Concepto</TableHead>
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Egreso</TableHead>
@@ -129,7 +133,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
               </TableHeader>
               <TableBody>
                 {filtrados.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
                 )}
                 {filtrados.map(m => (
                   <TableRow key={m.id}>
@@ -137,6 +141,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                     <TableCell>{nombreCuenta.get(m.cuenta_id) || "-"}</TableCell>
                     <TableCell><Badge variant="secondary">{NOMBRES_ORIGEN_EXTENDIDO[m.origen] || m.origen}</Badge></TableCell>
                     <TableCell className="max-w-48 truncate text-sm font-medium">{m.tercero || "-"}</TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{m.factura || "-"}</TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>

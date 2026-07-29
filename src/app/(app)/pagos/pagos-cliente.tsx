@@ -39,6 +39,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
       if (!q) return true;
       return (v.clientes?.nombre || "").toLowerCase().includes(q) ||
         (v.clientes?.empresa || "").toLowerCase().includes(q) ||
+        (v.orden_compra_cliente || "").toLowerCase().includes(q) ||
         String(v.ticket) === q;
     });
   }, [ventas, busqueda, filtroEstado]);
@@ -150,6 +151,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                 <TableRow>
                   <TableHead>Ticket</TableHead>
                   <TableHead>Cliente</TableHead>
+                  <TableHead>OC Cliente</TableHead>
                   <TableHead className="text-right">Total Base</TableHead>
                   <TableHead className="text-right">Retención</TableHead>
                   <TableHead className="text-right">Abonado</TableHead>
@@ -160,7 +162,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
                 )}
                 {lista.map(v => (
                   <TableRow key={v.id} className="cursor-pointer" onClick={() => abrir(v)}>
@@ -169,6 +171,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                       {v.clientes?.nombre || "-"}
                       {v.clientes?.empresa && <span className="block text-xs text-muted-foreground">{v.clientes.empresa}</span>}
                     </TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{v.orden_compra_cliente || "-"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(v.total_compra)}</TableCell>
                     <TableCell className="text-right">{formatoPesos(v.retencion)}</TableCell>
                     <TableCell className="text-right">{formatoPesos(v.abono)}</TableCell>

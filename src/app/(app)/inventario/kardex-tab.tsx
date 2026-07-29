@@ -119,12 +119,13 @@ export function KardexTab({ movimientos, ubicaciones }: Props) {
                   <TableHead className="text-right">Costo</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Referencia</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead>Usuario</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
                 )}
                 {lista.map(m => (
                   <TableRow key={m.id}>
@@ -141,6 +142,7 @@ export function KardexTab({ movimientos, ubicaciones }: Props) {
                       {m.referencia || "-"}
                       {m.motivo && <span className="block text-muted-foreground">{m.motivo}</span>}
                     </TableCell>
+                    <TableCell className="max-w-32 truncate text-xs">{m.numero_factura || "-"}</TableCell>
                     <TableCell className="text-xs">{m.usuario || "-"}</TableCell>
                   </TableRow>
                 ))}

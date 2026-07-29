@@ -298,6 +298,8 @@ export type Venta = {
   vendedora: string | null;
   profesional: string | null;
   motivo_compra: string | null;
+  /** Orden de compra / pedido que envía el cliente. */
+  orden_compra_cliente: string | null;
   total_compra: number;
   retencion: number;
   total_a_pagar: number;
@@ -457,6 +459,8 @@ export type MovimientoBancario = {
   creado_en: string;
   /** Calculado en consultas: cliente o proveedor al que se le causó el movimiento. */
   tercero?: string | null;
+  /** Calculado en consultas: número de factura del gasto o ingreso asociado. */
+  factura?: string | null;
 };
 
 export const NOMBRE_ORIGEN_MOVIMIENTO: Record<string, string> = {

@@ -220,6 +220,7 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
                   <TableHead>Fecha</TableHead>
                   <TableHead>Origen</TableHead>
                   <TableHead>Cliente / Proveedor</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead>Concepto</TableHead>
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Egreso</TableHead>
@@ -227,13 +228,14 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
               </TableHeader>
               <TableBody>
                 {movsCuenta.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-6 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
                 )}
                 {movsCuenta.map(m => (
                   <TableRow key={m.id}>
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
                     <TableCell><Badge variant="secondary">{NOMBRE_ORIGEN_MOVIMIENTO[m.origen] || m.origen}</Badge></TableCell>
                     <TableCell className="max-w-48 truncate text-sm font-medium">{m.tercero || "-"}</TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{m.factura || "-"}</TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>

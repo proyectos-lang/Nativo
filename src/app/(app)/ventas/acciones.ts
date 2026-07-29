@@ -31,6 +31,8 @@ export type NuevaVenta = {
   vendedora?: string;
   profesional?: string;
   motivo_compra?: string;
+  /** Orden de compra / pedido que envía el cliente (opcional). */
+  orden_compra_cliente?: string;
   lineas: LineaVenta[];
   abono: number;
   cuenta_id?: number | null;
@@ -163,6 +165,7 @@ async function registrarVentaInterno(venta: NuevaVenta): Promise<ResultadoVenta>
     vendedora: venta.vendedora || null,
     profesional: venta.profesional || null,
     motivo_compra: venta.motivo_compra || null,
+    orden_compra_cliente: venta.orden_compra_cliente?.trim() || null,
     total_compra: total,
     costo_envio: costoEnvio,
     retencion: 0,
@@ -254,6 +257,7 @@ export async function actualizarVenta(datos: {
   vendedora?: string;
   profesional?: string;
   motivo_compra?: string;
+  orden_compra_cliente?: string;
   fecha_entrega?: string;
   costo_envio?: number;
   lineas: LineaVenta[];
@@ -295,6 +299,7 @@ export async function actualizarVenta(datos: {
       vendedora: datos.vendedora || null,
       profesional: datos.profesional || null,
       motivo_compra: datos.motivo_compra || null,
+      orden_compra_cliente: datos.orden_compra_cliente?.trim() || null,
       fecha_entrega: datos.fecha_entrega || null,
       costo_envio: costoEnvio,
       total_compra: total,

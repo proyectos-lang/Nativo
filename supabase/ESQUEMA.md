@@ -142,6 +142,7 @@ Una fila por pedido/ticket. Toda la trazabilidad (pagos, estados de entrega) cue
 | vendedora | text | null | |
 | profesional | text | null | |
 | motivo_compra | text | null | |
+| orden_compra_cliente | text | null | Orden de compra / pedido que envía el **cliente**, para relacionarla al facturar o cobrar. No confundir con el módulo `ordenes_compra` (órdenes de Nativo a sus proveedores). Índice `idx_ventas_orden_compra` |
 | total_compra | numeric | not null, default 0 | Suma de `ventas_detalle.valor_total` |
 | retencion | numeric | not null, default 0 | Acumulada |
 | total_a_pagar | numeric | not null, default 0 | **Calculado:** `total_compra - retencion` |

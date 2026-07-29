@@ -53,7 +53,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
   const [edicionTicket, setEdicionTicket] = useState<number | null>(null);
   const [pinEdicion, setPinEdicion] = useState("");
   const [lineasEd, setLineasEd] = useState<LineaVenta[]>([]);
-  const [genEd, setGenEd] = useState({ canal_venta: "", campana: "", vendedora: "", profesional: "", motivo_compra: "", fecha_entrega: "", costo_envio: 0 });
+  const [genEd, setGenEd] = useState({ canal_venta: "", campana: "", vendedora: "", profesional: "", motivo_compra: "", orden_compra_cliente: "", fecha_entrega: "", costo_envio: 0 });
   const [clienteEdSel, setClienteEdSel] = useState<Cliente | null>(null);
   const [busquedaClienteEd, setBusquedaClienteEd] = useState("");
   const [dialogEditarCliente, setDialogEditarCliente] = useState(false);
@@ -71,7 +71,9 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
       const empresa = v.clientes?.empresa || "";
       if (desde && v.fecha < desde) return false;
       if (hasta && v.fecha > hasta) return false;
-      if (q && !nombreCliente.toLowerCase().includes(q) && !empresa.toLowerCase().includes(q) && String(v.ticket) !== q) return false;
+      const ordenCliente = v.orden_compra_cliente || "";
+      if (q && !nombreCliente.toLowerCase().includes(q) && !empresa.toLowerCase().includes(q)
+        && !ordenCliente.toLowerCase().includes(q) && String(v.ticket) !== q) return false;
       if (estado && v.estado_entrega !== estado) return false;
       if (soloPendientes && v.estado_pago === "Pagado Total" && v.estado_entrega === "Entregado") return false;
       return true;
@@ -111,6 +113,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
     setGenEd({
       canal_venta: v.canal_venta || "", campana: v.campana || "", vendedora: v.vendedora || "",
       profesional: v.profesional || "", motivo_compra: v.motivo_compra || "", fecha_entrega: v.fecha_entrega || "",
+      orden_compra_cliente: v.orden_compra_cliente || "",
       costo_envio: Number(v.costo_envio) || 0,
     });
     const clienteCompleto = clientes.find(c => c.id === v.cliente_id) || v.clientes || null;
@@ -221,6 +224,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 <TableHead>Fecha</TableHead>
                 <TableHead>Ticket</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead>OC Cliente</TableHead>
                 <TableHead className="text-right">Total Compra</TableHead>
                 <TableHead className="text-right">Saldo</TableHead>
                 <TableHead>Est. Pago</TableHead>
@@ -229,7 +233,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
             </TableHeader>
             <TableBody>
               {filas.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
               )}
               {filas.map(v => (
                 <TableRow key={v.id} className="cursor-pointer" onClick={() => setSel(v)}>
@@ -239,6 +243,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                     {v.clientes?.nombre || "-"}
                     {v.clientes?.empresa && <span className="block text-xs text-muted-foreground">{v.clientes.empresa}</span>}
                   </TableCell>
+                  <TableCell className="max-w-32 truncate text-sm">{v.orden_compra_cliente || "-"}</TableCell>
                   <TableCell className="text-right">{formatoPesos(v.total_compra)}</TableCell>
                   <TableCell className={`text-right font-semibold ${v.saldo > 0 ? "text-destructive" : ""}`}>{formatoPesos(v.saldo)}</TableCell>
                   <TableCell><Badge variant={v.estado_pago?.includes("Pagado") ? "default" : "secondary"}>{v.estado_pago || "-"}</Badge></TableCell>
@@ -268,6 +273,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 <div><p className="text-muted-foreground">Fecha Real Entrega</p><p className="font-medium">{formatoFecha(sel.fecha_entrega_real)}</p></div>
                 <div><p className="text-muted-foreground">Transportadora</p><p className="font-medium">{sel.transportadora || "-"}</p></div>
                 <div><p className="text-muted-foreground">Número de Guía</p><p className="font-medium">{sel.numero_guia || "-"}</p></div>
+                <div><p className="text-muted-foreground">OC / Pedido del cliente</p><p className="font-medium">{sel.orden_compra_cliente || "-"}</p></div>
               </div>
 
               {cumplimientoEntrega(sel.fecha_entrega, sel.fecha_entrega_real) && (
@@ -435,6 +441,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
               <div className="grid gap-1.5"><Label>Motivo de Compra</Label><Combo opciones={maestros["motivo_compra"] || []} value={genEd.motivo_compra} onChange={v => setGenEd({ ...genEd, motivo_compra: v })} /></div>
               <div className="grid gap-1.5"><Label>Fecha Programada</Label><Input type="date" value={genEd.fecha_entrega} onChange={e => setGenEd({ ...genEd, fecha_entrega: e.target.value })} /></div>
               <div className="grid gap-1.5"><Label>Costo de Envío</Label><Input type="number" min={0} value={genEd.costo_envio || ""} onChange={e => setGenEd({ ...genEd, costo_envio: Number(e.target.value) })} placeholder="0" /></div>
+              <div className="grid gap-1.5"><Label>OC / pedido del cliente</Label><Input value={genEd.orden_compra_cliente} onChange={e => setGenEd({ ...genEd, orden_compra_cliente: e.target.value })} placeholder="Ej. OC-4521" /></div>
             </div>
 
             <div className="flex items-center justify-between">

@@ -395,6 +395,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                   <TableHead>Cliente</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead>Cuenta</TableHead>
+                  <TableHead>Factura</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -402,7 +403,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               </TableHeader>
               <TableBody>
                 {lista.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                     {ingresos.length === 0
                       ? "Aún no hay ingresos registrados."
                       : `Ningún ingreso coincide con los filtros (hay ${ingresos.length} en total).`}
@@ -418,6 +419,7 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                       <span className="block truncate text-xs text-muted-foreground">{[i.categoria, i.tipo_ingreso].filter(Boolean).join(" · ")}</span>
                     </TableCell>
                     <TableCell className="max-w-40 truncate text-sm">{cuentasDeIngreso.get(i.id)?.nombres || "—"}</TableCell>
+                    <TableCell className="max-w-32 truncate text-sm">{i.numero_factura || "-"}</TableCell>
                     <TableCell className="text-right">{formatoPesos(i.monto)}</TableCell>
                     <TableCell className={`text-right font-bold ${i.saldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(i.saldo)}</TableCell>
                     <TableCell>
