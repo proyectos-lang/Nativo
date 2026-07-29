@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { registrarPago } from "./acciones";
+import { registrarPago, editarPago, anularPago } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Pencil, Ban, ShieldAlert } from "lucide-react";
 import { formatoPesos, formatoFecha, type Venta, type Pago, type CuentaBancaria } from "@/lib/tipos";
 
 export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pagos: Record<number, Pago[]>; cuentas: CuentaBancaria[] }) {
@@ -67,6 +68,51 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
   };
 
   const nuevoSaldo = sel ? sel.saldo - abono - totalRetenciones : 0;
+
+  // ---------- Editar / anular un abono ya registrado (clave de autorización) ----------
+  const [pagoEdit, setPagoEdit] = useState<Pago | null>(null);
+  const [formEdit, setFormEdit] = useState({ abono: 0, retefuente: 0, reteiva: 0, reteica: 0, fecha: "", comentario: "", cuenta_id: 0 });
+  const [pagoAnular, setPagoAnular] = useState<Pago | null>(null);
+  const [motivoAnular, setMotivoAnular] = useState("");
+  const [clave, setClave] = useState("");
+
+  const abrirEdicion = (p: Pago) => {
+    setFormEdit({
+      abono: Number(p.abono) || 0,
+      retefuente: Number(p.retefuente) || 0,
+      reteiva: Number(p.reteiva) || 0,
+      reteica: Number(p.reteica) || 0,
+      fecha: p.fecha?.slice(0, 10) || "",
+      comentario: p.comentario || "",
+      cuenta_id: p.cuenta_id || 0,
+    });
+    setClave("");
+    setPagoEdit(p);
+  };
+
+  const guardarEdicion = () => {
+    if (!pagoEdit) return;
+    startTransition(async () => {
+      try {
+        await editarPago({ pago_id: pagoEdit.id, ...formEdit, cuenta_id: formEdit.cuenta_id || null, pin: clave });
+        toast.success("Abono actualizado");
+        setPagoEdit(null); setSel(null); setClave("");
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
+  const confirmarAnulacion = () => {
+    if (!pagoAnular) return;
+    startTransition(async () => {
+      try {
+        await anularPago(pagoAnular.id, clave, motivoAnular);
+        toast.success("Abono anulado");
+        setPagoAnular(null); setSel(null); setClave(""); setMotivoAnular("");
+        router.refresh();
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
 
   return (
     <div className="mx-auto grid max-w-6xl gap-4">
@@ -160,6 +206,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                         <TableRow>
                           <TableHead>Fecha</TableHead><TableHead className="text-right">Abono</TableHead>
                           <TableHead className="text-right">Retención</TableHead><TableHead>Comentario</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -169,6 +216,17 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                             <TableCell className="text-right">{formatoPesos(p.abono)}</TableCell>
                             <TableCell className="text-right">{formatoPesos(p.retencion)}</TableCell>
                             <TableCell className="max-w-52 truncate text-xs">{p.comentario || "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <Button variant="ghost" size="icon" title="Editar abono (requiere clave)" onClick={() => abrirEdicion(p)}>
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="text-destructive" title="Anular abono (requiere clave)"
+                                onClick={() => { setPagoAnular(p); setClave(""); setMotivoAnular(""); }}
+                              >
+                                <Ban className="size-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -213,6 +271,73 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
             <Button onClick={procesar} disabled={pendiente || (abono <= 0 && totalRetenciones <= 0)}>
               {pendiente ? "Procesando..." : "Aplicar Pago"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG EDITAR ABONO (requiere clave de autorización) */}
+      <Dialog open={!!pagoEdit} onOpenChange={o => !o && setPagoEdit(null)}>
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-xl">
+          <DialogHeader><DialogTitle>Editar abono del {formatoFecha(pagoEdit?.fecha)}</DialogTitle></DialogHeader>
+          <div className="grid gap-3">
+            <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
+              Al guardar se recalcula el saldo de la factura y se corrige el movimiento en la cuenta bancaria.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5"><Label>Abono ($)</Label><Input type="number" step="any" min={0} value={formEdit.abono || ""} onChange={e => setFormEdit({ ...formEdit, abono: Number(e.target.value) })} /></div>
+              <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={formEdit.fecha} onChange={e => setFormEdit({ ...formEdit, fecha: e.target.value })} /></div>
+            </div>
+            <div className="grid gap-2 rounded-md border p-3">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Retenciones ($)</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-1.5"><Label>Retefuente</Label><Input type="number" step="any" min={0} value={formEdit.retefuente || ""} onChange={e => setFormEdit({ ...formEdit, retefuente: Number(e.target.value) })} /></div>
+                <div className="grid gap-1.5"><Label>ReteIVA</Label><Input type="number" step="any" min={0} value={formEdit.reteiva || ""} onChange={e => setFormEdit({ ...formEdit, reteiva: Number(e.target.value) })} /></div>
+                <div className="grid gap-1.5"><Label>ReteICA</Label><Input type="number" step="any" min={0} value={formEdit.reteica || ""} onChange={e => setFormEdit({ ...formEdit, reteica: Number(e.target.value) })} /></div>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5"><Label>Comentario / Medio de pago</Label><Input value={formEdit.comentario} onChange={e => setFormEdit({ ...formEdit, comentario: e.target.value })} /></div>
+              <div className="grid gap-1.5">
+                <Label>Cuenta del abono</Label>
+                <Select value={formEdit.cuenta_id ? String(formEdit.cuenta_id) : ""} onValueChange={v => setFormEdit({ ...formEdit, cuenta_id: v ? Number(v) : 0 })}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento)" /></SelectTrigger>
+                  <SelectContent>
+                    {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-1.5 rounded-md border border-destructive/40 p-3">
+              <Label className="flex items-center gap-2"><ShieldAlert className="size-4 text-destructive" /> Clave de autorización *</Label>
+              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave del administrador de aprobaciones" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPagoEdit(null)}>Cancelar</Button>
+            <Button onClick={guardarEdicion} disabled={pendiente || !clave.trim()}>Guardar cambios</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG ANULAR ABONO (requiere clave de autorización) */}
+      <Dialog open={!!pagoAnular} onOpenChange={o => !o && setPagoAnular(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Anular abono</DialogTitle></DialogHeader>
+          <div className="grid gap-3">
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              Se eliminará el abono de <span className="font-bold">{formatoPesos(pagoAnular?.abono)}</span>
+              {Number(pagoAnular?.retencion) > 0 && <> y su retención de <span className="font-bold">{formatoPesos(pagoAnular?.retencion)}</span></>}
+              {" "}del {formatoFecha(pagoAnular?.fecha)}. El saldo de la factura y el movimiento bancario se revierten. Esta acción no se puede deshacer.
+            </p>
+            <div className="grid gap-1.5"><Label>Motivo</Label><Input value={motivoAnular} onChange={e => setMotivoAnular(e.target.value)} placeholder="Ej. Se registró por error" /></div>
+            <div className="grid gap-1.5 rounded-md border border-destructive/40 p-3">
+              <Label className="flex items-center gap-2"><ShieldAlert className="size-4 text-destructive" /> Clave de autorización *</Label>
+              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave del administrador de aprobaciones" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPagoAnular(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmarAnulacion} disabled={pendiente || !clave.trim()}>Anular abono</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
