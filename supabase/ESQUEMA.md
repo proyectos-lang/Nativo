@@ -508,6 +508,41 @@ Archivos adjuntos (imágenes, PDF, Excel, Word) subidos al bucket de Storage `gu
 
 ---
 
+## notificaciones
+
+Avisos internos que alimentan la **campanita** de la cabecera. Hoy se genera una sola clase de aviso: cuando a alguien le **asignan** una solicitud (al crearla o al reasignarla). Nunca se notifica al propio autor. Se crean best-effort desde `src/lib/notificaciones.ts`: un fallo aquí jamás interrumpe la operación de negocio (mismo criterio que `bitacora`).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| usuario_id | bigint | not null, FK → `usuarios(id)` **on delete cascade** | Destinatario |
+| tipo | text | not null, default `'solicitud_asignada'` | Clase de aviso |
+| titulo | text | not null | Encabezado que se ve en la campanita y en el push |
+| cuerpo | text | null | Detalle corto |
+| url | text | null | Destino al hacer clic (ej. `/solicitudes`) |
+| solicitud_id | bigint | null, FK → `solicitudes(id)` **on delete cascade** | Solicitud que originó el aviso |
+| leida | boolean | not null, default `false` | Se marca al pulsar "Marcar todas como leídas" |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_notificaciones_usuario (usuario_id, leida)`, `idx_notificaciones_fecha (usuario_id, creado_en desc)`.
+
+## push_suscripciones
+
+Suscripciones de **Web Push** (notificaciones del sistema operativo, funcionan con la app cerrada). Una fila por navegador/dispositivo de cada usuario. El envío usa `web-push` con claves VAPID en variables de entorno (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, y `NEXT_PUBLIC_VAPID_PUBLIC_KEY` para el navegador). Si las claves no están configuradas, el envío se omite sin romper nada.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| usuario_id | bigint | not null, FK → `usuarios(id)` **on delete cascade** | |
+| endpoint | text | not null, **unique** | URL del servicio de push del navegador. El `unique` permite `upsert` cuando el navegador renueva la suscripción |
+| p256dh / auth | text | not null | Claves de cifrado que entrega el navegador |
+| agente | text | null | User-agent, para identificar el dispositivo |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_push_usuario (usuario_id)`. Las suscripciones que el servicio de push reporta como vencidas (404/410) se eliminan automáticamente al intentar enviar.
+
+---
+
 ## arqueos
 
 Sesión de conteo físico de inventario (total, por categoría o por ubicación — conteos cíclicos). Estados: `Abierto` → `Cerrado` (cuadre aplicado con PIN de gerencia) / `Anulado`. Un arqueo cerrado es inmutable; nunca se borra información.

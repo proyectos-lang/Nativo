@@ -677,6 +677,38 @@ create table nativo.solicitudes_adjuntos (
   creado_en timestamptz not null default now()
 );
 create index idx_solicitudes_adjuntos_solicitud on nativo.solicitudes_adjuntos (solicitud_id);
+create index idx_solicitudes_fecha_limite on nativo.solicitudes (fecha_limite);
+
+-- ------------------------------------------------------------
+-- NOTIFICACIONES INTERNAS + SUSCRIPCIONES PUSH
+-- Alimentan la campanita de la cabecera y las notificaciones del
+-- sistema operativo (Web Push). Hoy solo se genera una por el evento
+-- "solicitud nueva asignada" (incluye reasignaciones). Ver migración 025.
+-- ------------------------------------------------------------
+create table nativo.notificaciones (
+  id bigint generated always as identity primary key,
+  usuario_id bigint not null references nativo.usuarios (id) on delete cascade,
+  tipo text not null default 'solicitud_asignada',
+  titulo text not null,
+  cuerpo text,
+  url text,
+  solicitud_id bigint references nativo.solicitudes (id) on delete cascade,
+  leida boolean not null default false,
+  creado_en timestamptz not null default now()
+);
+create index idx_notificaciones_usuario on nativo.notificaciones (usuario_id, leida);
+create index idx_notificaciones_fecha on nativo.notificaciones (usuario_id, creado_en desc);
+
+create table nativo.push_suscripciones (
+  id bigint generated always as identity primary key,
+  usuario_id bigint not null references nativo.usuarios (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  agente text,
+  creado_en timestamptz not null default now()
+);
+create index idx_push_usuario on nativo.push_suscripciones (usuario_id);
 
 -- ------------------------------------------------------------
 -- ARQUEOS DE INVENTARIO (conteos físicos con cuadre autorizado)

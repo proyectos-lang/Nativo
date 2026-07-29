@@ -18,7 +18,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Inbox, Plus, Paperclip, X, Send, CheckCircle2, UserCog } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import { es } from "date-fns/locale";
+import { Inbox, Plus, Paperclip, X, Send, CheckCircle2, UserCog, CalendarDays } from "lucide-react";
 import type { Solicitud, SolicitudHistorial, SolicitudAdjunto } from "@/lib/tipos";
 
 type Usuario = { id: number; nombre: string };
@@ -189,6 +192,7 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
       <Tabs defaultValue="lista">
         <TabsList>
           <TabsTrigger value="lista">Solicitudes</TabsTrigger>
+          <TabsTrigger value="calendario">Calendario</TabsTrigger>
           <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
         </TabsList>
 
@@ -267,6 +271,10 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="calendario">
+          <CalendarioTareas solicitudes={solicitudes} sesion={sesion} onAbrir={abrirDetalle} />
         </TabsContent>
 
         <TabsContent value="indicadores">
@@ -454,6 +462,131 @@ export function SolicitudesCliente({ solicitudes, historial, adjuntos, usuarios,
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Convierte 'YYYY-MM-DD' en Date local (sin desfase de zona horaria). */
+function aFechaLocal(iso: string): Date {
+  const [a, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(a, (m || 1) - 1, d || 1);
+}
+function aClave(f: Date): string {
+  return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`;
+}
+
+function CalendarioTareas({ solicitudes, sesion, onAbrir }: {
+  solicitudes: Solicitud[];
+  sesion: SesionUI;
+  onAbrir: (s: Solicitud) => void;
+}) {
+  const [soloMias, setSoloMias] = useState(true);
+  const [dia, setDia] = useState<Date | undefined>(new Date());
+
+  // Solo tareas activas y con fecha límite: son las que "hay que entregar".
+  const conFecha = useMemo(() => {
+    return solicitudes.filter(s =>
+      !!s.fecha_limite &&
+      ACTIVOS.includes(s.estado) &&
+      (!soloMias || s.responsable_id === sesion.id),
+    );
+  }, [solicitudes, soloMias, sesion.id]);
+
+  const porDia = useMemo(() => {
+    const m = new Map<string, Solicitud[]>();
+    for (const s of conFecha) {
+      const clave = s.fecha_limite!.slice(0, 10);
+      if (!m.has(clave)) m.set(clave, []);
+      m.get(clave)!.push(s);
+    }
+    return m;
+  }, [conFecha]);
+
+  const diasConTarea = useMemo(() => [...porDia.keys()].map(aFechaLocal), [porDia]);
+  const diasVencidos = useMemo(
+    () => [...porDia.entries()].filter(([, ss]) => ss.some(estaVencida)).map(([k]) => aFechaLocal(k)),
+    [porDia],
+  );
+
+  const delDia = dia ? (porDia.get(aClave(dia)) || []) : [];
+  const proximas = useMemo(
+    () => [...conFecha].sort((a, b) => (a.fecha_limite || "").localeCompare(b.fecha_limite || "")).slice(0, 8),
+    [conFecha],
+  );
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
+      <Card className="min-w-0">
+        <CardContent className="grid gap-3 pt-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={soloMias} onCheckedChange={setSoloMias} />
+            Solo mis tareas
+          </label>
+          <Calendar
+            mode="single"
+            selected={dia}
+            onSelect={setDia}
+            locale={es}
+            showOutsideDays
+            modifiers={{ conTarea: diasConTarea, vencido: diasVencidos }}
+            modifiersClassNames={{
+              conTarea: "relative font-bold after:absolute after:bottom-1 after:left-1/2 after:size-1.5 after:-translate-x-1/2 after:rounded-full after:bg-primary",
+              vencido: "after:bg-destructive text-destructive",
+            }}
+            className="rounded-md border p-2"
+          />
+          <p className="text-xs text-muted-foreground">
+            Los días con punto tienen tareas por entregar; en rojo, las que ya se pasaron de la fecha.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0">
+        <CardContent className="grid gap-3 pt-2">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarDays className="size-4" />
+            {dia ? dia.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Elige un día"}
+          </p>
+
+          {delDia.length === 0 && (
+            <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+              No hay tareas con fecha límite ese día.
+            </p>
+          )}
+          {delDia.map(s => (
+            <button key={s.id} type="button" onClick={() => onAbrir(s)} className="rounded-md border p-3 text-left hover:bg-muted/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">#{s.numero} · {s.titulo}</span>
+                <span className={`rounded px-2 py-0.5 text-xs font-semibold ${clasePrioridad(s.prioridad)}`}>{s.prioridad}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseEstado(s.estado)}`}>{s.estado}</span>
+                {estaVencida(s) && <span className="text-xs font-bold text-destructive">Vencida</span>}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Responsable: {s.responsable || "—"} · Solicitó: {s.solicitado_por || "—"}
+              </p>
+            </button>
+          ))}
+
+          {proximas.length > 0 && (
+            <div className="mt-2 border-t pt-3">
+              <p className="mb-2 text-sm font-semibold">Próximas entregas</p>
+              <div className="grid gap-1.5">
+                {proximas.map(s => (
+                  <button
+                    key={s.id} type="button" onClick={() => onAbrir(s)}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-muted/60"
+                  >
+                    <span className="min-w-0 truncate">#{s.numero} · {s.titulo}</span>
+                    <span className={`whitespace-nowrap text-xs ${estaVencida(s) ? "font-bold text-destructive" : "text-muted-foreground"}`}>
+                      {s.fecha_limite}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

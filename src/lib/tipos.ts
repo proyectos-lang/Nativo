@@ -125,6 +125,18 @@ export type SolicitudHistorial = {
   creado_en: string;
 };
 
+export type Notificacion = {
+  id: number;
+  usuario_id: number;
+  tipo: string;
+  titulo: string;
+  cuerpo: string | null;
+  url: string | null;
+  solicitud_id: number | null;
+  leida: boolean;
+  creado_en: string;
+};
+
 export type SolicitudAdjunto = {
   id: number;
   solicitud_id: number;

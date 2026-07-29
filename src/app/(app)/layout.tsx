@@ -3,11 +3,17 @@ import { salir } from "@/app/login/acciones";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { solicitudesPendientesDe } from "@/lib/consultas";
+import { CampanaNotificaciones } from "@/components/campana-notificaciones";
+import { solicitudesPendientesDe, notificacionesDe, notificacionesNoLeidas } from "@/lib/consultas";
+import type { Notificacion } from "@/lib/tipos";
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const sesion = await requiereSesion();
-  const pendientesSolicitudes = await solicitudesPendientesDe(sesion.id);
+  const [pendientesSolicitudes, noLeidas, notificaciones] = await Promise.all([
+    solicitudesPendientesDe(sesion.id),
+    notificacionesNoLeidas(sesion.id),
+    notificacionesDe(sesion.id),
+  ]);
 
   return (
     <SidebarProvider>
@@ -19,6 +25,9 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           <h1 className="truncate text-sm font-semibold tracking-tight sm:text-base">
             Sistema de Control de Pedidos y Despachos Nativo
           </h1>
+          <div className="ml-auto">
+            <CampanaNotificaciones noLeidas={noLeidas} items={notificaciones as Notificacion[]} />
+          </div>
         </header>
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </SidebarInset>

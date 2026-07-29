@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
 import { registrarBitacora } from "@/lib/bitacora";
+import { crearNotificacion } from "@/lib/notificaciones";
 import { revalidatePath } from "next/cache";
 import type { Sesion } from "@/lib/tipos";
 
@@ -74,6 +75,18 @@ export async function crearSolicitud(datos: {
     solicitud_id: nueva.id, tipo: "creacion", estado_nuevo: "Pendiente",
     comentario: `Solicitud creada y asignada a ${responsable ?? "—"}`, usuario: sesion.nombre,
   });
+
+  // Avisa al responsable (campanita + push). No se notifica a uno mismo.
+  if (datos.responsable_id !== sesion.id) {
+    await crearNotificacion({
+      usuario_id: datos.responsable_id,
+      tipo: "solicitud_asignada",
+      titulo: `Nueva solicitud de ${sesion.nombre}`,
+      cuerpo: `#${numero} · ${titulo}${prioridad === "Urgente" || prioridad === "Alta" ? ` (prioridad ${prioridad.toLowerCase()})` : ""}`,
+      url: "/solicitudes",
+      solicitud_id: nueva.id,
+    });
+  }
 
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "solicitudes", accion: "crear",
@@ -161,6 +174,18 @@ export async function reasignarSolicitud(solicitudId: number, nuevoResponsableId
     solicitud_id: solicitudId, tipo: "reasignacion",
     comentario: `Reasignada de ${sol.responsable ?? "—"} a ${nuevoNombre ?? "—"}`, usuario: sesion.nombre,
   });
+  // Avisa al nuevo responsable (campanita + push). No se notifica a uno mismo.
+  if (nuevoResponsableId !== sesion.id) {
+    await crearNotificacion({
+      usuario_id: nuevoResponsableId,
+      tipo: "solicitud_asignada",
+      titulo: `Te reasignaron una solicitud`,
+      cuerpo: `#${sol.numero} · ${sol.titulo}`,
+      url: "/solicitudes",
+      solicitud_id: solicitudId,
+    });
+  }
+
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "solicitudes", accion: "reasignar",
     entidad_tipo: "solicitudes", entidad_id: solicitudId,

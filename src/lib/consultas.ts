@@ -93,6 +93,40 @@ export async function solicitudesPendientesDe(usuarioId: number): Promise<number
   }
 }
 
+// ------------------------------------------------------------
+// NOTIFICACIONES (campanita)
+// Best-effort: si la migración 025 aún no corre, devuelven vacío
+// en vez de tumbar el layout, que se renderiza en cada página.
+// ------------------------------------------------------------
+export async function notificacionesDe(usuarioId: number, limite = 20) {
+  try {
+    const { data, error } = await db()
+      .from("notificaciones")
+      .select("*")
+      .eq("usuario_id", usuarioId)
+      .order("creado_en", { ascending: false })
+      .limit(limite);
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function notificacionesNoLeidas(usuarioId: number): Promise<number> {
+  try {
+    const { count, error } = await db()
+      .from("notificaciones")
+      .select("id", { count: "exact", head: true })
+      .eq("usuario_id", usuarioId)
+      .eq("leida", false);
+    if (error) return 0;
+    return count || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Resumen liviano de solicitudes activas del usuario (para insights del dashboard). Best-effort. */
 export async function solicitudesResumenDe(usuarioId: number) {
   try {

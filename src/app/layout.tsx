@@ -16,7 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sistema de Control de Pedidos y Despachos Nativo",
   description: "Gestión de ventas, pagos, entregas y seguimiento de pedidos",
-  icons: { icon: "/logo.png" },
+  icons: { icon: "/logo.png", apple: "/logo.png" },
+  manifest: "/manifest.webmanifest",
+  // Necesario para que en iPhone se pueda instalar en la pantalla de inicio
+  // (requisito para recibir notificaciones push en iOS).
+  appleWebApp: { capable: true, title: "Nativo", statusBarStyle: "default" },
 };
 
 export default function RootLayout({
