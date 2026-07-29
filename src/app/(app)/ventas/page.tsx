@@ -7,10 +7,33 @@ import type { Cliente, Venta, VentaDetalle, CuentaBancaria, Pago, InfoInventario
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Ejecuta una consulta de la pantalla tolerando fallos puntuales. Esta página se
+ * vuelve a renderizar como parte de la respuesta al registrar una venta: si una
+ * consulta fallara ahí, la venta queda guardada pero el usuario ve el error
+ * genérico de Next.js (que oculta la causa). Degradando, la pantalla siempre
+ * responde y el motivo real queda en los logs del servidor.
+ */
+async function tolerante<T>(nombre: string, consulta: () => Promise<T>, respaldo: T): Promise<T> {
+  try {
+    return await consulta();
+  } catch (e) {
+    console.error(`[ventas] la consulta "${nombre}" falló; se usa un valor vacío:`, (e as Error).message);
+    return respaldo;
+  }
+}
+
 export default async function PaginaVentas() {
   await requiereSesion();
   const [maestros, clientes, productos, ventas, detalles, cuentas, pagos, inventario] = await Promise.all([
-    listasMaestras(), clientesActivos(), productosTodos(), ventasConCliente(), detallesPorVenta(), cuentasConSaldo(), pagosPorVenta(), catalogoVentaInventario(),
+    tolerante("listasMaestras", listasMaestras, {} as Record<string, string[]>),
+    tolerante("clientesActivos", clientesActivos, [] as unknown[]),
+    tolerante("productosTodos", productosTodos, [] as string[]),
+    tolerante("ventasConCliente", ventasConCliente, [] as unknown[]),
+    tolerante("detallesPorVenta", detallesPorVenta, {} as Record<number, unknown[]>),
+    tolerante("cuentasConSaldo", cuentasConSaldo, [] as unknown[]),
+    tolerante("pagosPorVenta", pagosPorVenta, {} as Record<number, unknown[]>),
+    tolerante("catalogoVentaInventario", catalogoVentaInventario, [] as unknown[]),
   ]);
 
   return (

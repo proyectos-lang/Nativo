@@ -19,7 +19,6 @@ import { SubidaImagen } from "@/components/subida-imagen";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { formatoPesos, type Cliente, type CuentaBancaria, type InfoInventarioVenta } from "@/lib/tipos";
 
 type Props = {
@@ -234,10 +233,9 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
                           Disponible: {info.disponible}{info.sku ? ` · ${info.sku}` : ""}
                         </Badge>
                         {faltante && (
-                          <label className="flex items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
-                            <Checkbox checked={!!l.sin_inventario} onCheckedChange={v => setLinea(i, "sin_inventario", !!v)} />
-                            Venta sin inventario ({cantidad - Math.max(info.disponible, 0)} quedará{cantidad - Math.max(info.disponible, 0) === 1 ? "" : "n"} pendiente por surtir)
-                          </label>
+                          <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
+                            Sin stock suficiente: {cantidad - Math.max(info.disponible, 0)} quedará{cantidad - Math.max(info.disponible, 0) === 1 ? "" : "n"} pendiente por surtir. La venta se registra igual.
+                          </p>
                         )}
                       </div>
                     );

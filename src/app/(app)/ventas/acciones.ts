@@ -88,7 +88,10 @@ async function reservarInventarioVenta(
     .map(l => {
       const m = matches.get(l.producto.trim());
       if (!m || !m.controla_inventario || m.es_servicio) return null;
-      return { producto_id: m.id, cantidad: Number(l.cantidad) || 0, permitir_faltante: !!l.sin_inventario };
+      // Nativo produce por encargo: la falta de stock NUNCA bloquea la venta.
+      // Lo que falte queda como "pendiente por surtir" y se descuenta solo
+      // cuando entre la mercancía (surtir_pendientes, FIFO).
+      return { producto_id: m.id, cantidad: Number(l.cantidad) || 0, permitir_faltante: true };
     })
     .filter((x): x is { producto_id: number; cantidad: number; permitir_faltante: boolean } => x !== null);
 
