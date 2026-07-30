@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { guardarCuenta, registrarMovimientoManual, transferir, eliminarMovimientoManual } from "./acciones";
+import { guardarCuenta, registrarMovimientoManual, transferir, eliminarMovimientoManual, anularPagoGasto, anularCobroIngreso } from "./acciones";
 import { DialogoBorrado } from "./dialogo-borrado";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -246,10 +246,12 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell>
                       {/* Los movimientos que nacen de un pago se deshacen anulando ese
-                          pago, para que el gasto/ingreso/venta se recalcule. */}
-                      {(m.origen === "manual" || m.origen === "transferencia") && (
+                          pago, para que el gasto/ingreso se recalcule. Los pagos de
+                          venta y los reembolsos se manejan en sus propios módulos. */}
+                      {(m.origen === "manual" || m.origen === "transferencia" || m.pago_gasto_id != null || m.pago_ingreso_id != null) && (
                         <Button
-                          variant="ghost" size="icon" className="size-7 text-destructive" title="Eliminar movimiento"
+                          variant="ghost" size="icon" className="size-7 text-destructive"
+                          title={m.pago_gasto_id != null || m.pago_ingreso_id != null ? "Anular el pago que lo generó" : "Eliminar movimiento"}
                           onClick={() => setMovBorrar(m)}
                         >
                           <Trash2 className="size-3.5" />
@@ -263,28 +265,48 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
           </div>
           <p className="text-xs text-muted-foreground">
             Saldo inicial de la cuenta: {formatoPesos(extractoDe?.saldo_inicial)}.
-            Solo se pueden borrar los movimientos manuales y las transferencias; los que vienen de un pago
-            se deshacen anulando ese pago en Gastos, Ingresos o Pagos de ventas.
+            Los movimientos manuales y las transferencias se eliminan; los que vienen de un pago de gasto o
+            cobro de ingreso se deshacen anulando ese pago desde aquí mismo. Los pagos de ventas se anulan
+            en el módulo Pagos y los reembolsos en Devoluciones.
           </p>
         </DialogContent>
       </Dialog>
 
-      {/* BORRAR MOVIMIENTO MANUAL O TRANSFERENCIA */}
+      {/* BORRAR UN MOVIMIENTO DEL EXTRACTO */}
       <DialogoBorrado
         abierto={!!movBorrar}
         onCerrar={() => setMovBorrar(null)}
-        titulo={movBorrar?.origen === "transferencia" ? "Eliminar transferencia" : "Eliminar movimiento manual"}
-        etiquetaBoton="Eliminar movimiento"
+        titulo={movBorrar
+          ? movBorrar.origen === "transferencia" ? "Eliminar transferencia"
+            : movBorrar.pago_gasto_id != null ? "Anular pago de gasto"
+            : movBorrar.pago_ingreso_id != null ? "Anular cobro de ingreso"
+            : "Eliminar movimiento manual"
+          : ""}
+        etiquetaBoton={movBorrar && (movBorrar.pago_gasto_id != null || movBorrar.pago_ingreso_id != null) ? "Anular" : "Eliminar"}
         advertencia={movBorrar
           ? movBorrar.origen === "transferencia"
             ? `Se eliminan los DOS asientos de la transferencia de ${formatoPesos(movBorrar.monto)}: el egreso de la cuenta origen y el ingreso de la destino. Ambos saldos vuelven a como estaban.`
-            : `Se elimina el ${movBorrar.tipo} de ${formatoPesos(movBorrar.monto)} y el saldo de la cuenta se corrige en ese valor.`
+            : movBorrar.pago_gasto_id != null
+              ? `Se anula el pago de ${formatoPesos(movBorrar.monto)}: desaparece este movimiento, el dinero vuelve al saldo de la cuenta y el gasto queda otra vez pendiente por ese valor. El gasto NO se borra.`
+              : movBorrar.pago_ingreso_id != null
+                ? `Se anula el cobro de ${formatoPesos(movBorrar.monto)}: desaparece este movimiento, el dinero sale del saldo de la cuenta y el ingreso queda otra vez pendiente por ese valor. El ingreso NO se borra.`
+                : `Se elimina el ${movBorrar.tipo} de ${formatoPesos(movBorrar.monto)} y el saldo de la cuenta se corrige en ese valor.`
           : ""}
         onConfirmar={async (clave, motivo) => {
           const m = movBorrar!;
-          const r = await eliminarMovimientoManual({ movimiento_id: m.id, clave_contadora: clave, motivo });
+          let mensaje: string;
+          if (m.pago_gasto_id != null) {
+            const r = await anularPagoGasto({ pago_id: m.pago_gasto_id, clave_contadora: clave, motivo });
+            mensaje = `Pago anulado — el gasto queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+          } else if (m.pago_ingreso_id != null) {
+            const r = await anularCobroIngreso({ pago_id: m.pago_ingreso_id, clave_contadora: clave, motivo });
+            mensaje = `Cobro anulado — el ingreso queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+          } else {
+            const r = await eliminarMovimientoManual({ movimiento_id: m.id, clave_contadora: clave, motivo });
+            mensaje = r.transferencia ? "Transferencia eliminada (los dos asientos)" : "Movimiento eliminado";
+          }
           router.refresh();
-          return r.transferencia ? "Transferencia eliminada (los dos asientos)" : "Movimiento eliminado";
+          return mensaje;
         }}
       />
     </div>

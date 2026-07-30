@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { anularPagoGasto, anularCobroIngreso, eliminarMovimientoManual } from "./acciones";
+import { DialogoBorrado } from "./dialogo-borrado";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,13 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
 
 type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
 
 type FilaHistorial = {
   id: string;
+  /** id real del movimiento; null en las filas sintéticas de saldo inicial. */
+  movimiento_id: number | null;
   cuenta_id: number;
   fecha: string;
   tipo: "ingreso" | "egreso";
@@ -23,11 +28,16 @@ type FilaHistorial = {
   concepto: string | null;
   tercero: string | null;
   factura: string | null;
+  /** Pago del que nace el movimiento: anularlo es lo que lo borra. */
+  pago_gasto_id: number | null;
+  pago_ingreso_id: number | null;
 };
 
 const NOMBRES_ORIGEN_EXTENDIDO: Record<string, string> = { ...NOMBRE_ORIGEN_MOVIMIENTO, saldo_inicial: "Saldo Inicial" };
 
 export function HistorialCliente({ cuentas, movimientos }: Props) {
+  const router = useRouter();
+  const [filaBorrar, setFilaBorrar] = useState<FilaHistorial | null>(null);
   const [cuentaId, setCuentaId] = useState("todas");
   const [origen, setOrigen] = useState("todas");
   const [desde, setDesde] = useState("");
@@ -42,6 +52,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
   const todasLasFilas = useMemo((): FilaHistorial[] => {
     const filasSaldoInicial: FilaHistorial[] = cuentas.map(c => ({
       id: `saldo-${c.id}`,
+      movimiento_id: null,
       cuenta_id: c.id,
       fecha: c.creado_en.slice(0, 10),
       tipo: Number(c.saldo_inicial) >= 0 ? "ingreso" : "egreso",
@@ -50,11 +61,15 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       concepto: "Saldo inicial de la cuenta",
       tercero: null,
       factura: null,
+      pago_gasto_id: null,
+      pago_ingreso_id: null,
     }));
     const filasMovimientos: FilaHistorial[] = movimientos.map(m => ({
-      id: String(m.id), cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
+      id: String(m.id), movimiento_id: m.id, cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
       tercero: m.tercero ?? null,
       factura: m.factura ?? null,
+      pago_gasto_id: m.pago_gasto_id ?? null,
+      pago_ingreso_id: m.pago_ingreso_id ?? null,
     }));
     return [...filasSaldoInicial, ...filasMovimientos].sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [cuentas, movimientos]);
@@ -74,6 +89,43 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
 
   const limpiar = () => { setCuentaId("todas"); setOrigen("todas"); setDesde(""); setHasta(""); };
   const hayFiltros = cuentaId !== "todas" || origen !== "todas" || !!desde || !!hasta;
+
+  /**
+   * Qué se puede deshacer desde aquí. Un movimiento manual o una transferencia
+   * se borran directamente; uno que nace de un pago se deshace anulando el pago
+   * (si no, el gasto/ingreso seguiría diciendo "Pagado" con plata que ya no
+   * salió de ninguna cuenta). Los pagos de venta y los reembolsos por devolución
+   * se manejan en sus propios módulos, y el saldo inicial se edita en la cuenta.
+   */
+  const borrable = (m: FilaHistorial) =>
+    m.origen === "manual" || m.origen === "transferencia"
+    || m.pago_gasto_id != null || m.pago_ingreso_id != null;
+
+  const descripcionBorrado = (m: FilaHistorial) => {
+    if (m.origen === "transferencia") {
+      return `Se eliminan los DOS asientos de la transferencia de ${formatoPesos(m.monto)}: el egreso de la cuenta origen y el ingreso de la destino. Ambos saldos vuelven a como estaban.`;
+    }
+    if (m.pago_gasto_id != null) {
+      return `Se anula el pago de ${formatoPesos(m.monto)}: desaparece este movimiento, el dinero vuelve al saldo de la cuenta y el gasto queda otra vez pendiente por ese valor. El gasto NO se borra.`;
+    }
+    if (m.pago_ingreso_id != null) {
+      return `Se anula el cobro de ${formatoPesos(m.monto)}: desaparece este movimiento, el dinero sale del saldo de la cuenta y el ingreso queda otra vez pendiente por ese valor. El ingreso NO se borra.`;
+    }
+    return `Se elimina el ${m.tipo} de ${formatoPesos(m.monto)} y el saldo de la cuenta se corrige en ese valor.`;
+  };
+
+  const ejecutarBorrado = async (m: FilaHistorial, clave: string, motivo: string) => {
+    if (m.pago_gasto_id != null) {
+      const r = await anularPagoGasto({ pago_id: m.pago_gasto_id, clave_contadora: clave, motivo });
+      return `Pago anulado — el gasto queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+    }
+    if (m.pago_ingreso_id != null) {
+      const r = await anularCobroIngreso({ pago_id: m.pago_ingreso_id, clave_contadora: clave, motivo });
+      return `Cobro anulado — el ingreso queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+    }
+    const r = await eliminarMovimientoManual({ movimiento_id: m.movimiento_id!, clave_contadora: clave, motivo });
+    return r.transferencia ? "Transferencia eliminada (los dos asientos)" : "Movimiento eliminado";
+  };
 
   return (
     <div className="grid gap-4 pt-2">
@@ -129,11 +181,12 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                   <TableHead>Concepto</TableHead>
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Egreso</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtrados.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
                 )}
                 {filtrados.map(m => (
                   <TableRow key={m.id}>
@@ -145,6 +198,17 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>
+                    <TableCell>
+                      {borrable(m) && (
+                        <Button
+                          variant="ghost" size="icon" className="size-7 text-destructive"
+                          title={m.origen === "manual" || m.origen === "transferencia" ? "Eliminar movimiento" : "Anular el pago que lo generó"}
+                          onClick={() => setFilaBorrar(m)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -155,8 +219,31 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
             <span>Egresos: <span className="font-bold text-destructive">{formatoPesos(totalEgresos)}</span></span>
             <span>Neto: <span className={`font-bold ${totalIngresos - totalEgresos >= 0 ? "text-primary" : "text-destructive"}`}>{formatoPesos(totalIngresos - totalEgresos)}</span></span>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Los movimientos manuales y las transferencias se eliminan; los que vienen de un pago de gasto o
+            cobro de ingreso se deshacen anulando ese pago desde aquí mismo. Los pagos de ventas se anulan
+            en el módulo Pagos, los reembolsos en Devoluciones, y el saldo inicial se corrige editando la cuenta.
+          </p>
         </CardContent>
       </Card>
+
+      <DialogoBorrado
+        abierto={!!filaBorrar}
+        onCerrar={() => setFilaBorrar(null)}
+        titulo={filaBorrar
+          ? filaBorrar.origen === "transferencia" ? "Eliminar transferencia"
+            : filaBorrar.pago_gasto_id != null ? "Anular pago de gasto"
+            : filaBorrar.pago_ingreso_id != null ? "Anular cobro de ingreso"
+            : "Eliminar movimiento manual"
+          : ""}
+        etiquetaBoton={filaBorrar && (filaBorrar.pago_gasto_id != null || filaBorrar.pago_ingreso_id != null) ? "Anular" : "Eliminar"}
+        advertencia={filaBorrar ? descripcionBorrado(filaBorrar) : ""}
+        onConfirmar={async (clave, motivo) => {
+          const mensaje = await ejecutarBorrado(filaBorrar!, clave, motivo);
+          router.refresh();
+          return mensaje;
+        }}
+      />
     </div>
   );
 }
