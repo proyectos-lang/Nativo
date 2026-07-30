@@ -656,3 +656,146 @@ export async function actualizarFacturacionIngreso(datos: {
   });
   revalidarFinanciero();
 }
+
+// ------------------------------------------------------------
+// BORRADO DE MOVIMIENTOS FINANCIEROS (migración 028)
+// Todo pasa por un RPC porque son operaciones de varias tablas que
+// deben ser atómicas: el asiento bancario tiene que morir junto con
+// el pago o el saldo de la cuenta queda mal. El borrado es real; la
+// trazabilidad la da la bitácora, con copia completa de lo borrado.
+// ------------------------------------------------------------
+
+/** Anula un pago de gasto: borra el asiento bancario y devuelve el gasto a pendiente. */
+export async function anularPagoGasto(datos: { pago_id: number; clave_contadora: string; motivo?: string }) {
+  const sesion = await requierePermiso("financiero");
+  await verificarPinContadora(datos.clave_contadora);
+
+  const { data: pago, error: errGet } = await db().from("pagos_gastos")
+    .select("*, gastos(ticket, monto)").eq("id", datos.pago_id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const { data, error } = await db().rpc("anular_pago_gasto", {
+    p_pago_id: datos.pago_id, p_usuario: sesion.usuario,
+  });
+  if (error) throw new Error(error.message);
+  const gasto = (Array.isArray(data) ? data[0] : data) as { id: number; ticket: number; saldo: number; estado: string } | null;
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "eliminar",
+    entidad_tipo: "pagos_gastos", entidad_id: datos.pago_id,
+    descripcion: `Pago anulado de ${descripcionTicket("Gasto", gasto?.ticket ?? 0, Number(pago.monto))} — queda ${gasto?.estado} con saldo ${formatoPesos(gasto?.saldo)}`,
+    datos_anteriores: pago,
+    motivo: datos.motivo?.trim() || null,
+  });
+  revalidarFinanciero();
+  return { saldo: Number(gasto?.saldo) || 0, estado: gasto?.estado ?? "" };
+}
+
+/** Anula un cobro de ingreso: espejo de anularPagoGasto. */
+export async function anularCobroIngreso(datos: { pago_id: number; clave_contadora: string; motivo?: string }) {
+  const sesion = await requierePermiso("financiero");
+  await verificarPinContadora(datos.clave_contadora);
+
+  const { data: pago, error: errGet } = await db().from("pagos_ingresos")
+    .select("*, ingresos(ticket, monto)").eq("id", datos.pago_id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const { data, error } = await db().rpc("anular_cobro_ingreso", {
+    p_pago_id: datos.pago_id, p_usuario: sesion.usuario,
+  });
+  if (error) throw new Error(error.message);
+  const ingreso = (Array.isArray(data) ? data[0] : data) as { id: number; ticket: number; saldo: number; estado: string } | null;
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "eliminar",
+    entidad_tipo: "pagos_ingresos", entidad_id: datos.pago_id,
+    descripcion: `Cobro anulado de ${descripcionTicket("Ingreso", ingreso?.ticket ?? 0, Number(pago.monto))} — queda ${ingreso?.estado} con saldo ${formatoPesos(ingreso?.saldo)}`,
+    datos_anteriores: pago,
+    motivo: datos.motivo?.trim() || null,
+  });
+  revalidarFinanciero();
+  return { saldo: Number(ingreso?.saldo) || 0, estado: ingreso?.estado ?? "" };
+}
+
+/** Elimina un gasto completo con sus pagos, asientos bancarios y detalle. */
+export async function eliminarGasto(datos: { gasto_id: number; clave_contadora: string; motivo?: string }) {
+  const sesion = await requierePermiso("financiero");
+  await verificarPinContadora(datos.clave_contadora);
+
+  // Se lee todo ANTES de borrar: es lo único que queda del gasto.
+  const { data: anterior, error: errGet } = await db().from("gastos").select("*").eq("id", datos.gasto_id).single();
+  if (errGet) throw new Error(errGet.message);
+  const [{ data: lineas }, { data: pagos }] = await Promise.all([
+    db().from("gastos_detalle").select("*").eq("gasto_id", datos.gasto_id),
+    db().from("pagos_gastos").select("*").eq("gasto_id", datos.gasto_id),
+  ]);
+
+  const { error } = await db().rpc("eliminar_gasto", { p_gasto_id: datos.gasto_id, p_usuario: sesion.usuario });
+  if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "eliminar",
+    entidad_tipo: "gastos", entidad_id: datos.gasto_id,
+    descripcion: `${anterior.tipo} eliminado — ${descripcionTicket(anterior.tipo, anterior.ticket, Number(anterior.monto))}`
+      + ((pagos?.length ?? 0) > 0 ? ` (con ${pagos?.length} pago(s) y sus asientos)` : ""),
+    datos_anteriores: { ...anterior, lineas: lineas || [], pagos: pagos || [] },
+    motivo: datos.motivo?.trim() || null,
+  });
+  revalidarFinanciero();
+  revalidatePath("/proveedores");
+  return { ticket: anterior.ticket as number, pagos: pagos?.length ?? 0 };
+}
+
+/** Elimina un ingreso completo con sus cobros y asientos bancarios. */
+export async function eliminarIngreso(datos: { ingreso_id: number; clave_contadora: string; motivo?: string }) {
+  const sesion = await requierePermiso("financiero");
+  await verificarPinContadora(datos.clave_contadora);
+
+  const { data: anterior, error: errGet } = await db().from("ingresos").select("*").eq("id", datos.ingreso_id).single();
+  if (errGet) throw new Error(errGet.message);
+  const { data: pagos } = await db().from("pagos_ingresos").select("*").eq("ingreso_id", datos.ingreso_id);
+
+  const { error } = await db().rpc("eliminar_ingreso", { p_ingreso_id: datos.ingreso_id, p_usuario: sesion.usuario });
+  if (error) throw new Error(error.message);
+
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "eliminar",
+    entidad_tipo: "ingresos", entidad_id: datos.ingreso_id,
+    descripcion: `Ingreso eliminado — ${descripcionTicket("Ingreso", anterior.ticket, Number(anterior.monto))}`
+      + ((pagos?.length ?? 0) > 0 ? ` (con ${pagos?.length} cobro(s) y sus asientos)` : ""),
+    datos_anteriores: { ...anterior, pagos: pagos || [] },
+    motivo: datos.motivo?.trim() || null,
+  });
+  revalidarFinanciero();
+  return { ticket: anterior.ticket as number, pagos: pagos?.length ?? 0 };
+}
+
+/**
+ * Borra un movimiento bancario manual o una transferencia (los dos asientos).
+ * Los movimientos que nacen de un pago no se borran por aquí: hay que anular
+ * el pago, para que el gasto/ingreso/venta se recalcule.
+ */
+export async function eliminarMovimientoManual(datos: { movimiento_id: number; clave_contadora: string; motivo?: string }) {
+  const sesion = await requierePermiso("financiero");
+  await verificarPinContadora(datos.clave_contadora);
+
+  const { data: anterior, error: errGet } = await db().from("movimientos_bancarios")
+    .select("*").eq("id", datos.movimiento_id).single();
+  if (errGet) throw new Error(errGet.message);
+
+  const { error } = await db().rpc("eliminar_movimiento_manual", {
+    p_movimiento_id: datos.movimiento_id, p_usuario: sesion.usuario,
+  });
+  if (error) throw new Error(error.message);
+
+  const esTransferencia = anterior.origen === "transferencia";
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "financiero", accion: "eliminar",
+    entidad_tipo: "movimientos_bancarios", entidad_id: datos.movimiento_id,
+    descripcion: `${esTransferencia ? "Transferencia eliminada" : "Movimiento manual eliminado"} — ${anterior.tipo} de ${formatoPesos(anterior.monto)}${anterior.concepto ? ` (${anterior.concepto})` : ""}`,
+    datos_anteriores: anterior,
+    motivo: datos.motivo?.trim() || null,
+  });
+  revalidarFinanciero();
+  return { transferencia: esTransferencia };
+}

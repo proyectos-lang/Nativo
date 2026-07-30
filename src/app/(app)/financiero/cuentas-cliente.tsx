@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { guardarCuenta, registrarMovimientoManual, transferir } from "./acciones";
+import { guardarCuenta, registrarMovimientoManual, transferir, eliminarMovimientoManual } from "./acciones";
+import { DialogoBorrado } from "./dialogo-borrado";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Landmark, Pencil, ArrowLeftRight, PlusCircle, ReceiptText } from "lucide-react";
+import { Landmark, Pencil, ArrowLeftRight, PlusCircle, ReceiptText, Trash2 } from "lucide-react";
 import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
 
 type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
@@ -36,6 +37,9 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
   // Transferencia
   const [dialogTransf, setDialogTransf] = useState(false);
   const [formTransf, setFormTransf] = useState({ origen: 0, destino: 0, monto: 0, fecha: HOY(), concepto: "" });
+
+  // Borrado de un movimiento manual o una transferencia
+  const [movBorrar, setMovBorrar] = useState<MovimientoBancario | null>(null);
 
   // Extracto
   const [extractoDe, setExtractoDe] = useState<CuentaBancaria | null>(null);
@@ -224,11 +228,12 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
                   <TableHead>Concepto</TableHead>
                   <TableHead className="text-right">Ingreso</TableHead>
                   <TableHead className="text-right">Egreso</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {movsCuenta.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-6 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-6 text-center text-muted-foreground">Sin movimientos.</TableCell></TableRow>
                 )}
                 {movsCuenta.map(m => (
                   <TableRow key={m.id}>
@@ -239,14 +244,49 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
                     <TableCell className="text-right font-medium text-primary">{m.tipo === "ingreso" ? formatoPesos(m.monto) : ""}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{m.tipo === "egreso" ? formatoPesos(m.monto) : ""}</TableCell>
+                    <TableCell>
+                      {/* Los movimientos que nacen de un pago se deshacen anulando ese
+                          pago, para que el gasto/ingreso/venta se recalcule. */}
+                      {(m.origen === "manual" || m.origen === "transferencia") && (
+                        <Button
+                          variant="ghost" size="icon" className="size-7 text-destructive" title="Eliminar movimiento"
+                          onClick={() => setMovBorrar(m)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <p className="text-xs text-muted-foreground">Saldo inicial de la cuenta: {formatoPesos(extractoDe?.saldo_inicial)}</p>
+          <p className="text-xs text-muted-foreground">
+            Saldo inicial de la cuenta: {formatoPesos(extractoDe?.saldo_inicial)}.
+            Solo se pueden borrar los movimientos manuales y las transferencias; los que vienen de un pago
+            se deshacen anulando ese pago en Gastos, Ingresos o Pagos de ventas.
+          </p>
         </DialogContent>
       </Dialog>
+
+      {/* BORRAR MOVIMIENTO MANUAL O TRANSFERENCIA */}
+      <DialogoBorrado
+        abierto={!!movBorrar}
+        onCerrar={() => setMovBorrar(null)}
+        titulo={movBorrar?.origen === "transferencia" ? "Eliminar transferencia" : "Eliminar movimiento manual"}
+        etiquetaBoton="Eliminar movimiento"
+        advertencia={movBorrar
+          ? movBorrar.origen === "transferencia"
+            ? `Se eliminan los DOS asientos de la transferencia de ${formatoPesos(movBorrar.monto)}: el egreso de la cuenta origen y el ingreso de la destino. Ambos saldos vuelven a como estaban.`
+            : `Se elimina el ${movBorrar.tipo} de ${formatoPesos(movBorrar.monto)} y el saldo de la cuenta se corrige en ese valor.`
+          : ""}
+        onConfirmar={async (clave, motivo) => {
+          const m = movBorrar!;
+          const r = await eliminarMovimientoManual({ movimiento_id: m.id, clave_contadora: clave, motivo });
+          router.refresh();
+          return r.transferencia ? "Transferencia eliminada (los dos asientos)" : "Movimiento eliminado";
+        }}
+      />
     </div>
   );
 }

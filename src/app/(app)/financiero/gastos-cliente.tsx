@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { crearGasto, editarGasto, pagarGasto, crearCategoriaGasto, crearProveedor, type LineaGasto } from "./acciones";
+import { crearGasto, editarGasto, pagarGasto, crearCategoriaGasto, crearProveedor, anularPagoGasto, eliminarGasto, type LineaGasto } from "./acciones";
+import { DialogoBorrado } from "./dialogo-borrado";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -128,6 +129,9 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
   // El gasto que se está editando estaba pagado por completo
   const [edicionPagado, setEdicionPagado] = useState(false);
   const [ajustarPago, setAjustarPago] = useState(true);
+  // Borrados (piden clave de contadora + motivo)
+  const [pagoAnular, setPagoAnular] = useState<PagoGasto | null>(null);
+  const [gastoBorrar, setGastoBorrar] = useState<Gasto | null>(null);
 
   // Cuentas bancarias desde donde se pagó cada gasto (según sus abonos registrados)
   const nombreCuenta = useMemo(() => {
@@ -556,9 +560,17 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                   <p className="mb-1 text-sm font-semibold">Pagos anteriores</p>
                   <div className="grid gap-1 text-sm">
                     {pagosGastos[sel.id].map(p => (
-                      <div key={p.id} className="flex justify-between">
-                        <span>{formatoFecha(p.fecha)} {p.comentario && `— ${p.comentario}`}</span>
-                        <span className="font-medium">{formatoPesos(p.monto)}</span>
+                      <div key={p.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{formatoFecha(p.fecha)} {p.comentario && `— ${p.comentario}`}</span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="font-medium">{formatoPesos(p.monto)}</span>
+                          <Button
+                            variant="ghost" size="icon" className="size-7 text-destructive" title="Anular este pago"
+                            onClick={() => setPagoAnular(p)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -604,6 +616,9 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
             <div className="flex gap-2">
               {sel && sel.saldo > 0 && <Button variant="outline" onClick={abrirPagoDesdeDetalle}><HandCoins className="size-4" /> Pagar</Button>}
               <Button variant="outline" onClick={pedirClave}><Pencil className="size-4" /> Editar</Button>
+              <Button variant="destructive" onClick={() => { setGastoBorrar(sel); setSel(null); }}>
+                <Trash2 className="size-4" /> Eliminar
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -740,6 +755,43 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ANULAR UN PAGO */}
+      <DialogoBorrado
+        abierto={!!pagoAnular}
+        onCerrar={() => setPagoAnular(null)}
+        titulo="Anular pago"
+        etiquetaBoton="Anular pago"
+        advertencia={pagoAnular
+          ? `Se elimina el pago de ${formatoPesos(pagoAnular.monto)} y su movimiento bancario: el dinero vuelve al saldo de la cuenta y el gasto queda otra vez pendiente por ese valor.`
+          : ""}
+        onConfirmar={async (clave, motivo) => {
+          const p = pagoAnular!;
+          const r = await anularPagoGasto({ pago_id: p.id, clave_contadora: clave, motivo });
+          router.refresh();
+          return `Pago anulado — el gasto queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+        }}
+      />
+
+      {/* ELIMINAR EL GASTO COMPLETO */}
+      <DialogoBorrado
+        abierto={!!gastoBorrar}
+        onCerrar={() => setGastoBorrar(null)}
+        titulo={`Eliminar ${gastoBorrar?.tipo?.toLowerCase() ?? "gasto"} #${gastoBorrar?.ticket ?? ""}`}
+        etiquetaBoton="Eliminar"
+        advertencia={gastoBorrar
+          ? `Se elimina el registro completo por ${formatoPesos(gastoBorrar.monto)} con todos sus artículos`
+            + ((pagosGastos[gastoBorrar.id]?.length ?? 0) > 0
+              ? `, sus ${pagosGastos[gastoBorrar.id].length} pago(s) y los movimientos bancarios correspondientes. El saldo de la(s) cuenta(s) sube en ${formatoPesos(gastoBorrar.abonado)}.`
+              : ". No tiene pagos registrados, así que ninguna cuenta cambia.")
+          : ""}
+        onConfirmar={async (clave, motivo) => {
+          const g = gastoBorrar!;
+          const r = await eliminarGasto({ gasto_id: g.id, clave_contadora: clave, motivo });
+          router.refresh();
+          return `${g.tipo} #${r.ticket} eliminado${r.pagos > 0 ? ` con ${r.pagos} pago(s)` : ""}`;
+        }}
+      />
     </div>
   );
 }

@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { crearIngreso, editarIngreso, cobrarIngreso, crearCategoriaIngreso, crearClienteDesdeFinanciero, actualizarFacturacionIngreso } from "./acciones";
+import { crearIngreso, editarIngreso, cobrarIngreso, crearCategoriaIngreso, crearClienteDesdeFinanciero, actualizarFacturacionIngreso, anularCobroIngreso, eliminarIngreso } from "./acciones";
+import { DialogoBorrado } from "./dialogo-borrado";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { HandCoins, PlusCircle, Pencil, ShieldAlert, UserPlus, CheckCircle2, FileText } from "lucide-react";
+import { HandCoins, PlusCircle, Pencil, ShieldAlert, UserPlus, CheckCircle2, FileText, Trash2 } from "lucide-react";
 import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type Bitacora, type Cliente } from "@/lib/tipos";
 
 type Props = {
@@ -115,6 +116,9 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   // El ingreso que se está editando estaba cobrado por completo
   const [edicionCobrado, setEdicionCobrado] = useState(false);
   const [ajustarCobro, setAjustarCobro] = useState(true);
+  // Borrados (piden clave de contadora + motivo)
+  const [cobroAnular, setCobroAnular] = useState<PagoIngreso | null>(null);
+  const [ingresoBorrar, setIngresoBorrar] = useState<Ingreso | null>(null);
 
   // Actualizar Facturación (liviano, sin clave)
   const [selFacturacion, setSelFacturacion] = useState<Ingreso | null>(null);
@@ -504,9 +508,17 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                   <p className="mb-1 text-sm font-semibold">Cobros anteriores</p>
                   <div className="grid gap-1 text-sm">
                     {pagosIngresos[sel.id].map(p => (
-                      <div key={p.id} className="flex justify-between">
-                        <span>{formatoFecha(p.fecha)} {p.comentario && `— ${p.comentario}`}</span>
-                        <span className="font-medium">{formatoPesos(p.monto)}</span>
+                      <div key={p.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{formatoFecha(p.fecha)} {p.comentario && `— ${p.comentario}`}</span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="font-medium">{formatoPesos(p.monto)}</span>
+                          <Button
+                            variant="ghost" size="icon" className="size-7 text-destructive" title="Anular este cobro"
+                            onClick={() => setCobroAnular(p)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -553,6 +565,9 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
               <Button variant="outline" onClick={abrirFacturacionDesdeDetalle}><FileText className="size-4" /> Facturación</Button>
               {sel && sel.saldo > 0 && <Button variant="outline" onClick={abrirCobroDesdeDetalle}><HandCoins className="size-4" /> Cobrar</Button>}
               <Button variant="outline" onClick={pedirClave}><Pencil className="size-4" /> Editar</Button>
+              <Button variant="destructive" onClick={() => { setIngresoBorrar(sel); setSel(null); }}>
+                <Trash2 className="size-4" /> Eliminar
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -702,6 +717,43 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ANULAR UN COBRO */}
+      <DialogoBorrado
+        abierto={!!cobroAnular}
+        onCerrar={() => setCobroAnular(null)}
+        titulo="Anular cobro"
+        etiquetaBoton="Anular cobro"
+        advertencia={cobroAnular
+          ? `Se elimina el cobro de ${formatoPesos(cobroAnular.monto)} y su movimiento bancario: el dinero vuelve a salir del saldo de la cuenta y el ingreso queda otra vez pendiente por ese valor.`
+          : ""}
+        onConfirmar={async (clave, motivo) => {
+          const p = cobroAnular!;
+          const r = await anularCobroIngreso({ pago_id: p.id, clave_contadora: clave, motivo });
+          router.refresh();
+          return `Cobro anulado — el ingreso queda ${r.estado} con saldo ${formatoPesos(r.saldo)}`;
+        }}
+      />
+
+      {/* ELIMINAR EL INGRESO COMPLETO */}
+      <DialogoBorrado
+        abierto={!!ingresoBorrar}
+        onCerrar={() => setIngresoBorrar(null)}
+        titulo={`Eliminar ingreso #${ingresoBorrar?.ticket ?? ""}`}
+        etiquetaBoton="Eliminar ingreso"
+        advertencia={ingresoBorrar
+          ? `Se elimina el ingreso completo por ${formatoPesos(ingresoBorrar.monto)}`
+            + ((pagosIngresos[ingresoBorrar.id]?.length ?? 0) > 0
+              ? `, sus ${pagosIngresos[ingresoBorrar.id].length} cobro(s) y los movimientos bancarios correspondientes. El saldo de la(s) cuenta(s) baja en ${formatoPesos(ingresoBorrar.cobrado)}.`
+              : ". No tiene cobros registrados, así que ninguna cuenta cambia.")
+          : ""}
+        onConfirmar={async (clave, motivo) => {
+          const i = ingresoBorrar!;
+          const r = await eliminarIngreso({ ingreso_id: i.id, clave_contadora: clave, motivo });
+          router.refresh();
+          return `Ingreso #${r.ticket} eliminado${r.pagos > 0 ? ` con ${r.pagos} cobro(s)` : ""}`;
+        }}
+      />
     </div>
   );
 }
