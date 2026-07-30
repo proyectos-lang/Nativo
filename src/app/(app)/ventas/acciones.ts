@@ -63,6 +63,23 @@ async function matchesInventario(lineas: LineaVenta[]): Promise<Map<string, Matc
 }
 
 /**
+ * Costo unitario de receta de los productos vendidos, para CONGELARLO en la
+ * venta. Así actualizar una receta no altera la utilidad histórica.
+ * Best-effort: si falta la migración 026 no hay costo y la venta sigue normal.
+ */
+async function costosDeReceta(matches: Map<string, MatchInventario>): Promise<Map<number, number>> {
+  const ids = [...matches.values()].map(m => m.id);
+  if (!ids.length) return new Map();
+  try {
+    const { data, error } = await db().from("recetas").select("producto_id, costo_total").in("producto_id", ids);
+    if (error) return new Map();
+    return new Map((data || []).map(r => [r.producto_id as number, Number(r.costo_total) || 0]));
+  } catch {
+    return new Map();
+  }
+}
+
+/**
  * Distingue un fallo de infraestructura (RPC/tabla ausente o caché de esquema
  * desactualizada, típico si falta correr una migración) de un error de negocio
  * (ej. stock insuficiente). Los primeros NO deben impedir registrar la venta.
@@ -112,14 +129,19 @@ async function reservarInventarioVenta(
   return { error: error.message };
 }
 
-function filaDetalle(ventaId: number, l: LineaVenta, sku?: string | null) {
+function filaDetalle(ventaId: number, l: LineaVenta, sku?: string | null, costoUnitario?: number | null) {
+  const cantidad = Number(l.cantidad) || 1;
   return {
     venta_id: ventaId,
     producto: l.producto.trim(),
     codigo_producto: sku || null,
-    cantidad: Number(l.cantidad) || 1,
+    cantidad,
     valor_unitario: Number(l.valor_unitario) || 0,
-    valor_total: (Number(l.cantidad) || 1) * (Number(l.valor_unitario) || 0),
+    valor_total: cantidad * (Number(l.valor_unitario) || 0),
+    // Costo congelado desde la receta. null cuando el producto no tiene receta:
+    // así la utilidad queda vacía en vez de aparentar un costo de cero.
+    costo_unitario: costoUnitario != null ? costoUnitario : null,
+    costo_total: costoUnitario != null ? Math.round(cantidad * costoUnitario * 100) / 100 : null,
     talla: l.talla || null, color: l.color || null, sexo: l.sexo || null,
     estampado: l.estampado || null, bordado: l.bordado || null,
     guia_estampado: l.guia_estampado || null, guia_bordado: l.guia_bordado || null,
@@ -183,8 +205,12 @@ async function registrarVentaInterno(venta: NuevaVenta): Promise<ResultadoVenta>
   if (errCab) return { ok: false, error: errCab.message };
 
   const matches = await matchesInventario(lineas);
+  const costos = await costosDeReceta(matches);
   const { error: errDet } = await db().from("ventas_detalle").insert(
-    lineas.map(l => filaDetalle(cab.id, l, matches.get(l.producto.trim())?.sku))
+    lineas.map(l => {
+      const m = matches.get(l.producto.trim());
+      return filaDetalle(cab.id, l, m?.sku, m ? costos.get(m.id) ?? null : null);
+    })
   );
   if (errDet) {
     await db().from("ventas").delete().eq("id", cab.id); // rollback manual de la cabecera
@@ -288,7 +314,11 @@ export async function actualizarVenta(datos: {
     // Reemplaza el detalle completo
     const { error: errDel } = await db().from("ventas_detalle").delete().eq("venta_id", datos.venta_id);
     if (errDel) throw new Error(errDel.message);
-    const nuevasLineas = lineas.map(l => filaDetalle(datos.venta_id, l, matches.get(l.producto.trim())?.sku));
+    const costos = await costosDeReceta(matches);
+    const nuevasLineas = lineas.map(l => {
+      const m = matches.get(l.producto.trim());
+      return filaDetalle(datos.venta_id, l, m?.sku, m ? costos.get(m.id) ?? null : null);
+    });
     const { error: errIns } = await db().from("ventas_detalle").insert(nuevasLineas);
     if (errIns) throw new Error(errIns.message);
 

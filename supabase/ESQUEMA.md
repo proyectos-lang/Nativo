@@ -22,7 +22,7 @@ Usuarios de la aplicación con permisos por módulo.
 | correo | text | null | |
 | contrasena | text | not null | ⚠️ **TEXTO PLANO** por decisión explícita del propietario del sistema |
 | rol | text | not null, default `'usuario'`, check `('admin','usuario')` | `admin` ignora los permisos y ve todo |
-| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario`, `compras` y `activos` (`solicitudes` es `true` por defecto: todos crean solicitudes) | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras, activos, solicitudes |
+| permisos | jsonb | not null, default todos `true` excepto `proveedores`, `configuracion`, `financiero`, `devoluciones`, `inventario`, `compras`, `activos` y `costos` (`solicitudes` es `true` por defecto: todos crean solicitudes) | Banderas: dashboard, ventas, pagos, entregas, seguimiento, prospectos, clientes, proveedores, configuracion, financiero, devoluciones, inventario, compras, activos, solicitudes, costos |
 | activo | boolean | not null, default `true` | Usuario inactivo no puede iniciar sesión |
 | creado_en | timestamptz | not null, default `now()` | |
 
@@ -102,6 +102,45 @@ Catálogo de referencias/variantes del inventario (una fila = una referencia; ta
 | creado_en | timestamptz | not null, default `now()` | |
 
 Constraint: `chk_servicio_sin_inventario` — un servicio no puede controlar inventario. Índices: `idx_productos_sku` (parcial), `idx_productos_categoria`, `idx_productos_estado`.
+
+---
+
+## recetas
+
+**Costos y Recetas (explosión de materiales / MRP).** Una receta por producto de venta: define de qué está hecho y cuánto cuesta producirlo. Es lo que permite calcular *venta − costo = utilidad*, algo que `productos.costo_promedio` no puede hacer porque solo se alimenta al **comprar** el producto terminado. Módulo `/costos`, permiso `costos` (apagado por defecto: los márgenes son sensibles).
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| producto_id | bigint | not null, **unique**, FK → `productos(id)` **on delete cascade** | Un producto tiene a lo sumo una receta |
+| notas | text | null | |
+| costo_total | numeric | not null, default 0 | Suma de las líneas. **Calculado y guardado por la server action**, no es columna generada (mismo criterio que `valor_total` en el resto del repo) |
+| usuario | text | null | |
+| creado_en / actualizado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_recetas_producto`.
+
+## recetas_materiales
+
+Las líneas de la receta. `tipo` permite que la mano de obra y los servicios externos (bordado, estampado) entren como líneas más, sin necesidad de columnas aparte.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| receta_id | bigint | not null, FK → `recetas(id)` **on delete cascade** | |
+| tipo | text | not null, default `'Material'`, check `('Material','Mano de obra','Servicio','Otro')` | |
+| material_producto_id | bigint | null, FK → `productos(id)` **on delete set null** | Cuando el material está en el catálogo. Permite proponer su costo real y refrescarlo después |
+| material | text | not null | Nombre copiado del catálogo o texto libre (FK blanda + texto, igual que el kardex) |
+| cantidad | numeric | not null, default 1, check `> 0` | Consumo por unidad de producto |
+| unidad_medida | text | null | Se propone la del producto del catálogo |
+| costo_unitario | numeric | not null, default 0 | Se propone desde `costo_promedio` (o `precio_compra` si aún no hay movimientos) y **se puede sobrescribir** |
+| costo_total | numeric | not null, default 0 | `cantidad × costo_unitario`, calculado por la acción |
+| notas | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_recetas_materiales_receta`, `idx_recetas_materiales_producto`.
+
+Al guardar una receta las líneas se **borran y reinsertan** completas (mismo criterio que `ventas_detalle` en `actualizarVenta`). La acción `recalcularCostosDesdeInventario()` refresca el `costo_unitario` de todas las líneas que apuntan al catálogo con el costo vigente de cada producto.
 
 ---
 
@@ -189,10 +228,12 @@ Una fila por producto de cada venta.
 | imagen_bordado_url | text | null | URL pública en el bucket de Storage `guias` |
 | valor_unitario | numeric | not null, default 0 | |
 | valor_total | numeric | not null, default 0 | `cantidad × valor_unitario` |
+| costo_unitario | numeric | null | **Costo congelado** al vender, tomado de la receta del producto (módulo Costos y Recetas). `null` = venta anterior a ese módulo o producto sin receta |
+| costo_total | numeric | null | `cantidad × costo_unitario` |
 | listo | boolean | not null, default `false` | Marca de control en Entregas: si esa línea/producto ya está lista, independiente del `estado_entrega` general del pedido |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índice: `idx_detalle_venta (venta_id)`.
+Índice: `idx_detalle_venta (venta_id)`. El costo se congela a propósito: actualizar una receta **no** altera la utilidad de las ventas ya registradas. Cuando viene en `null`, los informes caen a la receta actual; si el producto no tiene receta, la utilidad queda vacía (nunca se asume costo cero).
 
 ---
 

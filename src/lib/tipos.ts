@@ -14,6 +14,7 @@ export type Permisos = {
   compras: boolean;
   activos: boolean;
   solicitudes: boolean;
+  costos: boolean;
 };
 
 export type Modulo = keyof Permisos;
@@ -351,7 +352,36 @@ export type VentaDetalle = {
   imagen_bordado_url: string | null;
   valor_unitario: number;
   valor_total: number;
+  /** Costo congelado al vender, desde la receta del producto. null = sin receta o venta anterior al módulo. */
+  costo_unitario: number | null;
+  costo_total: number | null;
   listo: boolean;
+};
+
+export type TipoLineaReceta = "Material" | "Mano de obra" | "Servicio" | "Otro";
+
+export type RecetaMaterial = {
+  id: number;
+  receta_id: number;
+  tipo: TipoLineaReceta;
+  material_producto_id: number | null;
+  material: string;
+  cantidad: number;
+  unidad_medida: string | null;
+  costo_unitario: number;
+  costo_total: number;
+  notas: string | null;
+  creado_en: string;
+};
+
+export type Receta = {
+  id: number;
+  producto_id: number;
+  notas: string | null;
+  costo_total: number;
+  usuario: string | null;
+  creado_en: string;
+  actualizado_en: string;
 };
 
 export type Pago = {
@@ -419,6 +449,7 @@ export const MODULOS: { clave: Modulo; nombre: string }[] = [
   { clave: "compras", nombre: "Compras" },
   { clave: "activos", nombre: "Activos Fijos" },
   { clave: "solicitudes", nombre: "Solicitudes Internas" },
+  { clave: "costos", nombre: "Costos y Recetas" },
   { clave: "financiero", nombre: "Financiero" },
   { clave: "configuracion", nombre: "Configuración" },
 ];
@@ -438,6 +469,7 @@ export const MODULO_URL: Record<Modulo, string> = {
   compras: "/compras",
   activos: "/activos",
   solicitudes: "/solicitudes",
+  costos: "/costos",
   financiero: "/financiero",
   configuracion: "/configuracion",
 };
@@ -609,6 +641,15 @@ export function formatoPesos(n: number | null | undefined): string {
   // Muestra hasta 2 decimales solo cuando el valor los tiene; los enteros
   // se ven sin decimales (no redondea para no ocultar centavos).
   return "$" + (Number(n) || 0).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/**
+ * Costo vigente de un producto del catálogo: el promedio real de las compras y,
+ * si aún no tiene movimientos, el precio de compra de referencia.
+ */
+export function costoVigente(p: { costo_promedio?: number | null; precio_compra?: number | null }): number {
+  const prom = Number(p.costo_promedio) || 0;
+  return prom > 0 ? prom : Number(p.precio_compra) || 0;
 }
 
 /** Compara fecha programada vs. fecha real de entrega. null si falta alguna. */

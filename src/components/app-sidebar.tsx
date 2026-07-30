@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Truck, Hourglass,
-  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText, RotateCcw, Boxes, ClipboardList, Armchair, Inbox,
+  Users, Contact, Settings, LogOut, Landmark, Package, ScrollText, RotateCcw, Boxes, ClipboardList, Armchair, Inbox, Calculator,
 } from "lucide-react";
 import { LogoNativo } from "@/components/logo-nativo";
 import type { Sesion, Modulo } from "@/lib/tipos";
@@ -28,6 +28,7 @@ const ITEMS: { clave: Modulo; titulo: string; url: string; icono: React.ElementT
   { clave: "compras", titulo: "Compras", url: "/compras", icono: ClipboardList },
   { clave: "activos", titulo: "Activos Fijos", url: "/activos", icono: Armchair },
   { clave: "solicitudes", titulo: "Solicitudes Internas", url: "/solicitudes", icono: Inbox },
+  { clave: "costos", titulo: "Costos y Recetas", url: "/costos", icono: Calculator },
   { clave: "financiero", titulo: "Financiero", url: "/financiero", icono: Landmark },
   { clave: "configuracion", titulo: "Configuración", url: "/configuracion", icono: Settings },
 ];

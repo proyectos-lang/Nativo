@@ -20,6 +20,7 @@ const PERMISOS_BASE: Permisos = {
   dashboard: true, ventas: true, pagos: true, entregas: true,
   seguimiento: true, prospectos: true, clientes: true, proveedores: false, configuracion: false, financiero: false,
   devoluciones: false, inventario: false, compras: false, activos: false, solicitudes: true,
+  costos: false,
 };
 
 type Form = {

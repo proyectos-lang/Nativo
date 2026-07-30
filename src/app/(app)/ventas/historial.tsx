@@ -27,11 +27,13 @@ type Props = {
   productos: string[];
   clientes: Cliente[];
   inventario: InfoInventarioVenta[];
+  /** Costo de receta por nombre de producto — respaldo para ventas sin costo congelado. */
+  costosReceta: Record<string, number>;
 };
 
 type AccionPin = "editar" | "eliminar" | null;
 
-export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes, inventario }: Props) {
+export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes, inventario, costosReceta }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [desde, setDesde] = useState("");
@@ -42,6 +44,33 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
 
   // Detalle (solo lectura)
   const [sel, setSel] = useState<Venta | null>(null);
+
+  /**
+   * Costo de una línea: el congelado al vender si existe; si no (venta anterior
+   * al módulo de Costos), la receta actual. Sin receta devuelve null para que la
+   * utilidad quede vacía en vez de aparentar un costo de cero.
+   */
+  const costoLinea = (d: VentaDetalle): number | null => {
+    if (d.costo_total != null) return Number(d.costo_total);
+    const unit = costosReceta[d.producto];
+    if (unit == null) return null;
+    return (Number(d.cantidad) || 0) * unit;
+  };
+
+  /** Costo y utilidad de una venta. `costo` es null si ninguna línea tiene costo conocido. */
+  const costeoVenta = (v: Venta): { costo: number | null; utilidad: number | null; margen: number | null } => {
+    const lineas = detalles[v.id] || [];
+    let costo = 0;
+    let hayCosto = false;
+    for (const d of lineas) {
+      const c = costoLinea(d);
+      if (c != null) { costo += c; hayCosto = true; }
+    }
+    if (!hayCosto) return { costo: null, utilidad: null, margen: null };
+    const venta = Number(v.total_compra) || 0;
+    const utilidad = venta - costo;
+    return { costo, utilidad, margen: venta > 0 ? (utilidad / venta) * 100 : null };
+  };
 
   // Confirmación con PIN
   const [accionPin, setAccionPin] = useState<AccionPin>(null);
@@ -88,6 +117,8 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
         Fecha: v.fecha, Ticket: v.ticket, Cliente: v.clientes?.nombre || "", Empresa: v.clientes?.empresa || "",
         Vendedora: v.vendedora || "", Producto: d?.producto || "", Cantidad: d?.cantidad || "",
         "Valor Unitario": d?.valor_unitario || "", "Total Línea": d?.valor_total || "",
+        "Costo Línea": d ? (costoLinea(d) ?? "") : "",
+        "Utilidad Línea": d && costoLinea(d) != null ? (Number(d.valor_total) || 0) - (costoLinea(d) as number) : "",
         "Costo Envío": v.costo_envio, "Total Compra": v.total_compra, Saldo: v.saldo,
         "Estado Pago": v.estado_pago || "", "Estado Entrega": v.estado_entrega || "",
         "Fecha Programada": v.fecha_entrega || "", "Fecha Real Entrega": v.fecha_entrega_real || "",
@@ -226,6 +257,8 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 <TableHead>Cliente</TableHead>
                 <TableHead>OC Cliente</TableHead>
                 <TableHead className="text-right">Total Compra</TableHead>
+                <TableHead className="text-right">Costo</TableHead>
+                <TableHead className="text-right">Utilidad</TableHead>
                 <TableHead className="text-right">Saldo</TableHead>
                 <TableHead>Est. Pago</TableHead>
                 <TableHead>Est. Entrega</TableHead>
@@ -233,9 +266,11 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
             </TableHeader>
             <TableBody>
               {filas.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Sin resultados.</TableCell></TableRow>
               )}
-              {filas.map(v => (
+              {filas.map(v => {
+                const cst = costeoVenta(v);
+                return (
                 <TableRow key={v.id} className="cursor-pointer" onClick={() => setSel(v)}>
                   <TableCell>{formatoFecha(v.fecha)}</TableCell>
                   <TableCell className="font-semibold">#{v.ticket}</TableCell>
@@ -245,11 +280,19 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                   </TableCell>
                   <TableCell className="max-w-32 truncate text-sm">{v.orden_compra_cliente || "-"}</TableCell>
                   <TableCell className="text-right">{formatoPesos(v.total_compra)}</TableCell>
+                  <TableCell className="text-right text-sm text-muted-foreground">
+                    {cst.costo == null ? "-" : formatoPesos(cst.costo)}
+                  </TableCell>
+                  <TableCell className={`text-right font-semibold ${cst.utilidad != null && cst.utilidad < 0 ? "text-destructive" : ""}`}>
+                    {cst.utilidad == null ? "-" : formatoPesos(cst.utilidad)}
+                    {cst.margen != null && <span className="block text-xs font-normal text-muted-foreground">{cst.margen.toFixed(1)}%</span>}
+                  </TableCell>
                   <TableCell className={`text-right font-semibold ${v.saldo > 0 ? "text-destructive" : ""}`}>{formatoPesos(v.saldo)}</TableCell>
                   <TableCell><Badge variant={v.estado_pago?.includes("Pagado") ? "default" : "secondary"}>{v.estado_pago || "-"}</Badge></TableCell>
                   <TableCell><Badge variant={v.estado_entrega === "Entregado" ? "default" : "outline"}>{v.estado_entrega || "-"}</Badge></TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -291,6 +334,15 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                         <span className="font-medium">{d.producto} {d.talla && `· Talla ${d.talla}`} {d.color && `· ${d.color}`}</span>
                         <span>{d.cantidad} x {formatoPesos(d.valor_unitario)} = <strong>{formatoPesos(d.valor_total)}</strong></span>
                       </div>
+                      {costoLinea(d) != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Costo {formatoPesos(costoLinea(d) as number)} · Utilidad{" "}
+                          <span className={(Number(d.valor_total) || 0) - (costoLinea(d) as number) < 0 ? "font-semibold text-destructive" : "font-semibold"}>
+                            {formatoPesos((Number(d.valor_total) || 0) - (costoLinea(d) as number))}
+                          </span>
+                          {d.costo_total == null && " (receta actual)"}
+                        </p>
+                      )}
                       {(d.imagen_estampado_url || d.imagen_bordado_url) && (
                         <div className="mt-2 flex gap-3">
                           {d.imagen_estampado_url && (
@@ -343,6 +395,18 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 <div><p className="text-muted-foreground">Abonado</p><p className="font-bold">{formatoPesos(sel.abono)}</p></div>
                 <div><p className="text-muted-foreground">Saldo</p><p className="font-bold text-destructive">{formatoPesos(sel.saldo)}</p></div>
               </div>
+
+              {(() => {
+                const cst = costeoVenta(sel);
+                if (cst.costo == null) return null;
+                return (
+                  <div className="grid grid-cols-3 gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+                    <div><p className="text-muted-foreground">Costo</p><p className="font-bold">{formatoPesos(cst.costo)}</p></div>
+                    <div><p className="text-muted-foreground">Utilidad</p><p className={`font-bold ${(cst.utilidad ?? 0) < 0 ? "text-destructive" : ""}`}>{formatoPesos(cst.utilidad ?? 0)}</p></div>
+                    <div><p className="text-muted-foreground">Margen</p><p className="font-bold">{cst.margen != null ? `${cst.margen.toFixed(1)}%` : "-"}</p></div>
+                  </div>
+                );
+              })()}
             </div>
           )}
           <DialogFooter className="gap-2 sm:justify-between">

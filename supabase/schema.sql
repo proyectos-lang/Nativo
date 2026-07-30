@@ -19,7 +19,7 @@ create table nativo.usuarios (
   correo text,
   contrasena text not null,
   rol text not null default 'usuario' check (rol in ('admin', 'usuario')),
-  permisos jsonb not null default '{"dashboard": true, "ventas": true, "pagos": true, "entregas": true, "seguimiento": true, "prospectos": true, "clientes": true, "proveedores": false, "configuracion": false, "financiero": false, "devoluciones": false, "inventario": false, "compras": false, "activos": false, "solicitudes": true}'::jsonb,
+  permisos jsonb not null default '{"dashboard": true, "ventas": true, "pagos": true, "entregas": true, "seguimiento": true, "prospectos": true, "clientes": true, "proveedores": false, "configuracion": false, "financiero": false, "devoluciones": false, "inventario": false, "compras": false, "activos": false, "solicitudes": true, "costos": false}'::jsonb,
   activo boolean not null default true,
   creado_en timestamptz not null default now()
 );
@@ -83,6 +83,42 @@ create table nativo.productos (
 create unique index idx_productos_sku on nativo.productos (sku) where sku is not null;
 create index idx_productos_categoria on nativo.productos (categoria);
 create index idx_productos_estado on nativo.productos (estado);
+
+-- ------------------------------------------------------------
+-- COSTOS Y RECETAS (explosión de materiales / MRP)
+-- Cada producto de venta puede tener su receta: los materiales que
+-- lo componen con consumo, unidad y costo. Sirve para calcular
+-- venta − costo = utilidad. Ver migración 026.
+-- ------------------------------------------------------------
+create table nativo.recetas (
+  id bigint generated always as identity primary key,
+  producto_id bigint not null unique references nativo.productos (id) on delete cascade,
+  notas text,
+  costo_total numeric not null default 0,
+  usuario text,
+  creado_en timestamptz not null default now(),
+  actualizado_en timestamptz not null default now()
+);
+create index idx_recetas_producto on nativo.recetas (producto_id);
+
+-- `tipo` permite que mano de obra y servicios externos (bordado, estampado)
+-- entren como líneas más. FK blanda + texto copiado, igual que el kardex.
+create table nativo.recetas_materiales (
+  id bigint generated always as identity primary key,
+  receta_id bigint not null references nativo.recetas (id) on delete cascade,
+  tipo text not null default 'Material'
+    check (tipo in ('Material', 'Mano de obra', 'Servicio', 'Otro')),
+  material_producto_id bigint references nativo.productos (id) on delete set null,
+  material text not null,
+  cantidad numeric not null default 1 check (cantidad > 0),
+  unidad_medida text,
+  costo_unitario numeric not null default 0,
+  costo_total numeric not null default 0,
+  notas text,
+  creado_en timestamptz not null default now()
+);
+create index idx_recetas_materiales_receta on nativo.recetas_materiales (receta_id);
+create index idx_recetas_materiales_producto on nativo.recetas_materiales (material_producto_id);
 
 -- ------------------------------------------------------------
 -- LISTAS MAESTRAS (vendedoras, tallas, colores, estados, etc.)
@@ -160,6 +196,11 @@ create table nativo.ventas_detalle (
   imagen_bordado_url text,
   valor_unitario numeric not null default 0,
   valor_total numeric not null default 0,
+  -- Costo CONGELADO al momento de vender, tomado de la receta del producto
+  -- (módulo Costos y Recetas). null = venta anterior a ese módulo o producto
+  -- sin receta: la utilidad se calcula con la receta actual o queda vacía.
+  costo_unitario numeric,
+  costo_total numeric,
   listo boolean not null default false,
   creado_en timestamptz not null default now()
 );

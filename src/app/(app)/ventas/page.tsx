@@ -1,5 +1,5 @@
 import { requiereSesion } from "@/lib/sesion";
-import { listasMaestras, clientesActivos, productosTodos, ventasConCliente, detallesPorVenta, cuentasConSaldo, pagosPorVenta, catalogoVentaInventario } from "@/lib/consultas";
+import { listasMaestras, clientesActivos, productosTodos, ventasConCliente, detallesPorVenta, cuentasConSaldo, pagosPorVenta, catalogoVentaInventario, costosPorNombreProducto } from "@/lib/consultas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RegistrarVentaForm } from "./registrar-form";
 import { HistorialVentas } from "./historial";
@@ -25,7 +25,7 @@ async function tolerante<T>(nombre: string, consulta: () => Promise<T>, respaldo
 
 export default async function PaginaVentas() {
   await requiereSesion();
-  const [maestros, clientes, productos, ventas, detalles, cuentas, pagos, inventario] = await Promise.all([
+  const [maestros, clientes, productos, ventas, detalles, cuentas, pagos, inventario, costosReceta] = await Promise.all([
     tolerante("listasMaestras", listasMaestras, {} as Record<string, string[]>),
     tolerante("clientesActivos", clientesActivos, [] as unknown[]),
     tolerante("productosTodos", productosTodos, [] as string[]),
@@ -34,6 +34,7 @@ export default async function PaginaVentas() {
     tolerante("cuentasConSaldo", cuentasConSaldo, [] as unknown[]),
     tolerante("pagosPorVenta", pagosPorVenta, {} as Record<number, unknown[]>),
     tolerante("catalogoVentaInventario", catalogoVentaInventario, [] as unknown[]),
+    tolerante("costosPorNombreProducto", costosPorNombreProducto, {} as Record<string, number>),
   ]);
 
   return (
@@ -55,6 +56,7 @@ export default async function PaginaVentas() {
             productos={productos}
             clientes={clientes as Cliente[]}
             inventario={inventario as InfoInventarioVenta[]}
+            costosReceta={costosReceta as Record<string, number>}
           />
         </TabsContent>
       </Tabs>

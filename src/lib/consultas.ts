@@ -328,6 +328,50 @@ export async function productosCatalogo() {
   return data || [];
 }
 
+// ------------------------------------------------------------
+// COSTOS Y RECETAS (explosión de materiales)
+// ------------------------------------------------------------
+
+/** Recetas con sus líneas agrupadas por producto_id. */
+export async function recetasConMateriales(): Promise<Record<number, { receta: unknown; lineas: unknown[] }>> {
+  const [{ data: recetas, error: e1 }, { data: lineas, error: e2 }] = await Promise.all([
+    db().from("recetas").select("*"),
+    db().from("recetas_materiales").select("*").order("id"),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+
+  const porReceta: Record<number, unknown[]> = {};
+  for (const l of lineas || []) {
+    if (!porReceta[l.receta_id]) porReceta[l.receta_id] = [];
+    porReceta[l.receta_id].push(l);
+  }
+  const out: Record<number, { receta: unknown; lineas: unknown[] }> = {};
+  for (const r of recetas || []) out[r.producto_id] = { receta: r, lineas: porReceta[r.id] || [] };
+  return out;
+}
+
+/**
+ * Costo unitario de receta indexado por NOMBRE de producto. `ventas_detalle` no
+ * guarda `producto_id` (enlaza por texto), así que este mapa es lo que permite
+ * calcular la utilidad de ventas anteriores al congelado del costo.
+ * Best-effort: si la migración 026 aún no corrió, devuelve vacío.
+ */
+export async function costosPorNombreProducto(): Promise<Record<string, number>> {
+  try {
+    const { data, error } = await db().from("recetas").select("costo_total, productos(nombre)");
+    if (error) return {};
+    const out: Record<string, number> = {};
+    for (const r of data || []) {
+      const nombre = (r as { productos?: { nombre?: string } | null }).productos?.nombre;
+      if (nombre) out[nombre] = Number(r.costo_total) || 0;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export async function ubicacionesInventario() {
   const { data, error } = await db().from("inventario_ubicaciones").select("*").order("id");
   if (error) throw new Error(error.message);
