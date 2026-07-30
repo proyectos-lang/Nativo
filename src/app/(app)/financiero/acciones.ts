@@ -12,6 +12,59 @@ function revalidarFinanciero() {
   revalidatePath("/");
 }
 
+/**
+ * Cuando se corrige el monto de un gasto/ingreso que YA estaba saldado, el
+ * error de digitación normalmente venía arrastrado también al pago y a su
+ * asiento bancario (el caso típico: "Pago/Cobro inmediato al causar", que se
+ * crea con el mismo monto). Sin esto quedaba un saldo residual imposible de
+ * cerrar y el Historial seguía mostrando el valor viejo.
+ *
+ * Ajusta el ÚLTIMO pago por la diferencia y su movimiento bancario en el mismo
+ * importe, de modo que el registro vuelva a quedar saldado. Devuelve lo que
+ * queda pagado. No se hace nunca de forma silenciosa: lo pide explícitamente
+ * la casilla del diálogo de edición y queda registrado en la bitácora.
+ */
+async function ajustarUltimoPagoAlNuevoMonto(opciones: {
+  tablaPagos: "pagos_gastos" | "pagos_ingresos";
+  columnaPadre: "gasto_id" | "ingreso_id";
+  columnaMovimiento: "pago_gasto_id" | "pago_ingreso_id";
+  padreId: number;
+  pagadoAnterior: number;
+  nuevoMonto: number;
+}): Promise<{ pagado: number; ajuste: number; pagoId: number | null }> {
+  const delta = opciones.nuevoMonto - opciones.pagadoAnterior;
+  if (delta === 0) return { pagado: opciones.pagadoAnterior, ajuste: 0, pagoId: null };
+
+  const { data: ultimo, error: errPago } = await db().from(opciones.tablaPagos)
+    .select("id, monto")
+    .eq(opciones.columnaPadre, opciones.padreId)
+    .order("fecha", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (errPago) throw new Error(errPago.message);
+  if (!ultimo) throw new Error("No hay ningún pago registrado que ajustar.");
+
+  const nuevoPago = Number(ultimo.monto) + delta;
+  if (nuevoPago <= 0) {
+    throw new Error(
+      "El ajuste dejaría el último pago en cero o negativo. Anula el pago y vuelve a registrarlo con el valor correcto.",
+    );
+  }
+
+  const { error: errUpd } = await db().from(opciones.tablaPagos).update({ monto: nuevoPago }).eq("id", ultimo.id);
+  if (errUpd) throw new Error(errUpd.message);
+
+  // El asiento bancario debe moverse igual: el saldo de la cuenta se calcula
+  // sumando los movimientos, así que si no se ajusta el banco queda descuadrado.
+  const { error: errMov } = await db().from("movimientos_bancarios")
+    .update({ monto: nuevoPago })
+    .eq(opciones.columnaMovimiento, ultimo.id);
+  if (errMov) throw new Error(errMov.message);
+
+  return { pagado: opciones.nuevoMonto, ajuste: delta, pagoId: ultimo.id as number };
+}
+
 export async function guardarCuenta(datos: {
   id?: number;
   nombre: string;
@@ -200,6 +253,8 @@ export async function editarGasto(datos: {
   numero_factura?: string;
   lineas: LineaGasto[];
   motivo?: string;
+  /** Estaba pagado por completo: ajustar también el pago y su asiento bancario. */
+  ajustar_pagos?: boolean;
 }) {
   const sesion = await requierePermiso("financiero");
   await verificarPinContadora(datos.clave_contadora);
@@ -210,8 +265,19 @@ export async function editarGasto(datos: {
   const { data: anterior, error: errGet } = await db().from("gastos").select("*").eq("id", datos.gasto_id).single();
   if (errGet) throw new Error(errGet.message);
   const { data: lineasAnteriores } = await db().from("gastos_detalle").select("*").eq("gasto_id", datos.gasto_id);
-  if (nuevoMonto < Number(anterior.abonado)) {
-    throw new Error(`El nuevo monto no puede ser menor a lo ya abonado (${anterior.abonado}).`);
+
+  const abonadoAnterior = Number(anterior.abonado) || 0;
+  const estabaPagado = abonadoAnterior > 0 && Number(anterior.saldo) <= 0;
+  const ajustarPagos = !!datos.ajustar_pagos && estabaPagado;
+
+  // Sin ajuste de pagos no se puede bajar el monto por debajo de lo abonado
+  // (quedaría un saldo a favor sin respaldo). Con ajuste sí, porque el pago
+  // se corrige en el mismo acto.
+  if (!ajustarPagos && nuevoMonto < abonadoAnterior) {
+    throw new Error(
+      `El nuevo monto no puede ser menor a lo ya abonado (${formatoPesos(abonadoAnterior)}). `
+      + (estabaPagado ? "Marca “ya estaba pagado” para corregir también el pago." : "Anula o edita primero los pagos."),
+    );
   }
 
   const { error: errDel } = await db().from("gastos_detalle").delete().eq("gasto_id", datos.gasto_id);
@@ -220,6 +286,18 @@ export async function editarGasto(datos: {
   const { error: errIns } = await db().from("gastos_detalle").insert(nuevasLineas);
   if (errIns) throw new Error(errIns.message);
 
+  let abonado = abonadoAnterior;
+  let ajuste = 0;
+  if (ajustarPagos) {
+    const r = await ajustarUltimoPagoAlNuevoMonto({
+      tablaPagos: "pagos_gastos", columnaPadre: "gasto_id", columnaMovimiento: "pago_gasto_id",
+      padreId: datos.gasto_id, pagadoAnterior: abonadoAnterior, nuevoMonto,
+    });
+    abonado = r.pagado;
+    ajuste = r.ajuste;
+  }
+
+  const saldo = nuevoMonto - abonado;
   const nuevaFila = {
     fecha: datos.fecha || anterior.fecha,
     tipo: datos.tipo,
@@ -228,8 +306,9 @@ export async function editarGasto(datos: {
     proveedor: datos.proveedor?.trim() || null,
     numero_factura: datos.numero_factura?.trim() || null,
     monto: nuevoMonto,
-    saldo: nuevoMonto - Number(anterior.abonado),
-    estado: nuevoMonto - Number(anterior.abonado) <= 0 ? "Pagado" : Number(anterior.abonado) > 0 ? "Abonado" : "Pendiente",
+    abonado,
+    saldo,
+    estado: saldo <= 0 ? "Pagado" : abonado > 0 ? "Abonado" : "Pendiente",
   };
   const { error: errUpd } = await db().from("gastos").update(nuevaFila).eq("id", datos.gasto_id);
   if (errUpd) throw new Error(errUpd.message);
@@ -237,12 +316,14 @@ export async function editarGasto(datos: {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "financiero", accion: "editar",
     entidad_tipo: "gastos", entidad_id: datos.gasto_id,
-    descripcion: descripcionTicket("Gasto", anterior.ticket, nuevoMonto),
+    descripcion: descripcionTicket("Gasto", anterior.ticket, nuevoMonto)
+      + (ajuste !== 0 ? ` — pago ajustado en ${formatoPesos(ajuste)}` : ""),
     datos_anteriores: { ...anterior, lineas: lineasAnteriores || [] },
     datos_nuevos: { ...anterior, ...nuevaFila, lineas: nuevasLineas },
     motivo: datos.motivo?.trim() || null,
   });
   revalidarFinanciero();
+  return { saldo, ajuste };
 }
 
 export async function crearProveedor(datos: {
@@ -436,6 +517,8 @@ export async function editarIngreso(datos: {
   tipo_ingreso?: string;
   monto: number;
   motivo?: string;
+  /** Estaba cobrado por completo: ajustar también el cobro y su asiento bancario. */
+  ajustar_pagos?: boolean;
 }) {
   const sesion = await requierePermiso("financiero");
   await verificarPinContadora(datos.clave_contadora);
@@ -447,10 +530,30 @@ export async function editarIngreso(datos: {
 
   const { data: anterior, error: errGet } = await db().from("ingresos").select("*").eq("id", datos.ingreso_id).single();
   if (errGet) throw new Error(errGet.message);
-  if (nuevoMonto < Number(anterior.cobrado)) {
-    throw new Error(`El nuevo monto no puede ser menor a lo ya cobrado (${anterior.cobrado}).`);
+
+  const cobradoAnterior = Number(anterior.cobrado) || 0;
+  const estabaCobrado = cobradoAnterior > 0 && Number(anterior.saldo) <= 0;
+  const ajustarPagos = !!datos.ajustar_pagos && estabaCobrado;
+
+  if (!ajustarPagos && nuevoMonto < cobradoAnterior) {
+    throw new Error(
+      `El nuevo monto no puede ser menor a lo ya cobrado (${formatoPesos(cobradoAnterior)}). `
+      + (estabaCobrado ? "Marca “ya estaba cobrado” para corregir también el cobro." : "Anula o edita primero los cobros."),
+    );
   }
 
+  let cobrado = cobradoAnterior;
+  let ajuste = 0;
+  if (ajustarPagos) {
+    const r = await ajustarUltimoPagoAlNuevoMonto({
+      tablaPagos: "pagos_ingresos", columnaPadre: "ingreso_id", columnaMovimiento: "pago_ingreso_id",
+      padreId: datos.ingreso_id, pagadoAnterior: cobradoAnterior, nuevoMonto,
+    });
+    cobrado = r.pagado;
+    ajuste = r.ajuste;
+  }
+
+  const saldo = nuevoMonto - cobrado;
   const nuevaFila = {
     fecha: datos.fecha || anterior.fecha,
     categoria: datos.categoria?.trim() || null,
@@ -459,8 +562,9 @@ export async function editarIngreso(datos: {
     cliente: datos.cliente?.trim() || null,
     tipo_ingreso: datos.tipo_ingreso?.trim() || null,
     monto: nuevoMonto,
-    saldo: nuevoMonto - Number(anterior.cobrado),
-    estado: nuevoMonto - Number(anterior.cobrado) <= 0 ? "Cobrado" : Number(anterior.cobrado) > 0 ? "Abonado" : "Pendiente",
+    cobrado,
+    saldo,
+    estado: saldo <= 0 ? "Cobrado" : cobrado > 0 ? "Abonado" : "Pendiente",
   };
   const { error: errUpd } = await db().from("ingresos").update(nuevaFila).eq("id", datos.ingreso_id);
   if (errUpd) throw new Error(errUpd.message);
@@ -468,12 +572,14 @@ export async function editarIngreso(datos: {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "financiero", accion: "editar",
     entidad_tipo: "ingresos", entidad_id: datos.ingreso_id,
-    descripcion: descripcionTicket("Ingreso", anterior.ticket, nuevoMonto),
+    descripcion: descripcionTicket("Ingreso", anterior.ticket, nuevoMonto)
+      + (ajuste !== 0 ? ` — cobro ajustado en ${formatoPesos(ajuste)}` : ""),
     datos_anteriores: anterior,
     datos_nuevos: { ...anterior, ...nuevaFila },
     motivo: datos.motivo?.trim() || null,
   });
   revalidarFinanciero();
+  return { saldo, ajuste };
 }
 
 export async function cobrarIngreso(datos: {

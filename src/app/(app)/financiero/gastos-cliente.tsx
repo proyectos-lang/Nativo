@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -124,6 +125,9 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
   const [proveedorEdSel, setProveedorEdSel] = useState<Proveedor | null>(null);
   const [busquedaProveedorEd, setBusquedaProveedorEd] = useState("");
   const [motivoEdicion, setMotivoEdicion] = useState("");
+  // El gasto que se está editando estaba pagado por completo
+  const [edicionPagado, setEdicionPagado] = useState(false);
+  const [ajustarPago, setAjustarPago] = useState(true);
 
   // Cuentas bancarias desde donde se pagó cada gasto (según sus abonos registrados)
   const nombreCuenta = useMemo(() => {
@@ -216,6 +220,10 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
     setProveedorEdSel(prov);
     setBusquedaProveedorEd(prov?.nombre || g.proveedor || "");
     setMotivoEdicion("");
+    // Solo tiene sentido arrastrar el pago si el gasto ya estaba saldado.
+    const saldado = (Number(g.abonado) || 0) > 0 && (Number(g.saldo) || 0) <= 0;
+    setEdicionPagado(saldado);
+    setAjustarPago(saldado);
     setEdicionAbierta(true);
   };
 
@@ -244,13 +252,16 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
     if (!edicionGastoId) return;
     startTransition(async () => {
       try {
-        await editarGasto({
+        const r = await editarGasto({
           gasto_id: edicionGastoId, clave_contadora: claveEdicion,
           fecha: genEd.fecha, tipo: genEd.tipo, categoria: genEd.categoria,
           proveedor_id: proveedorEdSel?.id || null, proveedor: proveedorEdSel?.nombre || busquedaProveedorEd,
           numero_factura: genEd.numero_factura, lineas: lineasEd, motivo: motivoEdicion,
+          ajustar_pagos: ajustarPago,
         });
-        toast.success("Gasto actualizado");
+        toast.success(r.ajuste !== 0
+          ? `Gasto actualizado — pago y banco ajustados en ${formatoPesos(r.ajuste)}`
+          : "Gasto actualizado");
         setEdicionAbierta(false);
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
@@ -697,6 +708,19 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
             <div className="grid gap-3">
               {lineasEd.map((l, i) => camposLinea(l, i, setLineaEd, lineasEd, idx => setLineasEd(prev => prev.filter((_, j) => j !== idx))))}
             </div>
+
+            {edicionPagado && (
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/40 p-2 text-sm">
+                <Checkbox checked={ajustarPago} onCheckedChange={v => setAjustarPago(v === true)} className="mt-0.5" />
+                <span>
+                  Ya estaba pagado por completo — ajustar también el pago y su movimiento bancario.
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Úsalo cuando el error de digitación venía desde el registro: sin esto queda un saldo pendiente
+                    por la diferencia y el Historial sigue mostrando el valor viejo.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="grid gap-1.5">
               <Label>Motivo del cambio (opcional)</Label>

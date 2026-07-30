@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -111,6 +112,9 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
   const [clienteEdSel, setClienteEdSel] = useState<Cliente | null>(null);
   const [busquedaClienteEd, setBusquedaClienteEd] = useState("");
   const [motivoEdicion, setMotivoEdicion] = useState("");
+  // El ingreso que se está editando estaba cobrado por completo
+  const [edicionCobrado, setEdicionCobrado] = useState(false);
+  const [ajustarCobro, setAjustarCobro] = useState(true);
 
   // Actualizar Facturación (liviano, sin clave)
   const [selFacturacion, setSelFacturacion] = useState<Ingreso | null>(null);
@@ -199,6 +203,10 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
     setClienteEdSel(cli);
     setBusquedaClienteEd(cli?.nombre || i.cliente || "");
     setMotivoEdicion("");
+    // Solo tiene sentido arrastrar el cobro si el ingreso ya estaba saldado.
+    const saldado = (Number(i.cobrado) || 0) > 0 && (Number(i.saldo) || 0) <= 0;
+    setEdicionCobrado(saldado);
+    setAjustarCobro(saldado);
     setEdicionAbierta(true);
   };
 
@@ -218,14 +226,17 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
     if (!edicionIngresoId) return;
     startTransition(async () => {
       try {
-        await editarIngreso({
+        const r = await editarIngreso({
           ingreso_id: edicionIngresoId, clave_contadora: claveEdicion,
           ...genEd,
           cliente_id: clienteEdSel?.id || null,
           cliente: clienteEdSel?.nombre || busquedaClienteEd,
           motivo: motivoEdicion,
+          ajustar_pagos: ajustarCobro,
         });
-        toast.success("Ingreso actualizado");
+        toast.success(r.ajuste !== 0
+          ? `Ingreso actualizado — cobro y banco ajustados en ${formatoPesos(r.ajuste)}`
+          : "Ingreso actualizado");
         setEdicionAbierta(false);
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
@@ -664,6 +675,20 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
 
             <div className="grid gap-1.5"><Label>Concepto / Descripción</Label><Textarea rows={2} value={genEd.concepto} onChange={e => setGenEd({ ...genEd, concepto: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" step="any" min={0} value={genEd.monto || ""} onChange={e => setGenEd({ ...genEd, monto: Number(e.target.value) })} /></div>
+
+            {edicionCobrado && (
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/40 p-2 text-sm">
+                <Checkbox checked={ajustarCobro} onCheckedChange={v => setAjustarCobro(v === true)} className="mt-0.5" />
+                <span>
+                  Ya estaba cobrado por completo — ajustar también el cobro y su movimiento bancario.
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Úsalo cuando el error de digitación venía desde el registro: sin esto queda un saldo pendiente
+                    por la diferencia y el Historial sigue mostrando el valor viejo.
+                  </span>
+                </span>
+              </label>
+            )}
+
             <div className="grid gap-1.5">
               <Label>Motivo del cambio (opcional)</Label>
               <Textarea rows={2} value={motivoEdicion} onChange={e => setMotivoEdicion(e.target.value)} placeholder="Ej. Corrección de monto por error de digitación" />
