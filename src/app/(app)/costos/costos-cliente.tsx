@@ -15,18 +15,44 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Calculator, Plus, Trash2, Pencil, RefreshCw } from "lucide-react";
-import { formatoPesos, costoVigente, type Producto, type Receta, type RecetaMaterial, type TipoLineaReceta } from "@/lib/tipos";
+import { InsumosTab } from "./insumos-tab";
+import {
+  formatoPesos, costoVigente, costoVigenteInsumo,
+  type Producto, type Receta, type RecetaMaterial, type TipoLineaReceta,
+  type Insumo, type MovimientoInsumo, type Proveedor,
+} from "@/lib/tipos";
 
 type RecetasPorProducto = Record<number, { receta: Receta; lineas: RecetaMaterial[] }>;
 
 const TIPOS: TipoLineaReceta[] = ["Material", "Mano de obra", "Servicio", "Otro"];
 const LINEA_VACIA: LineaReceta = { tipo: "Material", material: "", cantidad: 1, costo_unitario: 0, unidad_medida: "" };
 
-export function CostosCliente({ productos, recetas, unidades }: {
+/**
+ * Opción del selector de material: un insumo del inventario de insumos (el caso
+ * normal) o un producto del catálogo (cuando el material se compra terminado —
+ * una camiseta en blanco que luego se estampa).
+ */
+type OpcionMaterial = {
+  clave: string;
+  origen: "Insumo" | "Producto";
+  insumo_id: number | null;
+  producto_id: number | null;
+  nombre: string;
+  unidad: string;
+  costo: number;
+  detalle: string;
+};
+
+export function CostosCliente({ productos, recetas, insumos, movimientos, proveedores, unidades, categoriasInsumo }: {
   productos: Producto[];
   recetas: RecetasPorProducto;
+  insumos: Insumo[];
+  movimientos: MovimientoInsumo[];
+  proveedores: Proveedor[];
   unidades: string[];
+  categoriasInsumo: string[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -41,6 +67,30 @@ export function CostosCliente({ productos, recetas, unidades }: {
   const [busqMat, setBusqMat] = useState<Record<number, string>>({});
 
   const vendibles = useMemo(() => productos.filter(p => p.estado === "Activo"), [productos]);
+
+  /** Insumos primero (son la fuente natural), luego los productos del catálogo. */
+  const opcionesMaterial = useMemo<OpcionMaterial[]>(() => [
+    ...insumos.filter(i => i.activo).map(i => ({
+      clave: `i-${i.id}`,
+      origen: "Insumo" as const,
+      insumo_id: i.id,
+      producto_id: null,
+      nombre: i.nombre,
+      unidad: i.unidad_medida || "",
+      costo: costoVigenteInsumo(i),
+      detalle: `Existencia: ${Number(i.existencia)} ${i.unidad_medida}`,
+    })),
+    ...vendibles.map(p => ({
+      clave: `p-${p.id}`,
+      origen: "Producto" as const,
+      insumo_id: null,
+      producto_id: p.id,
+      nombre: p.nombre,
+      unidad: p.unidad_medida || "",
+      costo: costoVigente(p),
+      detalle: p.sku || "Del catálogo de productos",
+    })),
+  ], [insumos, vendibles]);
 
   /** Una fila por producto que ya tiene receta, con su utilidad y margen. */
   const filas = useMemo(() => {
@@ -92,6 +142,7 @@ export function CostosCliente({ productos, recetas, unidades }: {
     setNotas(f.receta.notas || "");
     setLineas(f.lineas.map(l => ({
       tipo: l.tipo,
+      insumo_id: l.insumo_id,
       material_producto_id: l.material_producto_id,
       material: l.material,
       cantidad: Number(l.cantidad) || 1,
@@ -107,17 +158,25 @@ export function CostosCliente({ productos, recetas, unidades }: {
     setLineas(prev => prev.map((l, j) => (j === i ? { ...l, ...cambios } : l)));
   };
 
-  /** Al elegir un material del catálogo se propone su costo vigente y su unidad. */
-  const elegirMaterial = (i: number, p: Producto | null) => {
-    if (!p) { setLinea(i, { material_producto_id: null }); return; }
+  /** Al elegir un material de la lista se propone su costo vigente y su unidad. */
+  const elegirMaterial = (i: number, o: OpcionMaterial | null) => {
+    if (!o) { setLinea(i, { insumo_id: null, material_producto_id: null }); return; }
     setLinea(i, {
-      material_producto_id: p.id,
-      material: p.nombre,
-      unidad_medida: p.unidad_medida || "",
-      costo_unitario: costoVigente(p),
+      insumo_id: o.insumo_id,
+      material_producto_id: o.producto_id,
+      material: o.nombre,
+      unidad_medida: o.unidad,
+      costo_unitario: o.costo,
     });
-    setBusqMat(prev => ({ ...prev, [i]: p.nombre }));
+    setBusqMat(prev => ({ ...prev, [i]: o.nombre }));
   };
+
+  /** Opción seleccionada de una línea, para que el Combobox muestre su valor. */
+  const opcionDeLinea = (l: LineaReceta): OpcionMaterial | null =>
+    opcionesMaterial.find(o =>
+      (l.insumo_id != null && o.insumo_id === l.insumo_id)
+      || (l.insumo_id == null && l.material_producto_id != null && o.producto_id === l.material_producto_id),
+    ) ?? null;
 
   const guardar = () => {
     if (!prodSel) { toast.error("Elige el producto de la receta."); return; }
@@ -167,6 +226,11 @@ export function CostosCliente({ productos, recetas, unidades }: {
           <Button variant="outline" onClick={recalcular} disabled={pendiente}>
             <RefreshCw className="size-4" /> Recalcular costos desde inventario
           </Button>
+          {insumos.length === 0 && (
+            <p className="w-full text-xs text-muted-foreground sm:w-auto">
+              Empieza por la pestaña <strong>Insumos</strong>: ahí registras telas, hilos y mano de obra con su costo.
+            </p>
+          )}
           <Button onClick={abrirNueva}><Plus className="size-4" /> Nueva receta</Button>
         </div>
       </div>
@@ -193,6 +257,7 @@ export function CostosCliente({ productos, recetas, unidades }: {
       <Tabs defaultValue="recetas">
         <TabsList>
           <TabsTrigger value="recetas">Recetas</TabsTrigger>
+          <TabsTrigger value="insumos">Insumos</TabsTrigger>
           <TabsTrigger value="rentabilidad">Rentabilidad</TabsTrigger>
         </TabsList>
 
@@ -252,6 +317,16 @@ export function CostosCliente({ productos, recetas, unidades }: {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="insumos">
+          <InsumosTab
+            insumos={insumos}
+            movimientos={movimientos}
+            proveedores={proveedores}
+            categorias={categoriasInsumo}
+            unidades={unidades}
+          />
         </TabsContent>
 
         <TabsContent value="rentabilidad">
@@ -348,23 +423,28 @@ export function CostosCliente({ productos, recetas, unidades }: {
                 </Select>
 
                 <Combobox
-                  items={vendibles}
-                  itemToStringLabel={(p: Producto | null) => p?.nombre ?? ""}
-                  value={vendibles.find(p => p.id === l.material_producto_id) ?? null}
-                  onValueChange={v => elegirMaterial(i, (v as Producto) ?? null)}
+                  items={opcionesMaterial}
+                  itemToStringLabel={(o: OpcionMaterial | null) => o?.nombre ?? ""}
+                  value={opcionDeLinea(l)}
+                  onValueChange={v => elegirMaterial(i, (v as OpcionMaterial) ?? null)}
                   inputValue={busqMat[i] ?? l.material}
-                  onInputValueChange={v => { setBusqMat(prev => ({ ...prev, [i]: v ?? "" })); setLinea(i, { material: v ?? "", material_producto_id: null }); }}
+                  onInputValueChange={v => { setBusqMat(prev => ({ ...prev, [i]: v ?? "" })); setLinea(i, { material: v ?? "", insumo_id: null, material_producto_id: null }); }}
                   openOnInputClick
                 >
-                  <ComboboxInput placeholder="Material del catálogo o escribe uno libre..." className="w-full" showClear />
+                  <ComboboxInput placeholder="Insumo, producto del catálogo, o escribe uno libre..." className="w-full" showClear />
                   <ComboboxContent>
                     <ComboboxEmpty>Sin coincidencias — se usará el texto escrito.</ComboboxEmpty>
                     <ComboboxList>
-                      {(p: Producto) => (
-                        <ComboboxItem key={p.id} value={p}>
+                      {(o: OpcionMaterial) => (
+                        <ComboboxItem key={o.clave} value={o}>
                           <div className="flex flex-col">
-                            <span className="font-medium">{p.nombre}</span>
-                            <span className="text-xs text-muted-foreground">Costo actual: {formatoPesos(costoVigente(p))} · {p.unidad_medida}</span>
+                            <span className="flex items-center gap-1.5 font-medium">
+                              {o.nombre}
+                              <Badge variant={o.origen === "Insumo" ? "default" : "outline"} className="text-[10px]">{o.origen}</Badge>
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Costo actual: {formatoPesos(o.costo)}{o.unidad ? ` · ${o.unidad}` : ""} · {o.detalle}
+                            </span>
                           </div>
                         </ComboboxItem>
                       )}

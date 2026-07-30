@@ -364,6 +364,9 @@ export type RecetaMaterial = {
   id: number;
   receta_id: number;
   tipo: TipoLineaReceta;
+  /** El material es un insumo del inventario de insumos (el caso normal). */
+  insumo_id: number | null;
+  /** El material es un producto del catálogo que se compra terminado. */
   material_producto_id: number | null;
   material: string;
   cantidad: number;
@@ -383,6 +386,58 @@ export type Receta = {
   creado_en: string;
   actualizado_en: string;
 };
+
+/**
+ * Insumo del inventario de insumos (telas, hilos, botones, mano de obra).
+ * Vive aparte de `Producto` a propósito: el catálogo de productos alimenta los
+ * selectores de Ventas, y un insumo no es algo que se venda.
+ */
+export type Insumo = {
+  id: number;
+  nombre: string;
+  codigo: string | null;
+  categoria: string | null;
+  unidad_medida: string;
+  /** Costo promedio ponderado — lo recalcula el RPC en cada entrada. */
+  costo_unitario: number;
+  ultimo_costo: number;
+  existencia: number;
+  stock_minimo: number;
+  proveedor_id: number | null;
+  proveedor: string | null;
+  notas: string | null;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+export type TipoMovimientoInsumo = "entrada" | "salida" | "ajuste";
+
+export type MovimientoInsumo = {
+  id: number;
+  fecha: string;
+  tipo: TipoMovimientoInsumo;
+  insumo_id: number | null;
+  insumo: string;
+  /** Siempre con signo (+entra / −sale); en un ajuste es la diferencia. */
+  cantidad: number;
+  costo_unitario: number | null;
+  costo_total: number | null;
+  saldo_despues: number;
+  proveedor_id: number | null;
+  proveedor: string | null;
+  numero_factura: string | null;
+  referencia: string | null;
+  motivo: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+/** Costo vigente de un insumo: el promedio ponderado y, si aún no tiene entradas, el último costo. */
+export function costoVigenteInsumo(i: { costo_unitario?: number | null; ultimo_costo?: number | null }): number {
+  const prom = Number(i.costo_unitario) || 0;
+  return prom > 0 ? prom : Number(i.ultimo_costo) || 0;
+}
 
 export type Pago = {
   id: number;

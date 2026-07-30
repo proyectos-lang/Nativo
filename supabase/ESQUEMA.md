@@ -129,18 +129,63 @@ Las líneas de la receta. `tipo` permite que la mano de obra y los servicios ext
 | id | bigint | PK identity | |
 | receta_id | bigint | not null, FK → `recetas(id)` **on delete cascade** | |
 | tipo | text | not null, default `'Material'`, check `('Material','Mano de obra','Servicio','Otro')` | |
-| material_producto_id | bigint | null, FK → `productos(id)` **on delete set null** | Cuando el material está en el catálogo. Permite proponer su costo real y refrescarlo después |
+| insumo_id | bigint | null, FK → `insumos(id)` **on delete set null** | Cuando el material es un insumo del inventario de insumos (el caso normal). Migración 027 |
+| material_producto_id | bigint | null, FK → `productos(id)` **on delete set null** | Cuando el material es un producto del catálogo que se compra terminado (una camiseta en blanco que luego se estampa). Permite proponer su costo real y refrescarlo después |
 | material | text | not null | Nombre copiado del catálogo o texto libre (FK blanda + texto, igual que el kardex) |
 | cantidad | numeric | not null, default 1, check `> 0` | Consumo por unidad de producto |
 | unidad_medida | text | null | Se propone la del producto del catálogo |
-| costo_unitario | numeric | not null, default 0 | Se propone desde `costo_promedio` (o `precio_compra` si aún no hay movimientos) y **se puede sobrescribir** |
+| costo_unitario | numeric | not null, default 0 | Se propone desde el insumo (`insumos.costo_unitario`) o desde el producto (`costo_promedio`, o `precio_compra` si aún no hay movimientos) y **se puede sobrescribir** |
 | costo_total | numeric | not null, default 0 | `cantidad × costo_unitario`, calculado por la acción |
 | notas | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_recetas_materiales_receta`, `idx_recetas_materiales_producto`.
+Índices: `idx_recetas_materiales_receta`, `idx_recetas_materiales_producto`, `idx_recetas_materiales_insumo`.
 
-Al guardar una receta las líneas se **borran y reinsertan** completas (mismo criterio que `ventas_detalle` en `actualizarVenta`). La acción `recalcularCostosDesdeInventario()` refresca el `costo_unitario` de todas las líneas que apuntan al catálogo con el costo vigente de cada producto.
+Al guardar una receta las líneas se **borran y reinsertan** completas (mismo criterio que `ventas_detalle` en `actualizarVenta`). La acción `recalcularCostosDesdeInventario()` refresca el `costo_unitario` de todas las líneas que apuntan a un insumo **o** a un producto del catálogo, con el costo vigente de cada uno.
+
+---
+
+## insumos
+
+**Inventario de insumos** (parte del módulo Costos y Recetas, migración 027). Telas, hilos, botones, empaque, mano de obra: lo que se consume al fabricar. Viven **aparte de `productos`** a propósito — el catálogo completo de `productos` alimenta los selectores de Ventas, así que meter las telas ahí las volvería vendibles. Llevan existencia y movimientos propios, más simples que el kardex de productos: **un solo saldo global, sin ubicaciones/bodegas**.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| nombre | text | not null, **unique** | |
+| codigo | text | null, **unique** (índice parcial) | Código interno opcional |
+| categoria | text | null | Lista maestra `categoria_insumo` (semillas: Telas, Hilos, Botones y cierres, Etiquetas y marquillas, Empaque, Estampado, Bordado, Mano de obra, Otros) |
+| unidad_medida | text | not null, default `'Unidad'` | Lista maestra `unidad_medida` |
+| costo_unitario | numeric | not null, default 0 | **Costo promedio ponderado**, recalculado por `mover_insumo` en cada entrada. Es el costo que usan las recetas |
+| ultimo_costo | numeric | not null, default 0 | Costo de la última entrada con costo explícito |
+| existencia | numeric | not null, default 0, check `>= 0` | Saldo global. **Nunca negativa**, igual criterio que `inventario_existencias` |
+| stock_minimo | numeric | not null, default 0 | Alerta de insumo bajo |
+| proveedor_id / proveedor | bigint / text | null, FK → `proveedores(id)` set null | Último proveedor (FK blanda + nombre copiado) |
+| notas | text | null | |
+| activo | boolean | not null, default `true` | Un insumo inactivo no aparece en el selector de materiales |
+| creado_en / actualizado_en | timestamptz | not null, default `now()` | |
+
+Índices: `idx_insumos_codigo` (parcial), `idx_insumos_categoria`, `idx_insumos_activo`. La existencia y el costo **solo** se modifican vía el RPC `mover_insumo` (nunca con updates directos desde la app); el resto de la ficha sí se edita directo.
+
+## insumos_movimientos
+
+Libro de movimientos de insumos: **nunca se borra**. FK blanda (`on delete set null`) + nombre copiado, mismo criterio que `inventario_movimientos`.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| fecha | timestamptz | not null, default `now()` | |
+| tipo | text | not null, check `('entrada','salida','ajuste')` | |
+| insumo_id / insumo | bigint / text | null / not null | FK blanda + nombre copiado |
+| cantidad | numeric | not null | **Siempre con signo** (+entra / −sale); en `ajuste` es la diferencia |
+| costo_unitario | numeric | null | Costo del movimiento (histórico) |
+| costo_total | numeric | null | `abs(cantidad) × costo_unitario` |
+| saldo_despues | numeric | not null | Existencia tras el movimiento |
+| proveedor_id / proveedor | bigint / text | null | |
+| numero_factura / referencia / motivo / usuario | text | null | |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índices: `(insumo_id, fecha desc)`, `tipo`, `fecha desc`.
 
 ---
 
@@ -873,6 +918,10 @@ No existen RPCs de edición: `editarGasto`/`editarIngreso` se implementan como s
 ### `nativo.ingresar_inventario(p_producto_id, p_ubicacion_id, p_cantidad, p_costo_unitario default null, p_tipo default 'entrada', p_referencia, p_proveedor_id, p_numero_factura, p_lote, p_motivo, p_usuario, p_venta_id, p_fecha) → nativo.productos`
 
 Entrada de inventario atómica (tipos: `entrada`, `inventario_inicial`, `devolucion`). Lock del producto (`for update` — serializa por producto), rechaza servicios y no-enrolados, suma a la existencia de la ubicación y recalcula el **costo promedio ponderado**: `round((stock_total×costo_actual + cantidad×costo)/(stock_total+cantidad), 4)`. Con `p_costo_unitario` null la mercancía entra al costo promedio actual sin alterarlo (caso devoluciones). Actualiza `precio_compra` solo en entradas/inicial con costo explícito. Inserta el kardex con `saldo_despues`.
+
+### `nativo.mover_insumo(p_insumo_id, p_tipo, p_cantidad, p_costo_unitario default null, p_fecha default now(), p_proveedor_id, p_numero_factura, p_referencia, p_motivo, p_usuario) → nativo.insumos`
+
+Movimiento de insumo atómico (tipos: `entrada`, `salida`, `ajuste`). Lock del insumo (`for update` — serializa por insumo). **Entrada:** suma a la existencia y recalcula el **costo promedio ponderado** `round((existencia×costo_actual + cantidad×costo)/(existencia+cantidad), 4)`; sin `p_costo_unitario` la mercancía entra al costo promedio actual sin alterarlo; con costo explícito además actualiza `ultimo_costo`. **Salida:** valida existencia suficiente (nunca deja saldo negativo) y se valoriza al costo promedio del momento. **Ajuste:** `p_cantidad` es la existencia **física contada**; registra la diferencia con signo y falla si no hay diferencia — no cambia el costo. Siempre inserta el asiento en `insumos_movimientos` con `saldo_despues`. Migración 027.
 
 ### `nativo.trasladar_inventario(p_producto_id, p_origen_id, p_destino_id, p_cantidad, p_motivo, p_usuario) → void`
 

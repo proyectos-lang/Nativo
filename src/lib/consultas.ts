@@ -332,6 +332,24 @@ export async function productosCatalogo() {
 // COSTOS Y RECETAS (explosión de materiales)
 // ------------------------------------------------------------
 
+/** Inventario de insumos completo (activos e inactivos), ordenado por nombre. */
+export async function insumosTodos() {
+  const { data, error } = await db().from("insumos").select("*").order("nombre");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/**
+ * Últimos movimientos de insumos. El libro crece indefinidamente, así que se
+ * pagina igual que el kardex de productos.
+ */
+export async function movimientosInsumos(limite = 300) {
+  const { data, error } = await db().from("insumos_movimientos")
+    .select("*").order("fecha", { ascending: false }).order("id", { ascending: false }).limit(limite);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 /** Recetas con sus líneas agrupadas por producto_id. */
 export async function recetasConMateriales(): Promise<Record<number, { receta: unknown; lineas: unknown[] }>> {
   const [{ data: recetas, error: e1 }, { data: lineas, error: e2 }] = await Promise.all([
