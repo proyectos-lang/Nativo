@@ -487,6 +487,10 @@ create table nativo.movimientos_bancarios (
   origen text not null default 'manual' check (origen in ('manual', 'pago_venta', 'pago_gasto', 'transferencia', 'pago_ingreso', 'devolucion_venta')),
   monto numeric not null check (monto > 0),
   concepto text,
+  -- Categoría del movimiento MANUAL (migración 029). Los demás orígenes la
+  -- heredan del gasto/ingreso al consultar; sin esto los manuales quedaban
+  -- fuera de la sumatoria por categoría de la conciliación.
+  categoria text,
   pago_id bigint references nativo.pagos (id) on delete cascade,
   pago_gasto_id bigint references nativo.pagos_gastos (id) on delete set null,
   pago_ingreso_id bigint references nativo.pagos_ingresos (id) on delete set null,
@@ -500,8 +504,10 @@ create table nativo.movimientos_bancarios (
 create index idx_movimientos_cuenta on nativo.movimientos_bancarios (cuenta_id);
 create index idx_movimientos_fecha on nativo.movimientos_bancarios (fecha);
 create index idx_movimientos_venta on nativo.movimientos_bancarios (venta_id);
+create index idx_movimientos_categoria on nativo.movimientos_bancarios (categoria);
 
--- Cuenta destino del abono en pagos de ventas
+-- Cuenta a la que entró el abono de la venta. INFORMATIVO desde la migración
+-- 029: no genera movimiento bancario, solo indica qué extracto revisar.
 alter table nativo.pagos add column cuenta_id bigint references nativo.cuentas_bancarias (id);
 
 -- ------------------------------------------------------------
@@ -852,13 +858,14 @@ alter table nativo.inventario_movimientos
 
 -- ------------------------------------------------------------
 -- FUNCIÓN RPC: registrar pago de forma atómica
--- Inserta en pagos, recalcula la cabecera y, si viene cuenta,
--- genera el movimiento bancario de ingreso por el abono.
+-- Inserta en pagos y recalcula la cabecera de la venta.
 -- ------------------------------------------------------------
 -- registrar_pago: p_retencion se conserva como retención genérica; se
 -- suman las 3 retenciones colombianas (Retefuente/ReteIVA/ReteICA). El
--- total reduce el saldo de la venta pero NO es efectivo (a la cuenta
--- bancaria solo entra el abono). Ver migración 019.
+-- total reduce el saldo de la venta pero NO es efectivo. Ver migración 019.
+-- Desde la migración 029 NO genera movimiento bancario: el libro de bancos
+-- lo lleva solo la contadora. `p_cuenta_id` se sigue guardando en
+-- `pagos.cuenta_id` para saber a qué extracto corresponde el dinero.
 create or replace function nativo.registrar_pago(
   p_venta_id bigint,
   p_abono numeric,
@@ -876,7 +883,6 @@ as $$
 declare
   v nativo.ventas;
   v_pago_id bigint;
-  v_ticket integer;
   v_ret_total numeric;
 begin
   v_ret_total := coalesce(p_retencion, 0) + coalesce(p_retefuente, 0) + coalesce(p_reteiva, 0) + coalesce(p_reteica, 0);
@@ -903,13 +909,9 @@ begin
     raise exception 'Venta % no encontrada', p_venta_id;
   end if;
 
-  -- Asiento bancario: solo el abono entra a caja (las retenciones no son efectivo)
-  if p_cuenta_id is not null and coalesce(p_abono, 0) > 0 then
-    select ticket into v_ticket from nativo.ventas where id = p_venta_id;
-    insert into nativo.movimientos_bancarios (cuenta_id, fecha, tipo, origen, monto, concepto, pago_id, usuario)
-    values (p_cuenta_id, coalesce(p_fecha, current_date), 'ingreso', 'pago_venta', p_abono,
-            'Pago venta ticket #' || v_ticket, v_pago_id, p_usuario);
-  end if;
+  -- Sin asiento bancario a propósito (migración 029): el banco lo lleva
+  -- la contadora desde Ingresos, y duplicarlo aquí inflaría el saldo.
+  -- El dinero recibido por ventas se consulta en Financiero → Ingresos por Venta.
 
   return v;
 end;
@@ -991,12 +993,9 @@ begin
   where id = v.id
   returning * into v;
 
+  -- Retira el asiento heredado (anterior a la migración 029) y NO lo
+  -- vuelve a crear: los pagos de ventas ya no tocan el banco.
   delete from nativo.movimientos_bancarios where pago_id = p_pago_id;
-  if p_cuenta_id is not null and coalesce(p_abono, 0) > 0 then
-    insert into nativo.movimientos_bancarios (cuenta_id, fecha, tipo, origen, monto, concepto, pago_id, usuario)
-    values (p_cuenta_id, coalesce(p_fecha, pg.fecha), 'ingreso', 'pago_venta', p_abono,
-            'Pago venta ticket #' || v.ticket || ' (editado)', p_pago_id, p_usuario);
-  end if;
 
   return v;
 end;

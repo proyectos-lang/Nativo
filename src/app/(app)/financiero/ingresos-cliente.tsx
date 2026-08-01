@@ -380,6 +380,11 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
           <div>
             <CardTitle>Ingresos</CardTitle>
             <p className="text-sm text-muted-foreground">Pendiente por cobrar: <span className="font-bold text-destructive">{formatoPesos(totalPendiente)}</span></p>
+            <p className="max-w-xl text-xs text-muted-foreground">
+              Registro manual de los ingresos de banco y caja, tal como aparecen en el extracto — es la base de la
+              conciliación mensual. El dinero que recibe el equipo comercial por facturas se consulta en la pestaña
+              <strong> Ingresos por Venta</strong>.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Input className="w-44" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />

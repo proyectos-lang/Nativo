@@ -14,14 +14,20 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Combo } from "@/components/combo";
 import { Landmark, Pencil, ArrowLeftRight, PlusCircle, ReceiptText, Trash2 } from "lucide-react";
 import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
 
-type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
+type Props = {
+  cuentas: CuentaBancaria[];
+  movimientos: MovimientoBancario[];
+  categoriasIngreso: string[];
+  categoriasGasto: string[];
+};
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-export function CuentasCliente({ cuentas, movimientos }: Props) {
+export function CuentasCliente({ cuentas, movimientos, categoriasIngreso, categoriasGasto }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const activas = useMemo(() => cuentas.filter(c => c.activa), [cuentas]);
@@ -32,7 +38,7 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
 
   // Movimiento manual
   const [dialogMov, setDialogMov] = useState(false);
-  const [formMov, setFormMov] = useState({ cuenta_id: 0, tipo: "ingreso" as "ingreso" | "egreso", monto: 0, fecha: HOY(), concepto: "" });
+  const [formMov, setFormMov] = useState({ cuenta_id: 0, tipo: "ingreso" as "ingreso" | "egreso", monto: 0, fecha: HOY(), concepto: "", categoria: "" });
 
   // Transferencia
   const [dialogTransf, setDialogTransf] = useState(false);
@@ -80,7 +86,7 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
   return (
     <div className="grid gap-4 pt-2">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => { setFormMov({ cuenta_id: 0, tipo: "ingreso", monto: 0, fecha: HOY(), concepto: "" }); setDialogMov(true); }}>
+        <Button variant="outline" onClick={() => { setFormMov({ cuenta_id: 0, tipo: "ingreso", monto: 0, fecha: HOY(), concepto: "", categoria: "" }); setDialogMov(true); }}>
           <PlusCircle className="size-4" /> Movimiento Manual
         </Button>
         <Button variant="outline" onClick={() => { setFormTransf({ origen: 0, destino: 0, monto: 0, fecha: HOY(), concepto: "" }); setDialogTransf(true); }}>
@@ -175,8 +181,20 @@ export function CuentasCliente({ cuentas, movimientos }: Props) {
             </div>
             <div className="grid gap-1.5"><Label>Monto *</Label><Input type="number" min={0} value={formMov.monto || ""} onChange={e => setFormMov({ ...formMov, monto: Number(e.target.value) })} placeholder="0" /></div>
             <div className="grid gap-1.5"><Label>Fecha</Label><Input type="date" value={formMov.fecha} onChange={e => setFormMov({ ...formMov, fecha: e.target.value })} /></div>
+            <div className="grid gap-1.5">
+              <Label>Categoría</Label>
+              <Combo
+                opciones={formMov.tipo === "ingreso" ? categoriasIngreso : categoriasGasto}
+                value={formMov.categoria}
+                onChange={v => setFormMov({ ...formMov, categoria: v })}
+                placeholder="Ej. Ventas, Arriendo..."
+              />
+            </div>
             <div className="grid gap-1.5"><Label>Concepto</Label><Input value={formMov.concepto} onChange={e => setFormMov({ ...formMov, concepto: e.target.value })} placeholder="Ej. Consignación inicial" /></div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            La categoría es lo que permite sumar este movimiento en la conciliación por categorías del Historial.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogMov(false)}>Cancelar</Button>
             <Button disabled={pendiente || !formMov.cuenta_id || formMov.monto <= 0} onClick={() =>

@@ -11,6 +11,7 @@ import { CuentasCliente } from "./cuentas-cliente";
 import { HistorialCliente } from "./historial-cliente";
 import { GastosCliente } from "./gastos-cliente";
 import { IngresosCliente } from "./ingresos-cliente";
+import { IngresosVenta } from "./ingresos-venta";
 import { CierreDiario } from "./cierre-diario";
 import type {
   CuentaBancaria, MovimientoBancario, Gasto, GastoDetalle, PagoGasto, Venta, Pago,
@@ -44,6 +45,7 @@ export default async function PaginaFinanciero() {
           <TabsTrigger value="historial">Historial</TabsTrigger>
           <TabsTrigger value="gastos">Gastos y Costos</TabsTrigger>
           <TabsTrigger value="ingresos">Ingresos</TabsTrigger>
+          <TabsTrigger value="ingresos-venta">Ingresos por Venta</TabsTrigger>
           <TabsTrigger value="cierre">Cierre Diario</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard">
@@ -59,6 +61,8 @@ export default async function PaginaFinanciero() {
           <CuentasCliente
             cuentas={cuentas as CuentaBancaria[]}
             movimientos={movimientos as MovimientoBancario[]}
+            categoriasIngreso={maestros["categoria_ingreso"] || []}
+            categoriasGasto={maestros["categoria_gasto"] || []}
           />
         </TabsContent>
         <TabsContent value="historial">
@@ -87,6 +91,15 @@ export default async function PaginaFinanciero() {
             categorias={maestros["categoria_ingreso"] || []}
             auditoriaIngresos={auditoriaIngresos as Record<number, Bitacora[]>}
             clientes={clientes as Cliente[]}
+          />
+        </TabsContent>
+        <TabsContent value="ingresos-venta">
+          <IngresosVenta
+            ventas={ventas as Venta[]}
+            pagosVentas={pagosVentas as Record<number, Pago[]>}
+            cuentas={cuentas as CuentaBancaria[]}
+            ingresos={ingresos as Ingreso[]}
+            movimientos={movimientos as MovimientoBancario[]}
           />
         </TabsContent>
         <TabsContent value="cierre">

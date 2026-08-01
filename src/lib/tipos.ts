@@ -549,6 +549,12 @@ export type MovimientoBancario = {
   origen: "manual" | "pago_venta" | "pago_gasto" | "transferencia" | "pago_ingreso" | "devolucion_venta";
   monto: number;
   concepto: string | null;
+  /**
+   * Categoría del movimiento. Se guarda solo en los manuales; en los demás la
+   * resuelve `movimientosBancarios()` desde el gasto/ingreso que lo originó.
+   * Es el eje de la conciliación mensual por sumatorias.
+   */
+  categoria: string | null;
   pago_id: number | null;
   pago_gasto_id: number | null;
   pago_ingreso_id: number | null;

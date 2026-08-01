@@ -756,7 +756,8 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | cuenta_id | bigint | not null, FK → `cuentas_bancarias(id)` | |
 | fecha | date | not null, default `current_date` | |
 | tipo | text | not null, check `('ingreso','egreso')` | |
-| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso','devolucion_venta')` | `devolucion_venta` = reembolso al cliente generado por `registrar_devolucion_perdida()` cuando una pérdida deja el saldo de la venta en negativo |
+| origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso','devolucion_venta')` | `devolucion_venta` = reembolso al cliente generado por `registrar_devolucion_perdida()` cuando una pérdida deja el saldo de la venta en negativo. **`pago_venta` es histórico**: desde la migración 029 los pagos de ventas ya no generan asiento |
+| categoria | text | null | Categoría del movimiento **manual** (migración 029). Los demás orígenes la heredan del gasto/ingreso al consultar — ver `movimientosBancarios()`. Sin ella los manuales quedaban fuera de la sumatoria por categoría de la conciliación |
 | monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
 | concepto | text | null | Copia del momento del pago. En los movimientos de `pago_gasto`/`pago_ingreso` la consulta `movimientosBancarios()` lo **rearma en vivo** con la misma fórmula de `pagar_gasto`/`cobrar_ingreso`, porque editar el gasto/ingreso después (cambiar de Gasto a Costo, corregir la descripción) dejaba el asiento mostrando el texto viejo. El valor guardado queda como respaldo |
 | pago_id | bigint | null, FK → `pagos(id)` **on delete cascade** | Cuando origen = pago_venta — al eliminar la venta/pago, el movimiento bancario también se elimina y el saldo de la cuenta se corrige |
@@ -767,7 +768,9 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | usuario | text | null | |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índices: `idx_movimientos_cuenta (cuenta_id)`, `idx_movimientos_fecha (fecha)`.
+Índices: `idx_movimientos_cuenta (cuenta_id)`, `idx_movimientos_fecha (fecha)`, `idx_movimientos_categoria (categoria)`.
+
+**Una sola fuente para el banco (migración 029).** El libro de bancos lo alimenta *solo* la contadora, desde Ingresos y Gastos: es lo que se compara contra el extracto. Los pagos de ventas **no** generan asiento, porque duplicarían ese dinero — un cliente que abona $1.000.000 para dos facturas produce dos pagos de $500.000, mientras el extracto trae una sola línea de $1.000.000. El dinero recibido por ventas se consulta en **Financiero → Ingresos por Venta**, y se concilia comparando totales, no línea a línea.
 
 ---
 
@@ -887,11 +890,11 @@ Cada cobro de un ingreso (siempre entra a una cuenta). Clon de `pagos_gastos`.
 
 ### `nativo.registrar_pago(p_venta_id bigint, p_abono numeric, p_retencion numeric, p_fecha date, p_comentario text, p_usuario text, p_cuenta_id bigint default null, p_retefuente numeric default 0, p_reteiva numeric default 0, p_reteica numeric default 0) → nativo.ventas`
 
-En una sola transacción: calcula `v_ret_total = p_retencion + p_retefuente + p_reteiva + p_reteica`, inserta la fila en `pagos` (con `cuenta_id` y el desglose retefuente/reteiva/reteica, y `retencion = v_ret_total`) y actualiza la cabecera `ventas` — acumula `abono` y `retencion` (por el total), recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Si viene `p_cuenta_id` y `p_abono > 0`, inserta el movimiento bancario de **ingreso** (origen `pago_venta`) por el monto del abono — **las retenciones no son entrada de caja**. Lanza excepción si la venta no existe. (Migración 019 reemplazó la firma anterior de 7 parámetros.)
+En una sola transacción: calcula `v_ret_total = p_retencion + p_retefuente + p_reteiva + p_reteica`, inserta la fila en `pagos` (con `cuenta_id` y el desglose retefuente/reteiva/reteica, y `retencion = v_ret_total`) y actualiza la cabecera `ventas` — acumula `abono` y `retencion` (por el total), recalcula `total_a_pagar` y `saldo`, actualiza `fecha_pago` y fija `estado_pago` (`Pagado Total` si saldo ≤ 0, si no `Abonado`). Lanza excepción si la venta no existe. (Migración 019 reemplazó la firma anterior de 7 parámetros.) **Desde la migración 029 NO genera movimiento bancario**: `p_cuenta_id` se sigue guardando en `pagos.cuenta_id` como dato informativo (a qué extracto corresponde el dinero), pero el libro de bancos lo lleva solo la contadora. La firma no cambió, para no romper las llamadas existentes.
 
 ### `nativo.editar_pago(p_pago_id bigint, p_abono numeric, p_retefuente numeric default 0, p_reteiva numeric default 0, p_reteica numeric default 0, p_fecha date default null, p_comentario text default null, p_cuenta_id bigint default null, p_usuario text default null) → nativo.ventas`
 
-Corrige un abono ya registrado en una sola transacción: descuenta de la venta lo que aportaba el pago anterior, suma los valores nuevos, recalcula `total_a_pagar`, `saldo` y `estado_pago`, actualiza la fila de `pagos` y **rehace el asiento bancario** (borra el anterior y crea uno nuevo si hay cuenta y abono > 0). Exige que el pago quede con abono o alguna retención > 0 (para dejarlo en cero está `anular_pago`). En la app la acción `editarPago` la protege con `verificarPin` (clave de autorización). Migración 023.
+Corrige un abono ya registrado en una sola transacción: descuenta de la venta lo que aportaba el pago anterior, suma los valores nuevos, recalcula `total_a_pagar`, `saldo` y `estado_pago`, y actualiza la fila de `pagos`. **Desde la migración 029 borra el asiento bancario heredado y no lo vuelve a crear**, así editar un pago antiguo lo retira del banco en vez de rehacerlo. Exige que el pago quede con abono o alguna retención > 0 (para dejarlo en cero está `anular_pago`). En la app la acción `editarPago` la protege con `verificarPin` (clave de autorización). Migración 023.
 
 ### `nativo.anular_pago(p_pago_id bigint, p_usuario text default null) → nativo.ventas`
 

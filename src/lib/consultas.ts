@@ -236,6 +236,12 @@ type MovimientoAnidado = Record<string, unknown> & {
   ventas?: { ticket?: number; clientes?: { nombre?: string } | null } | null;
 };
 
+/** Etiquetas de categoría para los movimientos que no vienen de un gasto/ingreso. */
+export const CATEGORIA_TRANSFERENCIA = "Transferencia entre cuentas";
+export const CATEGORIA_DEVOLUCION = "Devolución a cliente";
+export const CATEGORIA_VENTAS = "Ventas";
+export const SIN_CATEGORIA = "Sin categoría";
+
 function aplanarTercero(m: MovimientoAnidado) {
   const { pagos, pagos_gastos, pagos_ingresos, ventas, ...plano } = m;
   let tercero: string | null = null;
@@ -246,24 +252,40 @@ function aplanarTercero(m: MovimientoAnidado) {
   // fórmula de `pagar_gasto`/`cobrar_ingreso`, y así también quedan al día los
   // movimientos anteriores sin tener que tocar datos.
   let concepto = (plano.concepto as string | null) ?? null;
+  // La categoría es el eje de la conciliación mensual: la contadora filtra por
+  // ella y compara la sumatoria contra el extracto. Solo los movimientos
+  // manuales la guardan; los demás la heredan del gasto/ingreso que los originó.
+  const origen = plano.origen as string;
+  let categoria = origen === "manual" ? ((plano.categoria as string | null) || null) : null;
 
   if (pagos?.ventas) {
     tercero = pagos.ventas.clientes?.nombre || (pagos.ventas.ticket ? `Ticket #${pagos.ventas.ticket}` : null);
+    categoria = CATEGORIA_VENTAS;
   } else if (pagos_gastos?.gastos) {
     const g = pagos_gastos.gastos;
     tercero = g.proveedores?.nombre || g.proveedor || null;
     factura = g.numero_factura || null;
+    categoria = g.categoria || null;
     if (g.tipo) concepto = `Pago ${g.tipo.toLowerCase()}: ${g.descripcion || g.categoria || "sin descripción"}`;
   } else if (pagos_ingresos?.ingresos) {
     const i = pagos_ingresos.ingresos;
     tercero = i.clientes?.nombre || i.cliente || null;
     factura = i.numero_factura || null;
+    categoria = i.categoria || null;
     concepto = `Cobro ingreso: ${i.concepto || i.categoria || "sin concepto"}`;
   } else if (ventas) {
     const nombre = ventas.clientes?.nombre;
     tercero = nombre ? `${nombre}${ventas.ticket ? ` (Ticket #${ventas.ticket})` : ""}` : (ventas.ticket ? `Ticket #${ventas.ticket}` : null);
   }
-  return { ...plano, tercero, factura, concepto };
+
+  if (!categoria) {
+    if (origen === "transferencia") categoria = CATEGORIA_TRANSFERENCIA;
+    else if (origen === "devolucion_venta") categoria = CATEGORIA_DEVOLUCION;
+    else if (origen === "pago_venta") categoria = CATEGORIA_VENTAS;
+    else categoria = SIN_CATEGORIA;
+  }
+
+  return { ...plano, tercero, factura, concepto, categoria };
 }
 
 /**
@@ -289,7 +311,7 @@ export async function movimientosBancarios() {
       .from("movimientos_bancarios").select("*")
       .order("fecha", { ascending: false }).order("id", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data || []).map(m => ({ ...m, tercero: null, factura: null }));
+    return (data || []).map(m => ({ ...m, tercero: null, factura: null, categoria: m.categoria ?? SIN_CATEGORIA }));
   }
 }
 

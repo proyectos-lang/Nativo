@@ -28,10 +28,14 @@ type FilaHistorial = {
   concepto: string | null;
   tercero: string | null;
   factura: string | null;
+  /** Eje de la conciliación: se filtra y se suma por aquí. */
+  categoria: string;
   /** Pago del que nace el movimiento: anularlo es lo que lo borra. */
   pago_gasto_id: number | null;
   pago_ingreso_id: number | null;
 };
+
+const SIN_CATEGORIA = "Sin categoría";
 
 const NOMBRES_ORIGEN_EXTENDIDO: Record<string, string> = { ...NOMBRE_ORIGEN_MOVIMIENTO, saldo_inicial: "Saldo Inicial" };
 
@@ -40,6 +44,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
   const [filaBorrar, setFilaBorrar] = useState<FilaHistorial | null>(null);
   const [cuentaId, setCuentaId] = useState("todas");
   const [origen, setOrigen] = useState("todas");
+  const [categoria, setCategoria] = useState("todas");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
 
@@ -61,6 +66,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       concepto: "Saldo inicial de la cuenta",
       tercero: null,
       factura: null,
+      categoria: "Saldo inicial",
       pago_gasto_id: null,
       pago_ingreso_id: null,
     }));
@@ -68,27 +74,53 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       id: String(m.id), movimiento_id: m.id, cuenta_id: m.cuenta_id, fecha: m.fecha, tipo: m.tipo, origen: m.origen, monto: Number(m.monto), concepto: m.concepto,
       tercero: m.tercero ?? null,
       factura: m.factura ?? null,
+      categoria: m.categoria || SIN_CATEGORIA,
       pago_gasto_id: m.pago_gasto_id ?? null,
       pago_ingreso_id: m.pago_ingreso_id ?? null,
     }));
     return [...filasSaldoInicial, ...filasMovimientos].sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [cuentas, movimientos]);
 
+  /** Categorías presentes en los datos, para no ofrecer filtros vacíos. */
+  const categorias = useMemo(
+    () => [...new Set(todasLasFilas.map(m => m.categoria))].sort((a, b) => a.localeCompare(b, "es")),
+    [todasLasFilas],
+  );
+
   const filtrados = useMemo(() => {
     return todasLasFilas.filter(m => {
       if (cuentaId !== "todas" && m.cuenta_id !== Number(cuentaId)) return false;
       if (origen !== "todas" && m.origen !== origen) return false;
+      if (categoria !== "todas" && m.categoria !== categoria) return false;
       if (desde && m.fecha < desde) return false;
       if (hasta && m.fecha > hasta) return false;
       return true;
     });
-  }, [todasLasFilas, cuentaId, origen, desde, hasta]);
+  }, [todasLasFilas, cuentaId, origen, categoria, desde, hasta]);
 
   const totalIngresos = filtrados.filter(m => m.tipo === "ingreso").reduce((s, m) => s + Number(m.monto), 0);
   const totalEgresos = filtrados.filter(m => m.tipo === "egreso").reduce((s, m) => s + Number(m.monto), 0);
 
-  const limpiar = () => { setCuentaId("todas"); setOrigen("todas"); setDesde(""); setHasta(""); };
-  const hayFiltros = cuentaId !== "todas" || origen !== "todas" || !!desde || !!hasta;
+  /**
+   * Sumatoria por categoría de lo que hay en pantalla. Es lo que la contadora
+   * compara contra el extracto: cuadra por totales, no línea a línea.
+   */
+  const porCategoria = useMemo(() => {
+    const m = new Map<string, { ingresos: number; egresos: number; n: number }>();
+    for (const f of filtrados) {
+      const acc = m.get(f.categoria) || { ingresos: 0, egresos: 0, n: 0 };
+      if (f.tipo === "ingreso") acc.ingresos += Number(f.monto);
+      else acc.egresos += Number(f.monto);
+      acc.n++;
+      m.set(f.categoria, acc);
+    }
+    return [...m.entries()]
+      .map(([nombre, v]) => ({ nombre, ...v, neto: v.ingresos - v.egresos }))
+      .sort((a, b) => (b.ingresos + b.egresos) - (a.ingresos + a.egresos));
+  }, [filtrados]);
+
+  const limpiar = () => { setCuentaId("todas"); setOrigen("todas"); setCategoria("todas"); setDesde(""); setHasta(""); };
+  const hayFiltros = cuentaId !== "todas" || origen !== "todas" || categoria !== "todas" || !!desde || !!hasta;
 
   /**
    * Qué se puede deshacer desde aquí. Un movimiento manual o una transferencia
@@ -154,6 +186,16 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
             </Select>
           </div>
           <div className="grid gap-1.5">
+            <Label>Categoría</Label>
+            <Select value={categoria} onValueChange={v => v && setCategoria(v)}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las categorías</SelectItem>
+                {categorias.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
             <Label>Desde</Label>
             <Input type="date" className="w-40" value={desde} onChange={e => setDesde(e.target.value)} />
           </div>
@@ -176,6 +218,7 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
                   <TableHead>Fecha</TableHead>
                   <TableHead>Cuenta</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Categoría</TableHead>
                   <TableHead>Cliente / Proveedor</TableHead>
                   <TableHead>Factura</TableHead>
                   <TableHead>Concepto</TableHead>
@@ -186,13 +229,16 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
               </TableHeader>
               <TableBody>
                 {filtrados.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Sin movimientos para los filtros seleccionados.</TableCell></TableRow>
                 )}
                 {filtrados.map(m => (
                   <TableRow key={m.id}>
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
                     <TableCell>{nombreCuenta.get(m.cuenta_id) || "-"}</TableCell>
                     <TableCell><Badge variant="secondary">{NOMBRES_ORIGEN_EXTENDIDO[m.origen] || m.origen}</Badge></TableCell>
+                    <TableCell className="max-w-48 truncate text-sm">
+                      {m.categoria === SIN_CATEGORIA ? <span className="text-muted-foreground">{m.categoria}</span> : m.categoria}
+                    </TableCell>
                     <TableCell className="max-w-48 truncate text-sm font-medium">{m.tercero || "-"}</TableCell>
                     <TableCell className="max-w-32 truncate text-sm">{m.factura || "-"}</TableCell>
                     <TableCell className="max-w-64 truncate text-sm">{m.concepto || "-"}</TableCell>
@@ -224,6 +270,44 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
             cobro de ingreso se deshacen anulando ese pago desde aquí mismo. Los pagos de ventas se anulan
             en el módulo Pagos, los reembolsos en Devoluciones, y el saldo inicial se corrige editando la cuenta.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* SUMATORIA POR CATEGORÍA — el control de la conciliación mensual */}
+      <Card>
+        <CardContent className="grid gap-2 pt-2">
+          <p className="text-sm font-semibold">Sumatoria por categoría</p>
+          <p className="text-xs text-muted-foreground">
+            Sobre lo que hay en pantalla: cambia con los filtros. Sirve para cuadrar el mes contra el extracto
+            por totales en vez de línea a línea.
+          </p>
+          <div className="tabla-scroll max-h-96 rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Movimientos</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
+                  <TableHead className="text-right">Egresos</TableHead>
+                  <TableHead className="text-right">Neto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {porCategoria.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">Sin datos.</TableCell></TableRow>
+                )}
+                {porCategoria.map(c => (
+                  <TableRow key={c.nombre}>
+                    <TableCell className="max-w-64 truncate font-medium">{c.nombre}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{c.n}</TableCell>
+                    <TableCell className="text-right font-medium text-primary">{c.ingresos ? formatoPesos(c.ingresos) : ""}</TableCell>
+                    <TableCell className="text-right font-medium text-destructive">{c.egresos ? formatoPesos(c.egresos) : ""}</TableCell>
+                    <TableCell className={`text-right font-bold ${c.neto >= 0 ? "" : "text-destructive"}`}>{formatoPesos(c.neto)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

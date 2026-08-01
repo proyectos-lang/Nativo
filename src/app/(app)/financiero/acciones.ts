@@ -111,6 +111,8 @@ export async function registrarMovimientoManual(datos: {
   monto: number;
   fecha?: string;
   concepto?: string;
+  /** Necesaria para que el movimiento entre en la sumatoria por categoría. */
+  categoria?: string;
 }) {
   const sesion = await requierePermiso("financiero");
   if (!datos.cuenta_id) throw new Error("Selecciona una cuenta.");
@@ -122,6 +124,7 @@ export async function registrarMovimientoManual(datos: {
     monto: Number(datos.monto),
     fecha: datos.fecha || new Date().toISOString().slice(0, 10),
     concepto: datos.concepto?.trim() || null,
+    categoria: datos.categoria?.trim() || null,
     usuario: sesion.usuario,
   };
   const { data, error } = await db().from("movimientos_bancarios").insert(fila).select("id").single();

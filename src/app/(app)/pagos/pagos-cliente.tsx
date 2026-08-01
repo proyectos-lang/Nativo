@@ -254,13 +254,16 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1.5"><Label>Comentario / Medio de pago</Label><Input value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Ej. Transferencia Bancolombia #123" /></div>
                 <div className="grid gap-1.5">
-                  <Label>Cuenta destino del abono</Label>
+                  <Label>Cuenta donde entró el dinero</Label>
                   <Select value={cuentaId ? String(cuentaId) : ""} onValueChange={v => setCuentaId(v ? Number(v) : 0)}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento bancario)" /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Opcional — indica a qué banco entró" /></SelectTrigger>
                     <SelectContent>
                       {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre} ({formatoPesos(c.saldo_actual)})</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Informativo: le dice a la contadora qué extracto revisar. No mueve el saldo de la cuenta.
+                  </p>
                 </div>
               </div>
               <p className="text-sm">
@@ -284,7 +287,8 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
           <DialogHeader><DialogTitle>Editar abono del {formatoFecha(pagoEdit?.fecha)}</DialogTitle></DialogHeader>
           <div className="grid gap-3">
             <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
-              Al guardar se recalcula el saldo de la factura y se corrige el movimiento en la cuenta bancaria.
+              Al guardar se recalcula el saldo de la factura. Los pagos de ventas no mueven el saldo del banco:
+              ese libro lo lleva la contadora desde Financiero.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5"><Label>Abono ($)</Label><Input type="number" step="any" min={0} value={formEdit.abono || ""} onChange={e => setFormEdit({ ...formEdit, abono: Number(e.target.value) })} /></div>
@@ -301,9 +305,9 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5"><Label>Comentario / Medio de pago</Label><Input value={formEdit.comentario} onChange={e => setFormEdit({ ...formEdit, comentario: e.target.value })} /></div>
               <div className="grid gap-1.5">
-                <Label>Cuenta del abono</Label>
+                <Label>Cuenta donde entró el dinero</Label>
                 <Select value={formEdit.cuenta_id ? String(formEdit.cuenta_id) : ""} onValueChange={v => setFormEdit({ ...formEdit, cuenta_id: v ? Number(v) : 0 })}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Sin cuenta (no genera movimiento)" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Opcional — informativo" /></SelectTrigger>
                   <SelectContent>
                     {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
                   </SelectContent>
