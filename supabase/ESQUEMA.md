@@ -758,7 +758,7 @@ Libro de cada cuenta: todo ingreso/egreso queda registrado aquí.
 | tipo | text | not null, check `('ingreso','egreso')` | |
 | origen | text | not null, default `'manual'`, check `('manual','pago_venta','pago_gasto','transferencia','pago_ingreso','devolucion_venta')` | `devolucion_venta` = reembolso al cliente generado por `registrar_devolucion_perdida()` cuando una pérdida deja el saldo de la venta en negativo |
 | monto | numeric | not null, check `> 0` | Siempre positivo; el signo lo da `tipo` |
-| concepto | text | null | |
+| concepto | text | null | Copia del momento del pago. En los movimientos de `pago_gasto`/`pago_ingreso` la consulta `movimientosBancarios()` lo **rearma en vivo** con la misma fórmula de `pagar_gasto`/`cobrar_ingreso`, porque editar el gasto/ingreso después (cambiar de Gasto a Costo, corregir la descripción) dejaba el asiento mostrando el texto viejo. El valor guardado queda como respaldo |
 | pago_id | bigint | null, FK → `pagos(id)` **on delete cascade** | Cuando origen = pago_venta — al eliminar la venta/pago, el movimiento bancario también se elimina y el saldo de la cuenta se corrige |
 | pago_gasto_id | bigint | null, FK → `pagos_gastos(id)` on delete set null | Cuando origen = pago_gasto |
 | pago_ingreso_id | bigint | null, FK → `pagos_ingresos(id)` on delete set null | Cuando origen = pago_ingreso |

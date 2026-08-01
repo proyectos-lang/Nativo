@@ -231,8 +231,8 @@ export async function cuentasConSaldo() {
 /** Resuelve el cliente/proveedor al que se le causó un movimiento bancario. */
 type MovimientoAnidado = Record<string, unknown> & {
   pagos?: { ventas?: { ticket?: number; clientes?: { nombre?: string } | null } | null } | null;
-  pagos_gastos?: { gastos?: { proveedor?: string | null; numero_factura?: string | null; proveedores?: { nombre?: string } | null } | null } | null;
-  pagos_ingresos?: { ingresos?: { cliente?: string | null; numero_factura?: string | null; clientes?: { nombre?: string } | null } | null } | null;
+  pagos_gastos?: { gastos?: { proveedor?: string | null; numero_factura?: string | null; tipo?: string | null; categoria?: string | null; descripcion?: string | null; proveedores?: { nombre?: string } | null } | null } | null;
+  pagos_ingresos?: { ingresos?: { cliente?: string | null; numero_factura?: string | null; categoria?: string | null; concepto?: string | null; clientes?: { nombre?: string } | null } | null } | null;
   ventas?: { ticket?: number; clientes?: { nombre?: string } | null } | null;
 };
 
@@ -240,20 +240,30 @@ function aplanarTercero(m: MovimientoAnidado) {
   const { pagos, pagos_gastos, pagos_ingresos, ventas, ...plano } = m;
   let tercero: string | null = null;
   let factura: string | null = null;
+  // El concepto guardado es una copia del momento del pago: si después se edita
+  // el gasto/ingreso (cambiar de Gasto a Costo, corregir la descripción), el
+  // asiento seguía mostrando el texto viejo. Se rearma en vivo con la misma
+  // fórmula de `pagar_gasto`/`cobrar_ingreso`, y así también quedan al día los
+  // movimientos anteriores sin tener que tocar datos.
+  let concepto = (plano.concepto as string | null) ?? null;
 
   if (pagos?.ventas) {
     tercero = pagos.ventas.clientes?.nombre || (pagos.ventas.ticket ? `Ticket #${pagos.ventas.ticket}` : null);
   } else if (pagos_gastos?.gastos) {
-    tercero = pagos_gastos.gastos.proveedores?.nombre || pagos_gastos.gastos.proveedor || null;
-    factura = pagos_gastos.gastos.numero_factura || null;
+    const g = pagos_gastos.gastos;
+    tercero = g.proveedores?.nombre || g.proveedor || null;
+    factura = g.numero_factura || null;
+    if (g.tipo) concepto = `Pago ${g.tipo.toLowerCase()}: ${g.descripcion || g.categoria || "sin descripción"}`;
   } else if (pagos_ingresos?.ingresos) {
-    tercero = pagos_ingresos.ingresos.clientes?.nombre || pagos_ingresos.ingresos.cliente || null;
-    factura = pagos_ingresos.ingresos.numero_factura || null;
+    const i = pagos_ingresos.ingresos;
+    tercero = i.clientes?.nombre || i.cliente || null;
+    factura = i.numero_factura || null;
+    concepto = `Cobro ingreso: ${i.concepto || i.categoria || "sin concepto"}`;
   } else if (ventas) {
     const nombre = ventas.clientes?.nombre;
     tercero = nombre ? `${nombre}${ventas.ticket ? ` (Ticket #${ventas.ticket})` : ""}` : (ventas.ticket ? `Ticket #${ventas.ticket}` : null);
   }
-  return { ...plano, tercero, factura };
+  return { ...plano, tercero, factura, concepto };
 }
 
 /**
@@ -267,8 +277,8 @@ export async function movimientosBancarios() {
       .from("movimientos_bancarios")
       .select(`*,
         pagos:pago_id(ventas(ticket, clientes(nombre))),
-        pagos_gastos:pago_gasto_id(gastos(proveedor, numero_factura, proveedores(nombre))),
-        pagos_ingresos:pago_ingreso_id(ingresos(cliente, numero_factura, clientes(nombre))),
+        pagos_gastos:pago_gasto_id(gastos(proveedor, numero_factura, tipo, categoria, descripcion, proveedores(nombre))),
+        pagos_ingresos:pago_ingreso_id(ingresos(cliente, numero_factura, categoria, concepto, clientes(nombre))),
         ventas:venta_id(ticket, clientes(nombre))`)
       .order("fecha", { ascending: false }).order("id", { ascending: false });
     if (error) throw new Error(error.message);
