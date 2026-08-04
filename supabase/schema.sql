@@ -224,6 +224,20 @@ create table nativo.pagos (
 );
 create index idx_pagos_venta on nativo.pagos (venta_id);
 
+-- SOPORTES DE PAGO: comprobantes de cada abono (transferencia, consignación,
+-- recibo de caja). Tabla aparte para poder adjuntar varios por abono y
+-- agregarlos después de registrado el pago. Ver migración 030.
+create table nativo.pagos_soportes (
+  id bigint generated always as identity primary key,
+  pago_id bigint not null references nativo.pagos (id) on delete cascade,
+  url text not null,
+  nombre_archivo text,
+  tipo_archivo text,
+  usuario text,
+  creado_en timestamptz not null default now()
+);
+create index idx_pagos_soportes_pago on nativo.pagos_soportes (pago_id);
+
 -- ------------------------------------------------------------
 -- HISTORIAL DE ENTREGAS (cada cambio de estado)
 -- ------------------------------------------------------------

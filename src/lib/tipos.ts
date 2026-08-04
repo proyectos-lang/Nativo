@@ -454,6 +454,23 @@ export type Pago = {
   creado_en: string;
 };
 
+/** Comprobante de un abono: transferencia, consignación, recibo de caja. */
+export type SoportePago = {
+  id: number;
+  pago_id: number;
+  url: string;
+  nombre_archivo: string | null;
+  tipo_archivo: string | null;
+  usuario: string | null;
+  creado_en: string;
+};
+
+/** Un soporte es PDF si su MIME o su extensión lo dicen; si no, se trata como imagen. */
+export function soporteEsPdf(s: { tipo_archivo?: string | null; url?: string | null }): boolean {
+  if (s.tipo_archivo) return s.tipo_archivo === "application/pdf";
+  return (s.url || "").toLowerCase().endsWith(".pdf");
+}
+
 export type HistorialEntrega = {
   id: number;
   venta_id: number;

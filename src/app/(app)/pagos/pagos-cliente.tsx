@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { registrarPago, editarPago, anularPago } from "./acciones";
+import { registrarPago, editarPago, anularPago, type SoporteNuevo } from "./acciones";
+import { SelectorSoportes, BotonSoportes, DialogoSoportes } from "./soportes-pago";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,9 +14,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pencil, Ban, ShieldAlert } from "lucide-react";
-import { formatoPesos, formatoFecha, type Venta, type Pago, type CuentaBancaria } from "@/lib/tipos";
+import { formatoPesos, formatoFecha, type Venta, type Pago, type CuentaBancaria, type SoportePago } from "@/lib/tipos";
 
-export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pagos: Record<number, Pago[]>; cuentas: CuentaBancaria[] }) {
+export function PagosCliente({ ventas, pagos, cuentas, soportes }: {
+  ventas: Venta[];
+  pagos: Record<number, Pago[]>;
+  cuentas: CuentaBancaria[];
+  soportes: Record<number, SoportePago[]>;
+}) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -28,6 +34,10 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [comentario, setComentario] = useState("");
   const [cuentaId, setCuentaId] = useState(0);
+  // Comprobantes ya subidos del abono que se está registrando
+  const [soportesNuevos, setSoportesNuevos] = useState<SoporteNuevo[]>([]);
+  // Abono cuyos soportes se están viendo
+  const [pagoSoportes, setPagoSoportes] = useState<Pago | null>(null);
 
   const totalRetenciones = (Number(retefuente) || 0) + (Number(reteiva) || 0) + (Number(reteica) || 0);
 
@@ -52,13 +62,17 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
   const abrir = (v: Venta) => {
     setSel(v); setAbono(0); setRetefuente(0); setReteiva(0); setReteica(0);
     setFecha(new Date().toISOString().slice(0, 10)); setComentario(""); setCuentaId(0);
+    setSoportesNuevos([]);
   };
 
   const procesar = () => {
     if (!sel) return;
     startTransition(async () => {
       try {
-        await registrarPago({ venta_id: sel.id, abono, retefuente, reteiva, reteica, fecha, comentario, cuenta_id: cuentaId || null });
+        await registrarPago({
+          venta_id: sel.id, abono, retefuente, reteiva, reteica, fecha, comentario,
+          cuenta_id: cuentaId || null, soportes: soportesNuevos,
+        });
         toast.success(`Pago aplicado al ticket #${sel.ticket}`);
         setSel(null);
         router.refresh();
@@ -220,6 +234,7 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                             <TableCell className="text-right">{formatoPesos(p.retencion)}</TableCell>
                             <TableCell className="max-w-52 truncate text-xs">{p.comentario || "-"}</TableCell>
                             <TableCell className="whitespace-nowrap">
+                              <BotonSoportes cantidad={soportes[p.id]?.length ?? 0} onClick={() => setPagoSoportes(p)} />
                               <Button variant="ghost" size="icon" title="Editar abono (requiere clave)" onClick={() => abrirEdicion(p)}>
                                 <Pencil className="size-4" />
                               </Button>
@@ -266,6 +281,11 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
                   </p>
                 </div>
               </div>
+
+              <div className="rounded-md border p-3">
+                <SelectorSoportes soportes={soportesNuevos} onCambio={setSoportesNuevos} />
+              </div>
+
               <p className="text-sm">
                 Nuevo saldo proyectado:{" "}
                 <span className={`font-bold ${nuevoSaldo > 0 ? "text-destructive" : "text-primary"}`}>{formatoPesos(nuevoSaldo)}</span>
@@ -348,6 +368,13 @@ export function PagosCliente({ ventas, pagos, cuentas }: { ventas: Venta[]; pago
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* SOPORTES DE UN ABONO YA REGISTRADO */}
+      <DialogoSoportes
+        pago={pagoSoportes}
+        soportes={pagoSoportes ? (soportes[pagoSoportes.id] ?? []) : []}
+        onCerrar={() => setPagoSoportes(null)}
+      />
     </div>
   );
 }

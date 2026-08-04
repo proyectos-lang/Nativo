@@ -213,6 +213,25 @@ export async function pagosPorVenta(): Promise<Record<number, unknown[]>> {
   return out;
 }
 
+/**
+ * Comprobantes de cada abono, agrupados por pago. Best-effort: si la migración
+ * 030 aún no corrió, devuelve vacío en vez de tumbar el módulo de Pagos.
+ */
+export async function soportesPorPago(): Promise<Record<number, unknown[]>> {
+  try {
+    const { data, error } = await db().from("pagos_soportes").select("*").order("id");
+    if (error) return {};
+    const out: Record<number, unknown[]> = {};
+    for (const s of data || []) {
+      if (!out[s.pago_id]) out[s.pago_id] = [];
+      out[s.pago_id].push(s);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 /** Cuentas bancarias con su saldo actual calculado desde los movimientos. */
 export async function cuentasConSaldo() {
   const [{ data: cuentas, error: e1 }, { data: movs, error: e2 }] = await Promise.all([

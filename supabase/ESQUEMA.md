@@ -300,7 +300,25 @@ Trazabilidad de cada abono/retención aplicada a una venta (la migración creó 
 | usuario | text | null | Usuario de la app que registró el pago |
 | creado_en | timestamptz | not null, default `now()` | |
 
-Índice: `idx_pagos_venta (venta_id)`. Las retenciones reducen el saldo de la venta pero **no son efectivo**: al banco solo entra `abono`.
+Índice: `idx_pagos_venta (venta_id)`. Las retenciones reducen el saldo de la venta pero **no son efectivo**. Desde la migración 029 el pago **no genera movimiento bancario**; `cuenta_id` queda como dato informativo de a qué cuenta entró el dinero.
+
+---
+
+## pagos_soportes
+
+Comprobantes de cada abono: la transferencia, la consignación, el recibo de caja (migración 030). Tabla aparte y no una columna en `pagos` para poder adjuntar **varios** por abono, agregarlos después de registrado el pago y borrar uno sin tocar los demás.
+
+| Columna | Tipo | Nulos/Default | Descripción |
+|---|---|---|---|
+| id | bigint | PK identity | |
+| pago_id | bigint | not null, FK → `pagos(id)` **on delete cascade** | Anular un abono se lleva sus soportes: sin el pago no significan nada |
+| url | text | not null | URL pública en el bucket `guias`, prefijo `soportes/` |
+| nombre_archivo | text | null | Nombre original, para mostrarlo en la lista |
+| tipo_archivo | text | null | MIME; distingue imagen de PDF al renderizar |
+| usuario | text | null | Quién lo subió |
+| creado_en | timestamptz | not null, default `now()` | |
+
+Índice: `idx_pagos_soportes_pago`. Subidas siempre server-side (`subirSoportePago`, permiso `pagos`), nunca directo desde el navegador. Al eliminar un soporte se borra también el archivo del bucket.
 
 ---
 
@@ -984,4 +1002,7 @@ En una sola transacción: resta `p_valor_perdido` de `ventas.total_compra` de la
 
 ## Storage
 
-- Bucket **`guias`** (público): imágenes de referencia de estampado/bordado por línea de producto. Las URLs públicas se guardan en `ventas_detalle.imagen_estampado_url` / `imagen_bordado_url`. Subidas siempre server-side (`subirImagenLinea`, permiso `ventas`), nunca directo desde el navegador.
+- Bucket **`guias`** (público). Dos usos:
+  - Raíz: imágenes de referencia de estampado/bordado por línea de producto. Las URLs públicas se guardan en `ventas_detalle.imagen_estampado_url` / `imagen_bordado_url`. Subidas server-side con `subirImagenLinea` (permiso `ventas`).
+  - Prefijo **`soportes/`**: comprobantes de los abonos (`pagos_soportes.url`). Subidas server-side con `subirSoportePago` (permiso `pagos`).
+- Ambas subidas pasan siempre por el servidor, nunca directo desde el navegador. Formatos aceptados: PNG, JPG, WEBP, HEIC y PDF, hasta 5 MB.
