@@ -6,7 +6,56 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/** Texto plano de un nodo JSX, para usarlo como etiqueta del valor elegido. */
+function textoDe(nodo: React.ReactNode): string {
+  if (nodo == null || typeof nodo === "boolean") return ""
+  if (typeof nodo === "string" || typeof nodo === "number") return String(nodo)
+  if (Array.isArray(nodo)) return nodo.map(textoDe).join("")
+  if (React.isValidElement(nodo)) {
+    return textoDe((nodo.props as { children?: React.ReactNode }).children)
+  }
+  return ""
+}
+
+/** Recorre el árbol buscando SelectItem para armar el mapa valor → etiqueta. */
+function recolectarItems(nodo: React.ReactNode, mapa: Record<string, string>) {
+  React.Children.forEach(nodo, (hijo) => {
+    if (!React.isValidElement(hijo)) return
+    const props = hijo.props as { value?: unknown; children?: React.ReactNode }
+    if (hijo.type === SelectItem && props.value != null) {
+      mapa[String(props.value)] = textoDe(props.children)
+    } else {
+      recolectarItems(props.children, mapa)
+    }
+  })
+}
+
+/**
+ * `Select.Value` de Base UI pinta el valor CRUDO salvo que la raíz reciba el
+ * mapa `items`. Como en toda la app los selectores de cuentas, clientes,
+ * proveedores, etc. usan el id como value, el disparador mostraba el id en vez
+ * del nombre. Aquí se arma ese mapa recorriendo los propios `SelectItem`, así
+ * que funciona en todos los usos sin tener que tocarlos uno por uno. Pasar
+ * `items` explícitamente sigue teniendo prioridad.
+ */
+function Select<Value, Multiple extends boolean | undefined = false>({
+  items,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derivados = React.useMemo(() => {
+    if (items) return items
+    const mapa: Record<string, string> = {}
+    recolectarItems(children, mapa)
+    return Object.keys(mapa).length > 0 ? mapa : undefined
+  }, [items, children])
+
+  return (
+    <SelectPrimitive.Root items={derivados} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
