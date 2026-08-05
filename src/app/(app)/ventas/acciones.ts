@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
-import { verificarPin } from "@/lib/pin";
+import { verificarClaveAutorizada } from "@/lib/pin";
 import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 import type { Cliente } from "@/lib/tipos";
@@ -290,7 +290,7 @@ export async function actualizarVenta(datos: {
 }) {
   const sesion = await requierePermiso("ventas");
   try {
-    await verificarPin(datos.pin);
+    const autorizo = await verificarClaveAutorizada(datos.pin);
     const lineas = (datos.lineas || []).filter(l => l.producto?.trim());
     if (!lineas.length) throw new Error("La venta debe tener al menos un producto.");
 
@@ -347,9 +347,9 @@ export async function actualizarVenta(datos: {
     await registrarBitacora({
       usuario: sesion.usuario, modulo: "ventas", accion: "editar",
       entidad_tipo: "ventas", entidad_id: datos.venta_id,
-      descripcion: descripcionTicket("Venta", venta.ticket, total),
+      descripcion: `${descripcionTicket("Venta", venta.ticket, total)} — autorizó ${autorizo}`,
       datos_anteriores: { ...venta, lineas: lineasAntes || [] },
-      datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas },
+      datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas, autorizado_con: autorizo },
     });
 
     revalidatePath("/ventas");
@@ -394,7 +394,7 @@ export async function actualizarClienteVenta(datos: Partial<Cliente> & { id: num
 
 export async function eliminarVenta(ventaId: number, pin: string) {
   const sesion = await requierePermiso("ventas");
-  await verificarPin(pin);
+  const autorizo = await verificarClaveAutorizada(pin);
 
   const [{ data: venta }, { data: detalle }, { data: pagos }, { data: historial }] = await Promise.all([
     db().from("ventas").select("*").eq("id", ventaId).single(),
@@ -413,7 +413,7 @@ export async function eliminarVenta(ventaId: number, pin: string) {
     await registrarBitacora({
       usuario: sesion.usuario, modulo: "ventas", accion: "eliminar",
       entidad_tipo: "ventas", entidad_id: ventaId,
-      descripcion: descripcionTicket("Venta", venta.ticket, venta.total_compra),
+      descripcion: `${descripcionTicket("Venta", venta.ticket, venta.total_compra)} — autorizó ${autorizo}`,
       datos_anteriores: { ...venta, lineas: detalle || [], pagos: pagos || [], historial: historial || [] },
     });
   }

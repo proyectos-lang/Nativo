@@ -336,7 +336,10 @@ export function PagosCliente({ ventas, pagos, cuentas, soportes }: {
             </div>
             <div className="grid gap-1.5 rounded-md border border-destructive/40 p-3">
               <Label className="flex items-center gap-2"><ShieldAlert className="size-4 text-destructive" /> Clave de autorización *</Label>
-              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave del administrador de aprobaciones" />
+              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave de administración o de contabilidad" />
+              <p className="text-xs text-muted-foreground">
+                Sirve cualquiera de las dos. Queda en la bitácora con cuál se autorizó.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -359,7 +362,10 @@ export function PagosCliente({ ventas, pagos, cuentas, soportes }: {
             <div className="grid gap-1.5"><Label>Motivo</Label><Input value={motivoAnular} onChange={e => setMotivoAnular(e.target.value)} placeholder="Ej. Se registró por error" /></div>
             <div className="grid gap-1.5 rounded-md border border-destructive/40 p-3">
               <Label className="flex items-center gap-2"><ShieldAlert className="size-4 text-destructive" /> Clave de autorización *</Label>
-              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave del administrador de aprobaciones" />
+              <Input type="password" value={clave} onChange={e => setClave(e.target.value)} placeholder="Clave de administración o de contabilidad" />
+              <p className="text-xs text-muted-foreground">
+                Sirve cualquiera de las dos. Queda en la bitácora con cuál se autorizó.
+              </p>
             </div>
           </div>
           <DialogFooter>

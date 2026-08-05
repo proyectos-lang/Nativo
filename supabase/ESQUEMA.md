@@ -713,8 +713,18 @@ Fila única con ajustes globales del sistema.
 | Columna | Tipo | Nulos/Default | Descripción |
 |---|---|---|---|
 | id | bigint | PK identity | |
-| clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. PIN requerido para editar/eliminar ventas (Configuración → Seguridad la cambia) |
-| clave_contadora | text | not null, default `'CAMBIAR-5678'` | ⚠️ **TEXTO PLANO**. Clave requerida para editar gastos/ingresos en Financiero (Configuración → Seguridad la cambia, solo admin) |
+| clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. Clave de administración/gerencia (Configuración → Seguridad la cambia) |
+| clave_contadora | text | not null, default `'CAMBIAR-5678'` | ⚠️ **TEXTO PLANO**. Clave de contabilidad (Configuración → Seguridad la cambia, solo admin) |
+
+**Quién autoriza qué** (`src/lib/pin.ts`):
+
+| Operación | Verificador | Claves que sirven |
+|---|---|---|
+| Editar/eliminar **venta**, editar/anular **abono** | `verificarClaveAutorizada()` | administración **o** contabilidad (cualquiera) |
+| Editar gastos/ingresos y borrar movimientos en Financiero | `verificarPinContadora()` | solo contabilidad |
+| Cerrar arqueo, salida manual de inventario, anular orden de compra | `verificarPin()` | solo administración |
+
+Las operaciones sobre ventas y pagos aceptan **cualquiera de las dos** porque ambas áreas tienen por qué poder corregir dinero ya registrado sin depender la una de la otra. `verificarClaveAutorizada()` devuelve cuál se usó y la server action lo escribe en `bitacora` (`descripcion` y `datos_nuevos.autorizado_con`): sin eso no se sabría quién autorizó el cambio.
 | frecuencia_conteo | text | null, check `('Mensual','Trimestral','Semestral','Anual')` | Frecuencia deseada de conteos físicos de inventario (recordatorio en el dashboard) |
 | creado_en | timestamptz | not null, default `now()` | |
 

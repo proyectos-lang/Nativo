@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
-import { verificarPin } from "@/lib/pin";
+import { verificarClaveAutorizada } from "@/lib/pin";
 import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 
@@ -88,9 +88,9 @@ function revalidarPagos() {
 }
 
 /**
- * Corrige un abono ya registrado. Exige la clave de autorización (gerencia)
- * porque toca dinero ya contabilizado: reajusta el saldo de la venta y rehace
- * el movimiento bancario.
+ * Corrige un abono ya registrado. Exige clave de autorización porque toca
+ * dinero ya contabilizado: reajusta el saldo de la venta. Sirve la de
+ * administración o la de contabilidad, y queda en la bitácora cuál se usó.
  */
 export async function editarPago(datos: {
   pago_id: number;
@@ -104,7 +104,7 @@ export async function editarPago(datos: {
   pin: string;
 }) {
   const sesion = await requierePermiso("pagos");
-  await verificarPin(datos.pin);
+  const autorizo = await verificarClaveAutorizada(datos.pin);
 
   const abono = Math.max(Number(datos.abono) || 0, 0);
   const retefuente = Math.max(Number(datos.retefuente) || 0, 0);
@@ -132,9 +132,9 @@ export async function editarPago(datos: {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "pagos", accion: "editar",
     entidad_tipo: "pagos", entidad_id: datos.pago_id,
-    descripcion: descripcionTicket("Abono editado — Venta", data?.ticket, abono),
+    descripcion: `${descripcionTicket("Abono editado — Venta", data?.ticket, abono)} — autorizó ${autorizo}`,
     datos_anteriores: anterior ?? null,
-    datos_nuevos: { abono, retefuente, reteiva, reteica, fecha: datos.fecha, comentario: datos.comentario, cuenta_id: datos.cuenta_id, venta_resultante: data },
+    datos_nuevos: { abono, retefuente, reteiva, reteica, fecha: datos.fecha, comentario: datos.comentario, cuenta_id: datos.cuenta_id, autorizado_con: autorizo, venta_resultante: data },
   });
 
   revalidarPagos();
@@ -144,7 +144,7 @@ export async function editarPago(datos: {
 /** Anula (elimina) un abono y devuelve el saldo de la venta a su estado previo. */
 export async function anularPago(pagoId: number, pin: string, motivo?: string) {
   const sesion = await requierePermiso("pagos");
-  await verificarPin(pin);
+  const autorizo = await verificarClaveAutorizada(pin);
 
   const { data: anterior } = await db().from("pagos").select("*").eq("id", pagoId).single();
 
@@ -157,9 +157,9 @@ export async function anularPago(pagoId: number, pin: string, motivo?: string) {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "pagos", accion: "anular",
     entidad_tipo: "pagos", entidad_id: pagoId,
-    descripcion: descripcionTicket("Abono anulado — Venta", data?.ticket, anterior?.abono),
+    descripcion: `${descripcionTicket("Abono anulado — Venta", data?.ticket, anterior?.abono)} — autorizó ${autorizo}`,
     datos_anteriores: anterior ?? null,
-    datos_nuevos: { venta_resultante: data },
+    datos_nuevos: { autorizado_con: autorizo, venta_resultante: data },
     motivo: motivo?.trim() || null,
   });
 
