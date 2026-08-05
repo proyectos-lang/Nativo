@@ -205,7 +205,9 @@ Restricción: `unique (tipo, valor)`. Índice: `idx_listas_tipo (tipo)`. Los val
 
 Tipos en uso: `vendedora`, `talla`, `color`, `campana`, `motivo_compra`, `profesional`, `estado_entrega`, `canal_venta`, `estado_pago`, `medio_pago`, `tipo_pago`, `sexo`, `categoria_gasto`, `transportadora`, `categoria_ingreso`, `unidad_medida`, `taller`, `causal_devolucion`, `categoria_producto`, `tipo_manga`, `motivo_ajuste`, `motivo_traslado`, `categoria_activo`, `ubicacion_activo`, `motivo_baja_activo`, `area_activo`, `estado_activo`, `tipo_proveedor`, `area_solicitud`.
 
-`categoria_ingreso = 'Ventas'` es **informativa/manual** — no reemplaza el flujo automático `origen = 'pago_venta'` que ya alimenta `movimientos_bancarios` desde `registrar_pago`.
+`categoria_ingreso = 'Ventas'` es lo que la contadora registra a mano contra el extracto. Desde la migración 029 es la **única** fuente del banco para las ventas: `registrar_pago` ya no genera `origen = 'pago_venta'`. El cruce entre ese total y los abonos que registra el equipo comercial se hace en Financiero → Ingresos por Venta.
+
+`estado_entrega` incluye `'En Proceso'` como estado genérico inicial: es el valor por defecto al registrar una venta y el respaldo que usan `actualizarEntrega`, seguimiento y ventas cuando la venta aún no tiene estado. Los tres `'En Proceso ...'` específicos (Bordado, Confección, Estampado) lo detallan después.
 
 El catálogo de **productos** (tabla `productos`) es independiente de `listas_maestras` y se administra desde el módulo Inventario → Productos (la pantalla Configuración → Productos, redundante con esta, fue eliminada).
 

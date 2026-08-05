@@ -2247,6 +2247,22 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Semillas: estados de entrega. 'En Proceso' es el estado genérico
+-- inicial (coincide con el default de `ventas.estado_entrega` y con
+-- el respaldo que usan entregas, seguimiento y ventas); los tres
+-- 'En Proceso ...' lo detallan después. Ver migración 031.
+-- ------------------------------------------------------------
+insert into nativo.listas_maestras (tipo, valor) values
+  ('estado_entrega', 'Sin Procesar'),
+  ('estado_entrega', 'En Proceso'),
+  ('estado_entrega', 'En Proceso Confección'),
+  ('estado_entrega', 'En Proceso Estampado'),
+  ('estado_entrega', 'En Proceso Bordado'),
+  ('estado_entrega', 'Despachado'),
+  ('estado_entrega', 'Entregado')
+on conflict do nothing;
+
+-- ------------------------------------------------------------
 -- Semillas: lista maestra de transportadoras
 -- ------------------------------------------------------------
 insert into nativo.listas_maestras (tipo, valor) values
