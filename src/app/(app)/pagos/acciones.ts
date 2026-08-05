@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
-import { verificarClaveAutorizada } from "@/lib/pin";
+import { verificarClaveAutorizada, ETIQUETA_CLAVE } from "@/lib/pin";
 import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 
@@ -89,8 +89,8 @@ function revalidarPagos() {
 
 /**
  * Corrige un abono ya registrado. Exige clave de autorización porque toca
- * dinero ya contabilizado: reajusta el saldo de la venta. Sirve la de
- * administración o la de contabilidad, y queda en la bitácora cuál se usó.
+ * dinero ya contabilizado: reajusta el saldo de la venta. Sirve cualquiera de
+ * las tres claves de autorización, y queda en la bitácora cuál se usó.
  */
 export async function editarPago(datos: {
   pago_id: number;
@@ -132,7 +132,7 @@ export async function editarPago(datos: {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "pagos", accion: "editar",
     entidad_tipo: "pagos", entidad_id: datos.pago_id,
-    descripcion: `${descripcionTicket("Abono editado — Venta", data?.ticket, abono)} — autorizó ${autorizo}`,
+    descripcion: `${descripcionTicket("Abono editado — Venta", data?.ticket, abono)} — autorizó ${ETIQUETA_CLAVE[autorizo]}`,
     datos_anteriores: anterior ?? null,
     datos_nuevos: { abono, retefuente, reteiva, reteica, fecha: datos.fecha, comentario: datos.comentario, cuenta_id: datos.cuenta_id, autorizado_con: autorizo, venta_resultante: data },
   });
@@ -157,7 +157,7 @@ export async function anularPago(pagoId: number, pin: string, motivo?: string) {
   await registrarBitacora({
     usuario: sesion.usuario, modulo: "pagos", accion: "anular",
     entidad_tipo: "pagos", entidad_id: pagoId,
-    descripcion: `${descripcionTicket("Abono anulado — Venta", data?.ticket, anterior?.abono)} — autorizó ${autorizo}`,
+    descripcion: `${descripcionTicket("Abono anulado — Venta", data?.ticket, anterior?.abono)} — autorizó ${ETIQUETA_CLAVE[autorizo]}`,
     datos_anteriores: anterior ?? null,
     datos_nuevos: { autorizado_con: autorizo, venta_resultante: data },
     motivo: motivo?.trim() || null,

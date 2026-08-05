@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requierePermiso } from "@/lib/sesion";
-import { verificarClaveAutorizada } from "@/lib/pin";
+import { verificarClaveAutorizada, ETIQUETA_CLAVE } from "@/lib/pin";
 import { registrarBitacora, descripcionTicket } from "@/lib/bitacora";
 import { revalidatePath } from "next/cache";
 import type { Cliente } from "@/lib/tipos";
@@ -347,7 +347,7 @@ export async function actualizarVenta(datos: {
     await registrarBitacora({
       usuario: sesion.usuario, modulo: "ventas", accion: "editar",
       entidad_tipo: "ventas", entidad_id: datos.venta_id,
-      descripcion: `${descripcionTicket("Venta", venta.ticket, total)} — autorizó ${autorizo}`,
+      descripcion: `${descripcionTicket("Venta", venta.ticket, total)} — autorizó ${ETIQUETA_CLAVE[autorizo]}`,
       datos_anteriores: { ...venta, lineas: lineasAntes || [] },
       datos_nuevos: { ...venta, ...camposActualizados, lineas: nuevasLineas, autorizado_con: autorizo },
     });
@@ -413,7 +413,7 @@ export async function eliminarVenta(ventaId: number, pin: string) {
     await registrarBitacora({
       usuario: sesion.usuario, modulo: "ventas", accion: "eliminar",
       entidad_tipo: "ventas", entidad_id: ventaId,
-      descripcion: `${descripcionTicket("Venta", venta.ticket, venta.total_compra)} — autorizó ${autorizo}`,
+      descripcion: `${descripcionTicket("Venta", venta.ticket, venta.total_compra)} — autorizó ${ETIQUETA_CLAVE[autorizo]}`,
       datos_anteriores: { ...venta, lineas: detalle || [], pagos: pagos || [], historial: historial || [] },
     });
   }

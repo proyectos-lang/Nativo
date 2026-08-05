@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { cambiarPinAutorizacion, cambiarClaveContadora, cambiarFrecuenciaConteo } from "./acciones";
+import { cambiarPinAutorizacion, cambiarClaveContadora, cambiarClaveAdicional, cambiarFrecuenciaConteo } from "./acciones";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldAlert, Calculator, ClipboardCheck } from "lucide-react";
+import { ShieldAlert, Calculator, ClipboardCheck, KeyRound } from "lucide-react";
 
 export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: string }) {
   const [pendiente, startTransition] = useTransition();
@@ -20,6 +20,11 @@ export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: strin
   const [claveActual, setClaveActual] = useState("");
   const [claveNueva, setClaveNueva] = useState("");
   const [claveConfirmar, setClaveConfirmar] = useState("");
+
+  const [pendienteAdicional, startTransitionAdicional] = useTransition();
+  const [adicionalActual, setAdicionalActual] = useState("");
+  const [adicionalNueva, setAdicionalNueva] = useState("");
+  const [adicionalConfirmar, setAdicionalConfirmar] = useState("");
 
   const [pendienteFrecuencia, startTransitionFrecuencia] = useTransition();
   const [frecuencia, setFrecuencia] = useState(frecuenciaConteo || "ninguna");
@@ -55,13 +60,25 @@ export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: strin
     });
   };
 
+  const cambiarAdicional = () => {
+    if (adicionalNueva !== adicionalConfirmar) return toast.error("La nueva clave y su confirmación no coinciden.");
+    startTransitionAdicional(async () => {
+      try {
+        await cambiarClaveAdicional(adicionalActual, adicionalNueva);
+        toast.success("Clave adicional actualizada");
+        setAdicionalActual(""); setAdicionalNueva(""); setAdicionalConfirmar("");
+      } catch (e) { toast.error((e as Error).message); }
+    });
+  };
+
   return (
     <div className="mt-2 grid max-w-md gap-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ShieldAlert className="size-5 text-primary" /> PIN de Autorización</CardTitle>
+          <CardTitle className="flex items-center gap-2"><ShieldAlert className="size-5 text-primary" /> Clave de Administración</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Se pide al editar o eliminar una venta en Historial. Compártelo solo con quien deba autorizar esos cambios.
+            Autoriza editar o eliminar ventas y editar o anular abonos, además de cerrar arqueos, sacar mercancía
+            a mano y anular órdenes de compra — estas tres últimas <strong>solo</strong> con esta clave.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -76,9 +93,10 @@ export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: strin
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Calculator className="size-5 text-primary" /> Clave de la Contadora</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Calculator className="size-5 text-primary" /> Clave de Contabilidad</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Se pide al editar un gasto o ingreso en Financiero. Compártela solo con la contadora.
+            Autoriza editar gastos e ingresos y borrar movimientos en Financiero — eso <strong>solo</strong> con esta
+            clave —, y también editar o eliminar ventas y editar o anular abonos.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -87,6 +105,24 @@ export function SeguridadCliente({ frecuenciaConteo }: { frecuenciaConteo: strin
           <div className="grid gap-1.5"><Label>Confirmar nueva clave</Label><Input type="password" value={claveConfirmar} onChange={e => setClaveConfirmar(e.target.value)} /></div>
           <Button onClick={cambiarContadora} disabled={pendienteContadora || !claveActual || !claveNueva || !claveConfirmar}>
             {pendienteContadora ? "Guardando..." : "Cambiar Clave"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><KeyRound className="size-5 text-primary" /> Clave Adicional</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Tercera clave para editar o eliminar ventas y editar o anular abonos, para un área que necesite
+            corregir sin usar las otras dos. La bitácora registra con cuál de las tres se autorizó cada cambio.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-1.5"><Label>Clave actual</Label><Input type="password" value={adicionalActual} onChange={e => setAdicionalActual(e.target.value)} /></div>
+          <div className="grid gap-1.5"><Label>Nueva clave</Label><Input type="password" value={adicionalNueva} onChange={e => setAdicionalNueva(e.target.value)} placeholder="Mínimo 4 caracteres" /></div>
+          <div className="grid gap-1.5"><Label>Confirmar nueva clave</Label><Input type="password" value={adicionalConfirmar} onChange={e => setAdicionalConfirmar(e.target.value)} /></div>
+          <Button onClick={cambiarAdicional} disabled={pendienteAdicional || !adicionalActual || !adicionalNueva || !adicionalConfirmar}>
+            {pendienteAdicional ? "Guardando..." : "Cambiar Clave"}
           </Button>
         </CardContent>
       </Card>

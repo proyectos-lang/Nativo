@@ -178,6 +178,29 @@ export async function cambiarFrecuenciaConteo(frecuencia: string) {
   revalidatePath("/");
 }
 
+/**
+ * Tercera clave de autorización (migración 032). Sirve para lo mismo que las
+ * otras dos en ventas y pagos; se administra aquí igual que ellas.
+ */
+export async function cambiarClaveAdicional(claveActual: string, claveNueva: string) {
+  const sesion = await requierePermiso("configuracion");
+  if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar la clave adicional.");
+  if (!claveNueva?.trim() || claveNueva.trim().length < 4) throw new Error("La nueva clave debe tener al menos 4 caracteres.");
+
+  const { data, error: errGet } = await db().from("configuracion_sistema").select("id, clave_autorizacion_3").limit(1).single();
+  if (errGet) throw new Error(errGet.message);
+  if ((claveActual || "").trim() !== data.clave_autorizacion_3) throw new Error("La clave actual no coincide.");
+
+  const { error } = await db().from("configuracion_sistema").update({ clave_autorizacion_3: claveNueva.trim() }).eq("id", data.id);
+  if (error) throw new Error(error.message);
+  await registrarBitacora({
+    usuario: sesion.usuario, modulo: "configuracion", accion: "cambiar_clave",
+    entidad_tipo: "configuracion_sistema", entidad_id: data.id,
+    descripcion: "Clave adicional de autorización cambiada",
+  });
+  revalidatePath("/configuracion");
+}
+
 export async function cambiarClaveContadora(claveActual: string, claveNueva: string) {
   const sesion = await requierePermiso("configuracion");
   if (sesion.rol !== "admin") throw new Error("Solo un administrador puede cambiar la clave de la contadora.");

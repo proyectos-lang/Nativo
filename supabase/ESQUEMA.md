@@ -715,16 +715,17 @@ Fila única con ajustes globales del sistema.
 | id | bigint | PK identity | |
 | clave_autorizacion | text | not null, default `'CAMBIAR-1234'` | ⚠️ **TEXTO PLANO**. Clave de administración/gerencia (Configuración → Seguridad la cambia) |
 | clave_contadora | text | not null, default `'CAMBIAR-5678'` | ⚠️ **TEXTO PLANO**. Clave de contabilidad (Configuración → Seguridad la cambia, solo admin) |
+| clave_autorizacion_3 | text | not null, default `'CAMBIAR-8199'` | ⚠️ **TEXTO PLANO**. Tercera clave general para ventas y pagos (migración 032) |
 
 **Quién autoriza qué** (`src/lib/pin.ts`):
 
 | Operación | Verificador | Claves que sirven |
 |---|---|---|
-| Editar/eliminar **venta**, editar/anular **abono** | `verificarClaveAutorizada()` | administración **o** contabilidad (cualquiera) |
+| Editar/eliminar **venta**, editar/anular **abono** | `verificarClaveAutorizada()` | administración, contabilidad **o** la adicional (cualquiera) |
 | Editar gastos/ingresos y borrar movimientos en Financiero | `verificarPinContadora()` | solo contabilidad |
 | Cerrar arqueo, salida manual de inventario, anular orden de compra | `verificarPin()` | solo administración |
 
-Las operaciones sobre ventas y pagos aceptan **cualquiera de las dos** porque ambas áreas tienen por qué poder corregir dinero ya registrado sin depender la una de la otra. `verificarClaveAutorizada()` devuelve cuál se usó y la server action lo escribe en `bitacora` (`descripcion` y `datos_nuevos.autorizado_con`): sin eso no se sabría quién autorizó el cambio.
+Las operaciones sobre ventas y pagos aceptan **cualquiera de las tres** porque las distintas áreas tienen por qué poder corregir dinero ya registrado sin depender unas de otras. `verificarClaveAutorizada()` devuelve cuál se usó (`administracion` | `contabilidad` | `adicional`) y la server action lo escribe en `bitacora` (`descripcion` y `datos_nuevos.autorizado_con`): al ampliar quién puede autorizar, sin eso se perdería el rastro de quién lo hizo.
 | frecuencia_conteo | text | null, check `('Mensual','Trimestral','Semestral','Anual')` | Frecuencia deseada de conteos físicos de inventario (recordatorio en el dashboard) |
 | creado_en | timestamptz | not null, default `now()` | |
 

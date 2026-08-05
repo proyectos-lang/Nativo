@@ -411,7 +411,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
           )}
           <DialogFooter className="gap-2 sm:justify-between">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <ShieldAlert className="size-3.5" /> Editar o eliminar requiere la clave de administración o la de contabilidad.
+              <ShieldAlert className="size-3.5" /> Editar o eliminar requiere una clave de autorización: administración, contabilidad o la adicional.
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => pedirPin("editar")}><Pencil className="size-4" /> Editar</Button>
@@ -443,7 +443,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                Sirve la de administración o la de contabilidad. Queda registrado en la bitácora con cuál se autorizó.
+                Sirve la de administración, la de contabilidad o la adicional. Queda registrado en la bitácora con cuál se autorizó.
               </p>
             </div>
           </div>

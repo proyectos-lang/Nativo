@@ -282,6 +282,8 @@ create table nativo.configuracion_sistema (
   id bigint generated always as identity primary key,
   clave_autorizacion text not null default 'CAMBIAR-1234',
   clave_contadora text not null default 'CAMBIAR-5678',
+  -- Tercera clave general para ventas y pagos (migración 032)
+  clave_autorizacion_3 text not null default 'CAMBIAR-8199',
   frecuencia_conteo text
     constraint configuracion_frecuencia_conteo_check
     check (frecuencia_conteo is null or frecuencia_conteo in ('Mensual', 'Trimestral', 'Semestral', 'Anual')),
