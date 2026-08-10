@@ -216,7 +216,7 @@ export function EntregasCliente({ ventas, detalles, historial, estados, transpor
                           <span className={estaLista(d) ? "text-muted-foreground line-through" : ""}>
                             {d.producto}
                             <span className="ml-1 text-xs text-muted-foreground no-underline">
-                              {[d.talla && `Talla ${d.talla}`, d.color].filter(Boolean).join(" · ")}
+                              {[d.sexo, d.talla && `Talla ${d.talla}`, d.color].filter(Boolean).join(" · ")}
                             </span>
                           </span>
                         </label>

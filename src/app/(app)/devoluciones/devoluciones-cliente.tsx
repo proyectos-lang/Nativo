@@ -292,7 +292,7 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
                         <Checkbox checked={sel.incluir} onCheckedChange={v => actualizarSel(l.id, l, { incluir: !!v })} />
                         <span className="font-medium">{l.producto}</span>
                         <span className="text-xs text-muted-foreground">
-                          {[l.talla && `Talla ${l.talla}`, l.color].filter(Boolean).join(" · ")} · x{l.cantidad}
+                          {[l.sexo, l.talla && `Talla ${l.talla}`, l.color].filter(Boolean).join(" · ")} · x{l.cantidad}
                         </span>
                       </label>
                       {sel.incluir && (

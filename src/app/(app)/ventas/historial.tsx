@@ -115,7 +115,10 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
       const dets = detalles[v.id]?.length ? detalles[v.id] : [null];
       return dets.map(d => ({
         Fecha: v.fecha, Ticket: v.ticket, Cliente: v.clientes?.nombre || "", Empresa: v.clientes?.empresa || "",
-        Vendedora: v.vendedora || "", Producto: d?.producto || "", Cantidad: d?.cantidad || "",
+        Vendedora: v.vendedora || "", Producto: d?.producto || "",
+        // Sin talla y género el reporte no sirve para producir ni para empacar
+        Género: d?.sexo || "", Talla: d?.talla || "", Color: d?.color || "",
+        Cantidad: d?.cantidad || "",
         "Valor Unitario": d?.valor_unitario || "", "Total Línea": d?.valor_total || "",
         "Costo Línea": d ? (costoLinea(d) ?? "") : "",
         "Utilidad Línea": d && costoLinea(d) != null ? (Number(d.valor_total) || 0) - (costoLinea(d) as number) : "",
@@ -330,9 +333,16 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
                 <div className="grid gap-2">
                   {(detalles[sel.id] || []).map(d => (
                     <div key={d.id} className="rounded-md border p-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{d.producto} {d.talla && `· Talla ${d.talla}`} {d.color && `· ${d.color}`}</span>
-                        <span>{d.cantidad} x {formatoPesos(d.valor_unitario)} = <strong>{formatoPesos(d.valor_total)}</strong></span>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium">{d.producto}</span>
+                          {/* El género va en badge: es lo que distingue la prenda al confeccionar
+                              y al empacar, y perdido dentro del texto pasaba desapercibido. */}
+                          {d.sexo && <Badge variant="secondary" className="text-[10px]">{d.sexo}</Badge>}
+                          {d.talla && <Badge variant="outline" className="text-[10px]">Talla {d.talla}</Badge>}
+                          {d.color && <span className="text-xs text-muted-foreground">{d.color}</span>}
+                        </span>
+                        <span className="whitespace-nowrap">{d.cantidad} x {formatoPesos(d.valor_unitario)} = <strong>{formatoPesos(d.valor_total)}</strong></span>
                       </div>
                       {costoLinea(d) != null && (
                         <p className="text-xs text-muted-foreground">
