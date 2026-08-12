@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { Armchair, Boxes, Pencil, PackageMinus, RotateCcw, Trash2 } from "lucide-react";
+import { Armchair, Boxes, Pencil, PackageMinus, RotateCcw, Trash2, FileSpreadsheet } from "lucide-react";
 import { formatoPesos, type Activo, type Proveedor } from "@/lib/tipos";
 
 type Form = {
@@ -76,6 +76,49 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
         (a.marca || "").toLowerCase().includes(q) || (a.numero_serie || "").toLowerCase().includes(q) || (a.area || "").toLowerCase().includes(q);
     });
   }, [activos, busqueda, filtroEstado]);
+
+  /**
+   * Exporta lo que hay en pantalla (respeta búsqueda y filtro de estado), con
+   * la ficha completa que pide la contadora: los datos del activo, los de
+   * compra, los de depreciación y los de baja. Los valores van como número,
+   * no como texto con formato, para que la hoja pueda sumarlos.
+   */
+  const exportarExcel = async () => {
+    const XLSX = await import("xlsx");
+    const datos = lista.map(a => ({
+      "Fecha de ingreso": a.fecha_ingreso || "",
+      "Área": a.area || "",
+      "Código": a.codigo || "",
+      "Artículo": a.nombre,
+      "Categoría": a.categoria || "",
+      "Descripción": a.descripcion || "",
+      "Marca": a.marca || "",
+      "Color": a.color || "",
+      "Dimensiones": a.dimensiones || "",
+      "Modelo": a.modelo || "",
+      "N.º de serie / referencia": a.numero_serie || "",
+      "Ubicación": a.ubicacion || "",
+      "Cantidad": Number(a.cantidad) || 0,
+      "Costo unitario": Number(a.costo_unitario) || 0,
+      "Valor de compra": Number(a.valor_total) || 0,
+      "Fecha de adquisición": a.fecha_compra || "",
+      "Proveedor": a.proveedor || "",
+      "Número de factura": a.numero_factura || "",
+      "Garantía / vida útil": a.garantia_vida_util || "",
+      "Estado actual": a.estado_actual || "",
+      "Fecha de valoración": a.fecha_valuacion || "",
+      "Valor actual con depreciación": a.valor_actual_depreciacion != null ? Number(a.valor_actual_depreciacion) : "",
+      "Estado": a.estado,
+      "Fecha de baja": a.fecha_baja || "",
+      "Motivo de baja": a.motivo_baja || "",
+      "Valor de baja": a.valor_baja != null ? Number(a.valor_baja) : "",
+      "Observaciones de baja": a.observaciones_baja || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(datos);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Activos Fijos");
+    XLSX.writeFile(wb, `activos-fijos-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const abrir = (a?: Activo) => {
     if (a) {
@@ -207,7 +250,12 @@ export function ActivosCliente({ activos, proveedores, categorias, ubicaciones, 
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-sm text-muted-foreground">{lista.length} de {activos.length}</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">{lista.length} de {activos.length}</p>
+              <Button variant="outline" onClick={exportarExcel} disabled={lista.length === 0}>
+                <FileSpreadsheet className="size-4" /> Exportar
+              </Button>
+            </div>
           </div>
 
           <div className="max-h-[560px] tabla-scroll rounded-md border">
