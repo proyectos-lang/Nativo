@@ -26,6 +26,8 @@ export type LineaVenta = {
 
 export type NuevaVenta = {
   cliente_id: number;
+  /** Fecha real de la venta. Sin ella se usa hoy. */
+  fecha?: string;
   canal_venta?: string;
   campana?: string;
   vendedora?: string;
@@ -180,7 +182,10 @@ async function registrarVentaInterno(venta: NuevaVenta): Promise<ResultadoVenta>
 
   const { data: cab, error: errCab } = await db().from("ventas").insert({
     ticket,
-    fecha: new Date().toISOString().slice(0, 10),
+    // La fecha la decide quien registra: una venta capturada en septiembre
+    // puede ser de agosto, y antes se guardaba siempre la del día de captura,
+    // así que aparecía en el mes equivocado.
+    fecha: venta.fecha || new Date().toISOString().slice(0, 10),
     cliente_id: venta.cliente_id,
     canal_venta: venta.canal_venta || null,
     campana: venta.campana || null,
@@ -286,6 +291,8 @@ export async function actualizarVenta(datos: {
   orden_compra_cliente?: string;
   fecha_entrega?: string;
   costo_envio?: number;
+  /** Corrige la fecha de la venta. */
+  fecha?: string;
   lineas: LineaVenta[];
 }) {
   const sesion = await requierePermiso("ventas");
@@ -330,6 +337,8 @@ export async function actualizarVenta(datos: {
       profesional: datos.profesional || null,
       motivo_compra: datos.motivo_compra || null,
       orden_compra_cliente: datos.orden_compra_cliente?.trim() || null,
+      // Permite corregir la fecha de la venta; sin valor se conserva la que tenía
+      fecha: datos.fecha || venta.fecha,
       fecha_entrega: datos.fecha_entrega || null,
       costo_envio: costoEnvio,
       total_compra: total,

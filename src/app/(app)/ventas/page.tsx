@@ -23,8 +23,17 @@ async function tolerante<T>(nombre: string, consulta: () => Promise<T>, respaldo
   }
 }
 
-export default async function PaginaVentas() {
+/**
+ * Acepta filtros por URL para que el Dashboard pueda enlazar directo a las
+ * ventas de un mes ("Ventas del Mes", "Entregados"). Con cualquier filtro
+ * presente se abre la pestaña Historial en vez del formulario.
+ */
+export default async function PaginaVentas(
+  { searchParams }: { searchParams: Promise<{ desde?: string; hasta?: string; estado?: string; tab?: string }> },
+) {
   await requiereSesion();
+  const params = await searchParams;
+  const hayFiltro = !!(params.desde || params.hasta || params.estado);
   const [maestros, clientes, productos, ventas, detalles, cuentas, pagos, inventario, costosReceta] = await Promise.all([
     tolerante("listasMaestras", listasMaestras, {} as Record<string, string[]>),
     tolerante("clientesActivos", clientesActivos, [] as unknown[]),
@@ -39,7 +48,7 @@ export default async function PaginaVentas() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <Tabs defaultValue="registrar">
+      <Tabs defaultValue={hayFiltro || params.tab === "historial" ? "historial" : "registrar"}>
         <TabsList>
           <TabsTrigger value="registrar">Registrar Venta</TabsTrigger>
           <TabsTrigger value="historial">Historial</TabsTrigger>
@@ -57,6 +66,7 @@ export default async function PaginaVentas() {
             clientes={clientes as Cliente[]}
             inventario={inventario as InfoInventarioVenta[]}
             costosReceta={costosReceta as Record<string, number>}
+            filtroInicial={{ desde: params.desde, hasta: params.hasta, estado: params.estado }}
           />
         </TabsContent>
       </Tabs>

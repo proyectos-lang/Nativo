@@ -29,18 +29,25 @@ type Props = {
   inventario: InfoInventarioVenta[];
   /** Costo de receta por nombre de producto — respaldo para ventas sin costo congelado. */
   costosReceta: Record<string, number>;
+  /** Filtros que llegan por URL (enlaces del Dashboard). */
+  filtroInicial?: { desde?: string; hasta?: string; estado?: string };
 };
 
 type AccionPin = "editar" | "eliminar" | null;
 
-export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes, inventario, costosReceta }: Props) {
+export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, clientes, inventario, costosReceta, filtroInicial }: Props) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [desde, setDesde] = useState(filtroInicial?.desde || "");
+  const [hasta, setHasta] = useState(filtroInicial?.hasta || "");
   const [cliente, setCliente] = useState("");
-  const [soloPendientes, setSoloPendientes] = useState(true);
-  const [estado, setEstado] = useState("");
+  /**
+   * "Solo pendientes" viene activo por defecto, pero esconde justo lo que se
+   * quiere ver cuando se llega con un filtro desde el Dashboard: las ventas ya
+   * pagadas y entregadas de ese mes. Con filtro en la URL arranca apagado.
+   */
+  const [soloPendientes, setSoloPendientes] = useState(!(filtroInicial?.desde || filtroInicial?.hasta || filtroInicial?.estado));
+  const [estado, setEstado] = useState(filtroInicial?.estado || "");
 
   // Detalle (solo lectura)
   const [sel, setSel] = useState<Venta | null>(null);
@@ -82,7 +89,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
   const [edicionTicket, setEdicionTicket] = useState<number | null>(null);
   const [pinEdicion, setPinEdicion] = useState("");
   const [lineasEd, setLineasEd] = useState<LineaVenta[]>([]);
-  const [genEd, setGenEd] = useState({ canal_venta: "", campana: "", vendedora: "", profesional: "", motivo_compra: "", orden_compra_cliente: "", fecha_entrega: "", costo_envio: 0 });
+  const [genEd, setGenEd] = useState({ fecha: "", canal_venta: "", campana: "", vendedora: "", profesional: "", motivo_compra: "", orden_compra_cliente: "", fecha_entrega: "", costo_envio: 0 });
   const [clienteEdSel, setClienteEdSel] = useState<Cliente | null>(null);
   const [busquedaClienteEd, setBusquedaClienteEd] = useState("");
   const [dialogEditarCliente, setDialogEditarCliente] = useState(false);
@@ -145,6 +152,7 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
         }))
       : [{ producto: "", cantidad: 1, valor_unitario: 0 }]);
     setGenEd({
+      fecha: v.fecha || "",
       canal_venta: v.canal_venta || "", campana: v.campana || "", vendedora: v.vendedora || "",
       profesional: v.profesional || "", motivo_compra: v.motivo_compra || "", fecha_entrega: v.fecha_entrega || "",
       orden_compra_cliente: v.orden_compra_cliente || "",
@@ -516,6 +524,10 @@ export function HistorialVentas({ ventas, detalles, pagos, maestros, productos, 
               <div className="grid gap-1.5"><Label>Vendedora</Label><Combo opciones={maestros["vendedora"] || []} value={genEd.vendedora} onChange={v => setGenEd({ ...genEd, vendedora: v })} /></div>
               <div className="grid gap-1.5"><Label>Profesional</Label><Combo opciones={maestros["profesional"] || []} value={genEd.profesional} onChange={v => setGenEd({ ...genEd, profesional: v })} /></div>
               <div className="grid gap-1.5"><Label>Motivo de Compra</Label><Combo opciones={maestros["motivo_compra"] || []} value={genEd.motivo_compra} onChange={v => setGenEd({ ...genEd, motivo_compra: v })} /></div>
+              <div className="grid gap-1.5">
+                <Label>Fecha de la Venta</Label>
+                <Input type="date" value={genEd.fecha} onChange={e => setGenEd({ ...genEd, fecha: e.target.value })} />
+              </div>
               <div className="grid gap-1.5"><Label>Fecha Programada</Label><Input type="date" value={genEd.fecha_entrega} onChange={e => setGenEd({ ...genEd, fecha_entrega: e.target.value })} /></div>
               <div className="grid gap-1.5"><Label>Costo de Envío</Label><Input type="number" min={0} value={genEd.costo_envio || ""} onChange={e => setGenEd({ ...genEd, costo_envio: Number(e.target.value) })} placeholder="0" /></div>
               <div className="grid gap-1.5"><Label>OC / pedido del cliente</Label><Input value={genEd.orden_compra_cliente} onChange={e => setGenEd({ ...genEd, orden_compra_cliente: e.target.value })} placeholder="Ej. OC-4521" /></div>

@@ -11,6 +11,27 @@ function revalidarDevoluciones() {
   revalidatePath("/");
 }
 
+/**
+ * Resultado de una operación de devoluciones. Se devuelve como VALOR y no se
+ * lanza: en producción Next.js enmascara los errores lanzados desde un Server
+ * Action y el usuario solo ve "An error occurred in the Server Components
+ * render", sin la causa. Así el motivo real llega al toast.
+ */
+export type ResultadoDevolucion<T = void> =
+  | ({ ok: true } & (T extends void ? Record<string, never> : T))
+  | { ok: false; error: string };
+
+/** Envuelve el cuerpo de una acción para convertir cualquier throw en un valor. */
+async function conResultado<T extends object>(fn: () => Promise<T>): Promise<{ ok: true } & T | { ok: false; error: string }> {
+  try {
+    return { ok: true, ...(await fn()) };
+  } catch (e) {
+    const error = (e as Error).message || "No se pudo completar la operación.";
+    console.error("[devoluciones]", error);
+    return { ok: false, error };
+  }
+}
+
 export type ItemDevolucion = {
   ventas_detalle_id: number;
   cantidad_devuelta: number;
@@ -24,6 +45,7 @@ export async function crearDevolucion(datos: {
   comentario?: string;
   items: ItemDevolucion[];
 }) {
+  return conResultado(async () => {
   const sesion = await requierePermiso("devoluciones");
   const items = (datos.items || []).filter(i => i.ventas_detalle_id && Number(i.cantidad_devuelta) > 0);
   if (!items.length) throw new Error("Selecciona al menos una prenda a devolver.");
@@ -95,9 +117,11 @@ export async function crearDevolucion(datos: {
   revalidarDevoluciones();
   revalidatePath("/ventas");
   return { id: cab.id as number, ticket: venta.ticket as number };
+  });
 }
 
 export async function enviarAReproceso(detalleId: number, comentario?: string) {
+  return conResultado(async () => {
   const sesion = await requierePermiso("devoluciones");
   const { data: detalle, error: errGet } = await db()
     .from("devoluciones_detalle")
@@ -125,6 +149,8 @@ export async function enviarAReproceso(detalleId: number, comentario?: string) {
   });
 
   revalidarDevoluciones();
+  return {};
+  });
 }
 
 export async function resolverRecuperada(datos: {
@@ -137,6 +163,7 @@ export async function resolverRecuperada(datos: {
   reingresar_inventario?: boolean;
   ubicacion_id?: number;
 }) {
+  return conResultado(async () => {
   const sesion = await requierePermiso("devoluciones");
   if (datos.pagarAhora && !datos.cuenta_id) throw new Error("Selecciona la cuenta desde donde se paga.");
   if (datos.reingresar_inventario && !datos.ubicacion_id) throw new Error("Selecciona la ubicación donde reingresa la prenda.");
@@ -235,6 +262,8 @@ export async function resolverRecuperada(datos: {
   revalidarDevoluciones();
   revalidatePath("/financiero");
   revalidatePath("/inventario");
+  return { ticket_gasto: ticketGasto };
+  });
 }
 
 export async function resolverPerdida(datos: {
@@ -242,6 +271,7 @@ export async function resolverPerdida(datos: {
   cuenta_id_reembolso?: number;
   comentario?: string;
 }) {
+  return conResultado(async () => {
   const sesion = await requierePermiso("devoluciones");
   const { data: detalle, error: errGet } = await db()
     .from("devoluciones_detalle")
@@ -274,5 +304,6 @@ export async function resolverPerdida(datos: {
   revalidarDevoluciones();
   revalidatePath("/ventas");
   revalidatePath("/financiero");
-  return venta;
+  return { valor_perdido: valorPerdido };
+  });
 }

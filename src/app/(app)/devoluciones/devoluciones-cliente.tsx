@@ -93,10 +93,16 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
     return { texto: `${recuperadas}/${total} recuperada${total > 1 ? "s" : ""}`, variante: "default" as const };
   };
 
-  const correr = (fn: () => Promise<unknown>, exito: string, cerrar?: () => void) => {
+  /**
+   * Las acciones devuelven el error como valor en vez de lanzarlo, porque en
+   * producción Next.js enmascara los throws de un Server Action y el usuario
+   * solo veía un mensaje genérico. El try/catch se conserva para fallos de red.
+   */
+  const correr = (fn: () => Promise<{ ok: boolean; error?: string }>, exito: string, cerrar?: () => void) => {
     startTransition(async () => {
       try {
-        await fn();
+        const r = await fn();
+        if (!r.ok) { toast.error(r.error || "No se pudo completar la operación."); return; }
         toast.success(exito);
         cerrar?.();
         router.refresh();
@@ -160,22 +166,27 @@ export function DevolucionesCliente({ ventas, detallesVenta, devoluciones, detal
     if (!dialogPerdida) return;
     startTransition(async () => {
       try {
-        await resolverPerdida({
+        const r = await resolverPerdida({
           detalle_id: dialogPerdida.id,
           comentario: comentarioPerdida,
           cuenta_id_reembolso: pedirCuentaPerdida ? (cuentaPerdida || undefined) : undefined,
         });
+        if (!r.ok) {
+          // El RPC pide la cuenta solo cuando el cliente ya había pagado de más
+          // y hay que reembolsarle: se revela el campo en vez de solo avisar.
+          if (r.error.toLowerCase().includes("cuenta")) {
+            setPedirCuentaPerdida(true);
+            toast.info(r.error);
+          } else {
+            toast.error(r.error);
+          }
+          return;
+        }
         toast.success("Prenda marcada como pérdida");
         setDialogPerdida(null);
         router.refresh();
       } catch (e) {
-        const msg = (e as Error).message;
-        if (msg.includes("selecciona una cuenta")) {
-          setPedirCuentaPerdida(true);
-          toast.info(msg);
-        } else {
-          toast.error(msg);
-        }
+        toast.error((e as Error).message);
       }
     });
   };

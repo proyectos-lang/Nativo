@@ -59,6 +59,10 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   const [estadoPago, setEstadoPago] = useState("");
   const [medioPago, setMedioPago] = useState("");
   const [tipoPago, setTipoPago] = useState("0 DIAS");
+  // Fecha real de la venta. Editable porque se registran ventas de días
+  // anteriores: antes se guardaba siempre la de captura y la venta caía en el
+  // mes equivocado.
+  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().slice(0, 10));
   const [fechaPago, setFechaPago] = useState("");
   const [estadoEntrega, setEstadoEntrega] = useState("En Proceso");
   const [fechaEntrega, setFechaEntrega] = useState("");
@@ -100,6 +104,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
       try {
         const r = await registrarVenta({
           cliente_id: clienteSel.id,
+          fecha: fechaVenta,
           canal_venta: canal, campana, vendedora, profesional, motivo_compra: motivo,
           orden_compra_cliente: ordenCompra,
           lineas, abono, cuenta_id: cuentaId || null, costo_envio: costoEnvio,
@@ -114,6 +119,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
         setAbono(0); setCostoEnvio(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
+        setFechaVenta(new Date().toISOString().slice(0, 10));
         setFechaPago(""); setEstadoEntrega("En Proceso"); setFechaEntrega(""); setObservaciones("");
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
@@ -336,6 +342,11 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
             <div className="grid gap-1.5"><Label>Estado de Pago</Label><Combo opciones={maestros["estado_pago"] || []} value={estadoPago} onChange={v => { setEstadoPago(v); if (v === "Pagado Total") setAbono(total); }} /></div>
             <div className="grid gap-1.5"><Label>Medio de Pago</Label><Combo opciones={maestros["medio_pago"] || []} value={medioPago} onChange={setMedioPago} /></div>
             <div className="grid gap-1.5"><Label>Tipo de Pago</Label><Combo opciones={maestros["tipo_pago"] || []} value={tipoPago} onChange={setTipoPago} /></div>
+            <div className="grid gap-1.5">
+              <Label>Fecha de la Venta *</Label>
+              <Input type="date" value={fechaVenta} onChange={e => setFechaVenta(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Cámbiala si registras hoy una venta de otro día.</p>
+            </div>
             <div className="grid gap-1.5"><Label>Fecha Pago</Label><Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} /></div>
             <div className="grid gap-1.5"><Label>Estado Pedido / Entrega</Label><Combo opciones={maestros["estado_entrega"] || []} value={estadoEntrega} onChange={setEstadoEntrega} /></div>
             <div className="grid gap-1.5"><Label>Fecha Programada de Entrega</Label><Input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} /></div>

@@ -68,6 +68,13 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
     return d.getMonth() === m && d.getFullYear() === a;
   };
   const ventasMes = ventas.filter(v => enMes(v.fecha, mes, anio));
+
+  // Rango del mes en texto, para que las tarjetas puedan enlazar al Historial
+  // de Ventas ya filtrado (día 0 del mes siguiente = último día de este mes).
+  const dosDigitos = (n: number) => String(n).padStart(2, "0");
+  const desdeMes = `${anio}-${dosDigitos(mes + 1)}-01`;
+  const hastaMes = `${anio}-${dosDigitos(mes + 1)}-${dosDigitos(new Date(anio, mes + 1, 0).getDate())}`;
+  const rangoMes = `desde=${desdeMes}&hasta=${hastaMes}`;
   const totalVentasMes = ventasMes.reduce((s, v) => s + v.total_compra, 0);
   const mesAnt = mes === 0 ? 11 : mes - 1;
   const anioAnt = mes === 0 ? anio - 1 : anio;
@@ -174,33 +181,37 @@ export default async function PaginaDashboard({ searchParams }: { searchParams: 
             </CardContent>
           </Card>
         </Link>
-        <Card className="h-full">
-          <CardContent className="pt-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Ventas del Mes</p>
-              <TrendingUp className="size-4 text-primary" />
-            </div>
-            <p className="text-2xl font-bold text-primary">{formatoPesos(totalVentasMes)}</p>
-            {variacion !== null ? (
-              <p className={`flex items-center gap-1 text-xs ${variacion >= 0 ? "text-primary" : "text-destructive"}`}>
-                {variacion >= 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                {Math.abs(variacion).toFixed(1)}% vs mes anterior
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">{ventasMes.length} ventas registradas</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="h-full">
-          <CardContent className="pt-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Entregados</p>
-              <CheckCircle2 className="size-4 text-primary" />
-            </div>
-            <p className="text-2xl font-bold">{entregadosMes}</p>
-            <p className="text-xs text-muted-foreground">en el mes seleccionado</p>
-          </CardContent>
-        </Card>
+        <Link href={`/ventas?${rangoMes}`}>
+          <Card className="h-full transition-colors hover:bg-accent/50">
+            <CardContent className="pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-muted-foreground">Ventas del Mes</p>
+                <TrendingUp className="size-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold text-primary">{formatoPesos(totalVentasMes)}</p>
+              {variacion !== null ? (
+                <p className={`flex items-center gap-1 text-xs ${variacion >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {variacion >= 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+                  {Math.abs(variacion).toFixed(1)}% vs mes anterior
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{ventasMes.length} ventas registradas</p>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href={`/ventas?${rangoMes}&estado=Entregado`}>
+          <Card className="h-full transition-colors hover:bg-accent/50">
+            <CardContent className="pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-muted-foreground">Entregados</p>
+                <CheckCircle2 className="size-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold">{entregadosMes}</p>
+              <p className="text-xs text-muted-foreground">en el mes seleccionado</p>
+            </CardContent>
+          </Card>
+        </Link>
         <Link href="/prospectos">
           <Card className="h-full transition hover:-translate-y-0.5 hover:shadow-md">
             <CardContent className="pt-2">
