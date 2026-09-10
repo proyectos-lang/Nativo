@@ -15,6 +15,8 @@ import {
   Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList,
 } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
+import { SelectorSoportes } from "@/app/(app)/pagos/soportes-pago";
+import type { SoporteNuevo } from "@/app/(app)/pagos/acciones";
 import { SubidaImagen } from "@/components/subida-imagen";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
@@ -63,6 +65,8 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
   // anteriores: antes se guardaba siempre la de captura y la venta caía en el
   // mes equivocado.
   const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().slice(0, 10));
+  // Comprobantes del abono inicial: se cuelgan del pago que crea la venta.
+  const [soportes, setSoportes] = useState<SoporteNuevo[]>([]);
   const [fechaPago, setFechaPago] = useState("");
   const [estadoEntrega, setEstadoEntrega] = useState("En Proceso");
   const [fechaEntrega, setFechaEntrega] = useState("");
@@ -105,6 +109,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         const r = await registrarVenta({
           cliente_id: clienteSel.id,
           fecha: fechaVenta,
+          soportes,
           canal_venta: canal, campana, vendedora, profesional, motivo_compra: motivo,
           orden_compra_cliente: ordenCompra,
           lineas, abono, cuenta_id: cuentaId || null, costo_envio: costoEnvio,
@@ -119,6 +124,7 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
         setClienteSel(null); setBusquedaCliente("");
         setLineas([{ ...LINEA_VACIA }]);
         setAbono(0); setCostoEnvio(0); setCuentaId(0); setEstadoPago(""); setMedioPago(""); setTipoPago("0 DIAS");
+        setSoportes([]);
         setFechaVenta(new Date().toISOString().slice(0, 10));
         setFechaPago(""); setEstadoEntrega("En Proceso"); setFechaEntrega(""); setObservaciones("");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -354,6 +360,11 @@ export function RegistrarVentaForm({ maestros, clientes: clientesIniciales, prod
               <Label>Observaciones</Label>
               <Textarea rows={2} value={observaciones} onChange={e => setObservaciones(e.target.value)} />
             </div>
+            {abono > 0 && (
+              <div className="rounded-md border p-3 sm:col-span-2 lg:col-span-3">
+                <SelectorSoportes soportes={soportes} onCambio={setSoportes} />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

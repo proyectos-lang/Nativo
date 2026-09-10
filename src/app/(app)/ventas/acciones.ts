@@ -24,6 +24,9 @@ export type LineaVenta = {
   sin_inventario?: boolean;
 };
 
+/** Comprobante de pago ya subido, para colgarlo del abono inicial. */
+export type SoporteVenta = { url: string; nombre_archivo?: string | null; tipo_archivo?: string | null };
+
 export type NuevaVenta = {
   cliente_id: number;
   /** Fecha real de la venta. Sin ella se usa hoy. */
@@ -46,6 +49,8 @@ export type NuevaVenta = {
   estado_entrega?: string;
   fecha_entrega?: string;
   observaciones_pago?: string;
+  /** Comprobantes del abono inicial (se adjuntan al pago que crea la venta). */
+  soportes?: SoporteVenta[];
 };
 
 type MatchInventario = { id: number; sku: string | null; controla_inventario: boolean; es_servicio: boolean };
@@ -246,6 +251,27 @@ async function registrarVentaInterno(venta: NuevaVenta): Promise<ResultadoVenta>
     if (errPago) {
       console.error("[ventas] abono inicial falló:", errPago.message);
       aviso = `La venta se registró, pero el abono inicial no se aplicó (${errPago.message}). Regístralo desde el módulo Pagos.`;
+    } else if (venta.soportes?.length) {
+      // El RPC devuelve la venta, no el pago: se busca el abono recién creado
+      // para colgarle los comprobantes. Best-effort — si falla, la venta y el
+      // abono ya quedaron, y el soporte se adjunta después desde Pagos.
+      try {
+        const { data: pago } = await db().from("pagos")
+          .select("id").eq("venta_id", cab.id)
+          .order("id", { ascending: false }).limit(1).maybeSingle();
+        if (pago) {
+          await db().from("pagos_soportes").insert(venta.soportes.map(sp => ({
+            pago_id: pago.id,
+            url: sp.url,
+            nombre_archivo: sp.nombre_archivo || null,
+            tipo_archivo: sp.tipo_archivo || null,
+            usuario: sesion.usuario,
+          })));
+        }
+      } catch (e) {
+        console.error("[ventas] no se pudieron adjuntar los soportes del abono inicial:", (e as Error).message);
+        aviso = "La venta y el abono quedaron registrados, pero no se pudo adjuntar el comprobante. Adjúntalo desde el módulo Pagos.";
+      }
     }
   }
 

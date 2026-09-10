@@ -149,10 +149,16 @@ export async function productosTodos(): Promise<string[]> {
 }
 
 /** Ventas con el cliente embebido, más recientes primero. */
+/**
+ * Ordena por FECHA de la venta y no por ticket. El ticket es correlativo al
+ * momento de capturar, así que una venta del día 7 registrada el 9 aparecía
+ * por encima de las del 8. El ticket desempata las del mismo día.
+ */
 export async function ventasConCliente() {
   const { data, error } = await db()
     .from("ventas")
     .select("*, clientes(id, nombre, empresa, contacto, ciudad)")
+    .order("fecha", { ascending: false })
     .order("ticket", { ascending: false });
   if (error) throw new Error(error.message);
   return data || [];
@@ -179,6 +185,7 @@ export async function ventasConClienteSinMontos() {
       fecha_entrega_real, transportadora, numero_guia, comentario_entrega, ubicacion_actual, creado_en,
       clientes(id, nombre, empresa, contacto, ciudad)
     `)
+    .order("fecha", { ascending: false })
     .order("ticket", { ascending: false });
   if (error) throw new Error(error.message);
   return data || [];
