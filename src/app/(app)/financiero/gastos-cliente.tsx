@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { HandCoins, PlusCircle, Plus, Trash2, Pencil, ShieldAlert, CheckCircle2, Truck } from "lucide-react";
+import { HandCoins, PlusCircle, Plus, Trash2, Pencil, ShieldAlert, CheckCircle2, Truck, FileSpreadsheet } from "lucide-react";
 import { formatoPesos, formatoFecha, type Gasto, type GastoDetalle, type PagoGasto, type CuentaBancaria, type Proveedor, type Bitacora } from "@/lib/tipos";
 
 type Props = {
@@ -166,6 +166,29 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
         String(g.ticket) === q;
     });
   }, [gastos, gastosDetalle, filtroEstado, filtroTipo, filtroCuenta, cuentasDeGasto, busqueda]);
+
+  /** Exporta la lista tal como está filtrada en pantalla. */
+  const exportarExcel = async () => {
+    const XLSX = await import("xlsx");
+    const datos = lista.map(g => ({
+      Ticket: g.ticket,
+      Fecha: g.fecha,
+      Tipo: g.tipo,
+      Categoría: g.categoria || "",
+      Proveedor: g.proveedor || "",
+      Detalle: (gastosDetalle[g.id] || []).map(d => d.articulo).join(", ") || g.descripcion || "",
+      Cuenta: cuentasDeGasto.get(g.id)?.nombres || "",
+      Factura: g.numero_factura || "",
+      Monto: Number(g.monto) || 0,
+      Abonado: Number(g.abonado) || 0,
+      Saldo: Number(g.saldo) || 0,
+      Estado: g.estado,
+      Usuario: g.usuario || "",
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datos), "Gastos y Costos");
+    XLSX.writeFile(wb, `gastos-costos-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const totalPendiente = useMemo(() => gastos.reduce((s, g) => s + (g.saldo > 0 ? Number(g.saldo) : 0), 0), [gastos]);
 
@@ -446,6 +469,9 @@ export function GastosCliente({ gastos, pagosGastos, cuentas, categorias: catego
                 {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={exportarExcel} disabled={lista.length === 0}>
+              <FileSpreadsheet className="size-4" /> Exportar Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

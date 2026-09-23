@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Pencil } from "lucide-react";
+import { Pencil, UserPlus } from "lucide-react";
 import { formatoFecha, type Prospecto } from "@/lib/tipos";
 
 const ESTADOS = ["Pendiente", "Contactado", "Venta Cerrada", "Descartado"];
@@ -24,6 +24,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
   const [pendiente, startTransition] = useTransition();
   const [verCerrados, setVerCerrados] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: "", telefono: "", correo: "", referido_por: "", evento_lugar: "", descripcion: "" });
+  const [formAbierto, setFormAbierto] = useState(false);
   const [sel, setSel] = useState<Prospecto | null>(null);
   const [edicion, setEdicion] = useState({ estado: "", fecha_contacto: "", proximo_contacto: "", observacion: "" });
 
@@ -38,6 +39,7 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
         await crearProspecto(nuevo);
         toast.success("Prospecto guardado");
         setNuevo({ nombre: "", telefono: "", correo: "", referido_por: "", evento_lugar: "", descripcion: "" });
+        setFormAbierto(false);
         router.refresh();
       } catch (e) { toast.error((e as Error).message); }
     });
@@ -64,30 +66,21 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
     e === "Contactado" ? "default" : e === "Venta Cerrada" ? "default" : e === "Descartado" ? "destructive" : "secondary";
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[320px_1fr]">
-      <Card className="h-fit">
-        <CardHeader><CardTitle>Registrar Prospecto</CardTitle></CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-1.5"><Label>Nombre *</Label><Input value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={nuevo.telefono} onChange={e => setNuevo({ ...nuevo, telefono: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Correo</Label><Input value={nuevo.correo} onChange={e => setNuevo({ ...nuevo, correo: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Referido por</Label><Input value={nuevo.referido_por} onChange={e => setNuevo({ ...nuevo, referido_por: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Evento / Lugar</Label><Input value={nuevo.evento_lugar} onChange={e => setNuevo({ ...nuevo, evento_lugar: e.target.value })} /></div>
-          <div className="grid gap-1.5"><Label>Descripción</Label><Textarea rows={2} value={nuevo.descripcion} onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })} /></div>
-          <Button onClick={guardarNuevo} disabled={pendiente || !nuevo.nombre.trim()}>Registrar</Button>
-        </CardContent>
-      </Card>
-
+    <div className="mx-auto max-w-7xl">
       <Card className="min-w-0">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle>Clientes por Contactar</CardTitle>
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={verCerrados} onCheckedChange={setVerCerrados} />
-            Ver ventas cerradas
-          </label>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={verCerrados} onCheckedChange={setVerCerrados} />
+              Ver ventas cerradas
+            </label>
+            <Button onClick={() => setFormAbierto(true)}><UserPlus className="size-4" /> Nuevo prospecto</Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="tabla-scroll max-h-[600px] rounded-md border">
+          {/* Alto atado a la ventana: la barra horizontal queda siempre a la vista sin bajar hasta el final */}
+          <div className="tabla-scroll max-h-[calc(100dvh-12rem)] rounded-md border">
             <Table className="min-w-[1150px]">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
@@ -132,6 +125,24 @@ export function ProspectosCliente({ prospectos }: { prospectos: Prospecto[] }) {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={formAbierto} onOpenChange={setFormAbierto}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Registrar Prospecto</DialogTitle></DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5 sm:col-span-2"><Label>Nombre *</Label><Input value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Teléfono</Label><Input value={nuevo.telefono} onChange={e => setNuevo({ ...nuevo, telefono: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Correo</Label><Input value={nuevo.correo} onChange={e => setNuevo({ ...nuevo, correo: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Referido por</Label><Input value={nuevo.referido_por} onChange={e => setNuevo({ ...nuevo, referido_por: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Evento / Lugar</Label><Input value={nuevo.evento_lugar} onChange={e => setNuevo({ ...nuevo, evento_lugar: e.target.value })} /></div>
+            <div className="grid gap-1.5 sm:col-span-2"><Label>Descripción</Label><Textarea rows={2} value={nuevo.descripcion} onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormAbierto(false)}>Cancelar</Button>
+            <Button onClick={guardarNuevo} disabled={pendiente || !nuevo.nombre.trim()}>Registrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!sel} onOpenChange={o => !o && setSel(null)}>
         <DialogContent>

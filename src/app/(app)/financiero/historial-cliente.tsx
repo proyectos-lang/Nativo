@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, FileSpreadsheet } from "lucide-react";
 import { formatoPesos, formatoFecha, NOMBRE_ORIGEN_MOVIMIENTO, type CuentaBancaria, type MovimientoBancario } from "@/lib/tipos";
 
 type Props = { cuentas: CuentaBancaria[]; movimientos: MovimientoBancario[] };
@@ -119,6 +119,27 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
       .sort((a, b) => (b.ingresos + b.egresos) - (a.ingresos + a.egresos));
   }, [filtrados]);
 
+  /** Exporta lo que hay en pantalla (respeta los filtros) más la sumatoria por categoría. */
+  const exportarExcel = async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filtrados.map(m => ({
+      Fecha: m.fecha,
+      Cuenta: nombreCuenta.get(m.cuenta_id) || "",
+      Tipo: NOMBRES_ORIGEN_EXTENDIDO[m.origen] || m.origen,
+      Categoría: m.categoria,
+      "Cliente / Proveedor": m.tercero || "",
+      Factura: m.factura || "",
+      Concepto: m.concepto || "",
+      Ingreso: m.tipo === "ingreso" ? Number(m.monto) : 0,
+      Egreso: m.tipo === "egreso" ? Number(m.monto) : 0,
+    }))), "Movimientos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porCategoria.map(c => ({
+      Categoría: c.nombre, Movimientos: c.n, Ingresos: c.ingresos, Egresos: c.egresos, Neto: c.neto,
+    }))), "Por categoría");
+    XLSX.writeFile(wb, `historial-financiero-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const limpiar = () => { setCuentaId("todas"); setOrigen("todas"); setCategoria("todas"); setDesde(""); setHasta(""); };
   const hayFiltros = cuentaId !== "todas" || origen !== "todas" || categoria !== "todas" || !!desde || !!hasta;
 
@@ -206,6 +227,9 @@ export function HistorialCliente({ cuentas, movimientos }: Props) {
           {hayFiltros && (
             <Button variant="ghost" onClick={limpiar}><X className="size-4" /> Limpiar filtros</Button>
           )}
+          <Button variant="outline" className="ml-auto" onClick={exportarExcel} disabled={filtrados.length === 0}>
+            <FileSpreadsheet className="size-4" /> Exportar Excel
+          </Button>
         </CardContent>
       </Card>
 

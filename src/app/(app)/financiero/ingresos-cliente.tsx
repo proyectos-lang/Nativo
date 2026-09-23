@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Combo } from "@/components/combo";
-import { HandCoins, PlusCircle, Pencil, ShieldAlert, UserPlus, CheckCircle2, FileText, Trash2 } from "lucide-react";
+import { HandCoins, PlusCircle, Pencil, ShieldAlert, UserPlus, CheckCircle2, FileText, Trash2, FileSpreadsheet } from "lucide-react";
 import { formatoPesos, formatoFecha, type Ingreso, type PagoIngreso, type CuentaBancaria, type Bitacora, type Cliente } from "@/lib/tipos";
 
 type Props = {
@@ -154,6 +154,30 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
         String(i.ticket) === q;
     });
   }, [ingresos, filtroEstado, filtroCuenta, cuentasDeIngreso, busqueda]);
+
+  /** Exporta la lista tal como está filtrada en pantalla. */
+  const exportarExcel = async () => {
+    const XLSX = await import("xlsx");
+    const datos = lista.map(i => ({
+      Ticket: i.ticket,
+      Fecha: i.fecha,
+      Cliente: i.cliente || "",
+      Categoría: i.categoria || "",
+      Concepto: i.concepto || "",
+      "Tipo de ingreso": i.tipo_ingreso || "",
+      Cuenta: cuentasDeIngreso.get(i.id)?.nombres || "",
+      Factura: i.numero_factura || "",
+      Facturación: i.estado_facturacion,
+      Monto: Number(i.monto) || 0,
+      Cobrado: Number(i.cobrado) || 0,
+      Saldo: Number(i.saldo) || 0,
+      Estado: i.estado,
+      Usuario: i.usuario || "",
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datos), "Ingresos");
+    XLSX.writeFile(wb, `ingresos-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const totalPendiente = useMemo(() => ingresos.reduce((s, i) => s + (i.saldo > 0 ? Number(i.saldo) : 0), 0), [ingresos]);
 
@@ -403,6 +427,9 @@ export function IngresosCliente({ ingresos, pagosIngresos, cuentas, categorias: 
                 {cuentas.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={exportarExcel} disabled={lista.length === 0}>
+              <FileSpreadsheet className="size-4" /> Exportar Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
